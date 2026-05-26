@@ -39,6 +39,7 @@
   <title>Tablero Operativo Supply Chain — Bosque Gin v2.4</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
+  <script src="cloud_config.js" onerror="if(!window.BG_CLOUD_URL)window.BG_CLOUD_URL='';"></script>
 <script src="bosquegin_data.js"></script>
   <style>
     :root {
@@ -3969,15 +3970,22 @@ async function _runCloudUpdate() {
   }
 
   try {
-    // 1. Obtener URL del túnel desde GitHub
-    var tunnelUrl = '';
-    try {
-      var r = await fetch(TUNNEL_URL_RAW + '?t=' + Date.now(), {cache: 'no-store'});
-      if (r.ok) tunnelUrl = (await r.text()).trim();
-    } catch(e) {}
+    // 1. Determinar URL del servidor (Render tiene prioridad sobre túnel)
+    var serverUrl = (window.BG_CLOUD_URL || '').trim();
+    var endpoint  = '/actualizar';
 
-    if (!tunnelUrl) {
-      return _fail('Servidor offline — pedile al administrador que active el servidor público (activar_tunel.py)');
+    if (!serverUrl) {
+      // Fallback: obtener URL del túnel desde GitHub
+      step.textContent = 'Buscando servidor…';
+      try {
+        var r = await fetch(TUNNEL_URL_RAW + '?t=' + Date.now(), {cache: 'no-store'});
+        if (r.ok) serverUrl = (await r.text()).trim();
+      } catch(e) {}
+      endpoint = '/actualizar-cloud';
+    }
+
+    if (!serverUrl) {
+      return _fail('Servidor offline — no hay servidor cloud configurado ni túnel activo');
     }
 
     // 2. Obtener credenciales de la sesión localStorage
@@ -3990,8 +3998,8 @@ async function _runCloudUpdate() {
     step.textContent = 'Conectando con el servidor…';
     bar.style.width  = '15%';
 
-    // 3. Llamar al endpoint /actualizar-cloud
-    var res = await fetch(tunnelUrl + '/actualizar-cloud', {
+    // 3. Llamar al endpoint de actualización
+    var res = await fetch(serverUrl + endpoint, {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
       body:    JSON.stringify({username: sess.username, cloud_token: sess.cloud_token})
