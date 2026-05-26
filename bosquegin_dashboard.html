@@ -4057,10 +4057,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (secs.includes(s)) tab.style.display = '';
       else                  { tab.style.display = 'none'; tab.classList.remove('active'); }
     });
-    // Actualizar button: solo en servidor local
+    // Actualizar button: visible para admin y editor en servidor local
     var btnUpd = document.getElementById('btn-update');
     var isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-    if (btnUpd && (!isLocal || me.role === 'viewer')) btnUpd.style.display = 'none';
+    var canUpdate = isLocal && (me.role === 'admin' || me.role === 'editor');
+    if (btnUpd) btnUpd.style.display = canUpdate ? '' : 'none';
     // User chip: mostrar en todos los modos
     if (chip) chip.style.display = 'flex';
   }
