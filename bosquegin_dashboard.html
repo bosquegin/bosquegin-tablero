@@ -3858,7 +3858,8 @@ document.getElementById('current-date').textContent =
 
 <script>
 // ── Update modal ──────────────────────────────────────────────────────────────
-const UPDATE_URL = '/actualizar';
+const UPDATE_URL     = '/actualizar';
+const TUNNEL_URL_RAW = 'https://raw.githubusercontent.com/bosquegin/bosquegin-tablero/main/tunnel_url.txt';
 let _updating = false;
 
 // Redirige a /login si la sesión venció (401)
@@ -3924,9 +3925,150 @@ const UPD_STEPS = [
   [/Proyecciones/i,                                      'Proyecciones…',           96],
 ];
 
+// ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
+async function _runCloudUpdate() {
+  const modal    = document.getElementById('update-modal');
+  const bar      = document.getElementById('upd-bar');
+  const icon     = document.getElementById('upd-icon');
+  const title    = document.getElementById('upd-title');
+  const step     = document.getElementById('upd-step');
+  const detail   = document.getElementById('upd-detail');
+  const errBox   = document.getElementById('upd-error');
+  const closeBtn = document.getElementById('upd-close-btn');
+  const dot      = document.getElementById('data-freshness-dot');
+  const btnLbl   = document.getElementById('update-btn-label');
+  const btnIcon  = document.getElementById('update-btn-icon');
+
+  // Reset modal
+  bar.style.width        = '4%';
+  bar.style.background   = '';
+  icon.textContent       = '⏳';
+  title.textContent      = 'Actualizando datos';
+  step.textContent       = 'Verificando servidor…';
+  detail.textContent     = '';
+  errBox.style.display   = 'none';
+  closeBtn.style.display = 'none';
+  modal.style.display    = 'flex';
+  btnIcon.textContent    = '⏳';
+  btnLbl.textContent     = 'Actualizando…';
+  dot.style.background   = '#eab308';
+  dot.style.boxShadow    = '0 0 8px #eab308';
+
+  function _fail(msg) {
+    bar.style.background   = 'var(--red)';
+    icon.textContent       = '⚠️';
+    title.textContent      = 'Servidor no disponible';
+    step.textContent       = msg;
+    errBox.style.display   = 'none';
+    closeBtn.style.display = 'block';
+    btnIcon.textContent    = '🔄';
+    btnLbl.textContent     = 'Actualizar';
+    dot.style.background   = 'var(--red)';
+    dot.style.boxShadow    = '0 0 8px var(--red)';
+    _updating = false;
+  }
+
+  try {
+    // 1. Obtener URL del túnel desde GitHub
+    var tunnelUrl = '';
+    try {
+      var r = await fetch(TUNNEL_URL_RAW + '?t=' + Date.now(), {cache: 'no-store'});
+      if (r.ok) tunnelUrl = (await r.text()).trim();
+    } catch(e) {}
+
+    if (!tunnelUrl) {
+      return _fail('Servidor offline — pedile al administrador que active el servidor público (activar_tunel.py)');
+    }
+
+    // 2. Obtener credenciales de la sesión localStorage
+    var sess = null;
+    try { sess = JSON.parse(localStorage.getItem('_bg_sess')); } catch(e) {}
+    if (!sess || !sess.cloud_token || sess.expires < Date.now()) {
+      return _fail('Sesión expirada — recargá la página e ingresá de nuevo');
+    }
+
+    step.textContent = 'Conectando con el servidor…';
+    bar.style.width  = '15%';
+
+    // 3. Llamar al endpoint /actualizar-cloud
+    var res = await fetch(tunnelUrl + '/actualizar-cloud', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({username: sess.username, cloud_token: sess.cloud_token})
+    });
+
+    if (res.status === 429) {
+      var e = await res.json().catch(function(){ return {}; });
+      return _fail(e.error || 'Espera unos minutos antes de volver a actualizar');
+    }
+    if (res.status === 401 || res.status === 403) {
+      var e = await res.json().catch(function(){ return {}; });
+      return _fail(e.error || 'No autorizado');
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    // 4. Leer respuesta en streaming (igual que modo local)
+    let fullLog = '';
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    const read = function() {
+      return reader.read().then(function(chunk) {
+        if (chunk.done) return;
+        const txt = decoder.decode(chunk.value, {stream: true});
+        fullLog += txt;
+        for (var i = UPD_STEPS.length - 1; i >= 0; i--) {
+          if (UPD_STEPS[i][0].test(fullLog)) {
+            bar.style.width  = UPD_STEPS[i][2] + '%';
+            step.textContent = UPD_STEPS[i][1];
+            break;
+          }
+        }
+        var lines = fullLog.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
+        if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 60);
+        return read();
+      });
+    };
+    await read();
+
+    // Éxito
+    bar.style.width      = '100%';
+    icon.textContent     = '✅';
+    title.textContent    = 'Listo';
+    step.textContent     = 'Datos actualizados';
+    detail.textContent   = '';
+    btnIcon.textContent  = '✅';
+    btnLbl.textContent   = 'Actualizar';
+    dot.style.background = 'var(--green)';
+    dot.style.boxShadow  = '0 0 8px var(--green)';
+    dot.title = 'Datos actualizados ahora';
+    setTimeout(function(){ modal.style.display = 'none'; location.reload(); }, 1200);
+
+  } catch(err) {
+    bar.style.background   = 'var(--red)';
+    icon.textContent       = '⚠️';
+    title.textContent      = 'Error de conexión';
+    step.textContent       = String(err.message || err);
+    errBox.style.display   = 'none';
+    closeBtn.style.display = 'block';
+    btnIcon.textContent    = '🔄';
+    btnLbl.textContent     = 'Actualizar';
+    dot.style.background   = 'var(--red)';
+    dot.style.boxShadow    = '0 0 8px var(--red)';
+  } finally {
+    _updating = false;
+  }
+}
+
 async function runUpdate() {
   if (_updating) return;
   _updating = true;
+
+  // En modo estático (GitHub Pages) usar el túnel en lugar del servidor local
+  var isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  if (!isLocal) {
+    await _runCloudUpdate();
+    return;
+  }
 
   const modal   = document.getElementById('update-modal');
   const bar     = document.getElementById('upd-bar');
@@ -5487,10 +5629,11 @@ async function _bgDoLogin() {
     var ok = await _bgVerifyPw(pw, user.salt, user.password_hash);
     if (!ok) throw new Error('Usuario o contraseña incorrectos');
 
-    // Guardar sesión 24h en localStorage
+    // Guardar sesión 24h en localStorage (incluye cloud_token para Actualizar remoto)
     var sess = {
       username: user.username, nombre: user.nombre,
       role: user.role, sections: user.sections,
+      cloud_token: user.cloud_token || '',
       expires: Date.now() + 24 * 3600 * 1000
     };
     localStorage.setItem('_bg_sess', JSON.stringify(sess));
