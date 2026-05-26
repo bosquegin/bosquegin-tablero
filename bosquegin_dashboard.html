@@ -16,18 +16,29 @@
         } catch(e) { location.href='/login'; }
       })();
     } else {
-      // Static mode: no server, Cloudflare Access handles auth at CDN level
-      window._BG_USER = {
-        username: 'guest', nombre: 'Bosque Gin', role: 'viewer',
-        sections: ['overview','inventario','inv-intel','ventas','destileria',
-                   'supply','logistica','calendario','costos','inv-insumos']
-      };
+      // Static mode: GitHub Pages — verificar sesión en localStorage
+      try {
+        var _raw = localStorage.getItem('_bg_sess');
+        if (_raw) {
+          var _parsed = JSON.parse(_raw);
+          if (_parsed.expires > Date.now()) {
+            window._BG_USER = {
+              username: _parsed.username, nombre: _parsed.nombre,
+              role: _parsed.role, sections: _parsed.sections
+            };
+          } else {
+            localStorage.removeItem('_bg_sess');
+          }
+        }
+      } catch(e) {}
+      // Si _BG_USER sigue null, el modal de login se mostrará en DOMContentLoaded
     }
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tablero Operativo Supply Chain — Bosque Gin v2.4</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
 <script src="bosquegin_data.js"></script>
   <style>
     :root {
@@ -473,7 +484,7 @@
       <span id="user-nombre" style="color:var(--text);font-weight:500"></span>
       <span id="user-role-badge" style="font-size:10px;padding:1px 7px;border-radius:10px;
             background:rgba(74,222,128,.15);color:var(--accent);font-weight:600"></span>
-      <a href="/logout" style="color:var(--muted);text-decoration:none;font-size:11px;
+      <a href="/logout" onclick="return _bgLogout()" style="color:var(--muted);text-decoration:none;font-size:11px;
          margin-left:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'"
          onmouseout="this.style.color='var(--muted)'">Salir</a>
     </div>
@@ -4016,6 +4027,10 @@ document.addEventListener('DOMContentLoaded', () => {
       }).then(function(u){ if(u) _applyUser(u); });
     } else if (me) {
       _applyUser(me);
+    } else {
+      // Static mode sin sesión — mostrar modal de login
+      var modal = document.getElementById('bg-login-modal');
+      if (modal) modal.style.display = 'flex';
     }
   })();
 
@@ -4042,12 +4057,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (secs.includes(s)) tab.style.display = '';
       else                  { tab.style.display = 'none'; tab.classList.remove('active'); }
     });
-    // Actualizar button: only on local server (not static/cloud)
+    // Actualizar button: solo en servidor local
     var btnUpd = document.getElementById('btn-update');
     var isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
     if (btnUpd && (!isLocal || me.role === 'viewer')) btnUpd.style.display = 'none';
-    // User chip: hide in static mode
-    if (!isLocal && chip) chip.style.display = 'none';
+    // User chip: mostrar en todos los modos
+    if (chip) chip.style.display = 'flex';
+    // Exponer para uso del modal de login estático
+    window._applyUser = _applyUser;
   }
 
   const meta = BOSQUE_DATA.meta || {};
@@ -5365,6 +5382,137 @@ function renderCalSummary() {
 
 </main>
 </div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--  MODAL DE LOGIN — modo estático (GitHub Pages)                        -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<div id="bg-login-modal" style="display:none;position:fixed;inset:0;z-index:9999;
+     background:#0d1117;align-items:center;justify-content:center">
+  <div style="background:#161b22;border:1px solid #2d3748;border-radius:16px;
+              padding:40px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.6)">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:32px">
+      <div style="width:44px;height:44px;background:linear-gradient(135deg,#4ade80,#22c55e);
+                  border-radius:12px;display:flex;align-items:center;justify-content:center;
+                  font-size:22px">🌲</div>
+      <div>
+        <div style="font-size:18px;font-weight:700;color:#e2e8f0">Bosque · Feriado · Temple</div>
+        <div style="font-size:12px;color:#8892a4;margin-top:2px">Tablero Operativo Supply Chain</div>
+      </div>
+    </div>
+    <div id="bg-login-err" style="display:none;background:rgba(239,68,68,.1);
+         border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:8px;
+         padding:10px 14px;font-size:13px;margin-bottom:16px"></div>
+    <form id="bg-login-form">
+      <label style="display:block;font-size:12px;color:#8892a4;text-transform:uppercase;
+                    letter-spacing:.6px;margin-bottom:6px">Usuario</label>
+      <input id="bg-usr" type="text" autocomplete="username" autofocus
+             style="width:100%;background:#1c2230;border:1px solid #2d3748;color:#e2e8f0;
+                    border-radius:8px;padding:10px 14px;font-size:14px;outline:none;
+                    box-sizing:border-box;margin-bottom:18px;transition:border-color .15s"
+             onfocus="this.style.borderColor='#4ade80'" onblur="this.style.borderColor='#2d3748'"/>
+      <label style="display:block;font-size:12px;color:#8892a4;text-transform:uppercase;
+                    letter-spacing:.6px;margin-bottom:6px">Contraseña</label>
+      <input id="bg-pw" type="password" autocomplete="current-password"
+             style="width:100%;background:#1c2230;border:1px solid #2d3748;color:#e2e8f0;
+                    border-radius:8px;padding:10px 14px;font-size:14px;outline:none;
+                    box-sizing:border-box;margin-bottom:18px;transition:border-color .15s"
+             onfocus="this.style.borderColor='#4ade80'" onblur="this.style.borderColor='#2d3748'"/>
+      <button id="bg-login-btn" type="submit"
+              style="width:100%;background:#4ade80;color:#000;border:none;border-radius:8px;
+                     padding:12px;font-size:14px;font-weight:700;cursor:pointer;
+                     transition:opacity .15s;margin-top:4px">Ingresar</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// ── Auth estática: PBKDF2 via WebCrypto ──────────────────────────────────────
+
+function _bgLogout() {
+  var isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+  if (!isLocal) {
+    localStorage.removeItem('_bg_sess');
+    location.reload();
+    return false;
+  }
+  return true; // seguir href /logout en modo local
+}
+
+async function _bgVerifyPw(password, saltHex, storedHash) {
+  var enc = new TextEncoder();
+  var keyMaterial = await crypto.subtle.importKey(
+    'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']
+  );
+  var saltBytes = new Uint8Array(saltHex.match(/.{2}/g).map(function(b){ return parseInt(b, 16); }));
+  var bits = await crypto.subtle.deriveBits(
+    {name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 100000},
+    keyMaterial, 256
+  );
+  var hash = Array.from(new Uint8Array(bits))
+    .map(function(b){ return b.toString(16).padStart(2, '0'); }).join('');
+  return hash === storedHash;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var form = document.getElementById('bg-login-form');
+  if (!form) return;
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    _bgDoLogin();
+  });
+});
+
+async function _bgDoLogin() {
+  var btn = document.getElementById('bg-login-btn');
+  var err = document.getElementById('bg-login-err');
+  var usr = (document.getElementById('bg-usr').value || '').trim();
+  var pw  = document.getElementById('bg-pw').value || '';
+
+  btn.disabled = true;
+  btn.textContent = 'Ingresando…';
+  err.style.display = 'none';
+
+  try {
+    var auth = window.BG_AUTH || [];
+    if (!auth.length) throw new Error('No se pudo cargar la lista de usuarios. Intenta recargar la página.');
+
+    var user = null;
+    for (var i = 0; i < auth.length; i++) {
+      if (auth[i].username.toLowerCase() === usr.toLowerCase()) { user = auth[i]; break; }
+    }
+    if (!user) throw new Error('Usuario o contraseña incorrectos');
+
+    var ok = await _bgVerifyPw(pw, user.salt, user.password_hash);
+    if (!ok) throw new Error('Usuario o contraseña incorrectos');
+
+    // Guardar sesión 24h en localStorage
+    var sess = {
+      username: user.username, nombre: user.nombre,
+      role: user.role, sections: user.sections,
+      expires: Date.now() + 24 * 3600 * 1000
+    };
+    localStorage.setItem('_bg_sess', JSON.stringify(sess));
+
+    // Aplicar usuario y cerrar modal
+    var me = {username: user.username, nombre: user.nombre, role: user.role, sections: user.sections};
+    window._BG_USER = me;
+    document.getElementById('bg-login-modal').style.display = 'none';
+
+    // _applyUser puede haber sido expuesto por initAuth o estar en el scope global
+    if (typeof window._applyUser === 'function') {
+      window._applyUser(me);
+    } else {
+      // Fallback: recargar para que DOMContentLoaded aplique el usuario
+      location.reload();
+    }
+  } catch(e) {
+    err.textContent = e.message || 'Error de autenticación';
+    err.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Ingresar';
+  }
+}
+</script>
 
 </body>
 </html>
