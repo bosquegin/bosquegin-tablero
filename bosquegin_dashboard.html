@@ -4063,9 +4063,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnUpd && (!isLocal || me.role === 'viewer')) btnUpd.style.display = 'none';
     // User chip: mostrar en todos los modos
     if (chip) chip.style.display = 'flex';
-    // Exponer para uso del modal de login estático
-    window._applyUser = _applyUser;
   }
+
+  // Exponer _applyUser globalmente para que el modal de login pueda usarla
+  window._applyUser = _applyUser;
 
   const meta = BOSQUE_DATA.meta || {};
   const genStr = meta.generado || null;
