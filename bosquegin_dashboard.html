@@ -208,6 +208,48 @@
     .filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
     .filter-label { font-size: 12px; color: var(--muted); }
 
+    /* ── MULTI-SELECT CLIENTES ── */
+    .clmsel-wrap { position:relative; display:inline-flex; align-items:center; }
+    .clmsel-btn {
+      background:var(--card); border:1px solid var(--border); color:var(--muted);
+      border-radius:6px; padding:5px 10px; font-size:12px; font-weight:500;
+      cursor:pointer; min-width:150px; max-width:240px; text-align:left;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      transition:all .15s; display:flex; align-items:center; justify-content:space-between; gap:6px;
+    }
+    .clmsel-btn:hover { border-color:var(--muted); color:var(--text); }
+    .clmsel-btn.active { border-color:var(--accent); color:var(--accent); background:rgba(74,222,128,.08); }
+    .clmsel-panel {
+      display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:9999;
+      background:var(--surface); border:1px solid var(--border); border-radius:8px;
+      min-width:250px; max-width:340px; box-shadow:0 8px 28px rgba(0,0,0,.6);
+    }
+    .clmsel-panel.open { display:block; }
+    .clmsel-search { padding:8px 10px; border-bottom:1px solid var(--border); }
+    .clmsel-search input {
+      width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text);
+      border-radius:6px; padding:5px 8px; font-size:12px; outline:none;
+    }
+    .clmsel-search input:focus { border-color:var(--accent); }
+    .clmsel-opts { max-height:230px; overflow-y:auto; padding:4px 0; }
+    .clmsel-opt {
+      display:flex; align-items:center; gap:8px; padding:6px 12px;
+      cursor:pointer; font-size:12px; color:var(--text);
+    }
+    .clmsel-opt:hover { background:rgba(255,255,255,.05); }
+    .clmsel-opt input[type=checkbox] { accent-color:var(--accent); width:13px; height:13px; flex-shrink:0; cursor:pointer; }
+    .clmsel-footer {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:7px 10px; border-top:1px solid var(--border); gap:6px;
+    }
+    .clmsel-footer button {
+      background:var(--card); border:1px solid var(--border); color:var(--muted);
+      border-radius:6px; padding:4px 10px; font-size:11px; cursor:pointer; transition:all .15s;
+    }
+    .clmsel-footer button:hover { color:var(--text); }
+    .clmsel-ok { background:rgba(74,222,128,.15) !important; border-color:var(--accent) !important; color:var(--accent) !important; font-weight:600 !important; }
+    .clmsel-ok:hover { background:rgba(74,222,128,.28) !important; }
+
     /* KPI CARDS */
     .kpi-grid {
       display: grid;
@@ -1731,11 +1773,22 @@ function renderOverview() {
 
     <span style="font-size:12px;color:var(--muted);margin:0 4px">|</span>
     <span class="filter-label">Cliente:</span>
-    <select id="cliente-filter" onchange="setCliente(this.value)"
-      style="min-width:140px;max-width:220px;background:var(--card);border:1px solid var(--border);
-             color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px">
-      <option value="">Todos</option>
-    </select>
+    <div id="clmsel-wrap" class="clmsel-wrap">
+      <button id="clmsel-btn" class="clmsel-btn" onclick="clmselToggle(event)">
+        <span id="clmsel-label">Todos</span>
+        <span style="opacity:.5;font-size:10px;flex-shrink:0">▾</span>
+      </button>
+      <div id="clmsel-panel" class="clmsel-panel">
+        <div class="clmsel-search">
+          <input type="text" id="clmsel-search" placeholder="Buscar cliente…" oninput="clmselFilter()">
+        </div>
+        <div class="clmsel-opts" id="clmsel-opts"></div>
+        <div class="clmsel-footer">
+          <button onclick="clmselClear()">Limpiar</button>
+          <button class="clmsel-ok" onclick="clmselClose()">Aplicar</button>
+        </div>
+      </div>
+    </div>
 
     <span id="v-count" style="font-size:12px;color:var(--muted);margin-left:4px"></span>
   </div>
@@ -1980,7 +2033,7 @@ function invRub(cod, fallback) { return (INV_RUBSUB[String(cod)] || {}).rub || f
 function invSub(cod, fallback) { return (INV_RUBSUB[String(cod)] || {}).sub || fallback || ''; }
 
 let vYear      = 2026;
-let vCliente   = '';
+let vClientes  = [];   // [] = todos; array de nombres seleccionados
 let chartMode  = 'uds';
 let chartMens  = null;
 let chartDepC  = null;
@@ -2067,24 +2120,115 @@ function setYear(y, btn) {
   populateClientFilter();
   renderVentas();
 }
-function setCliente(val) {
-  vCliente = val;
+// ── Multi-select clientes ─────────────────────────────────────────────────────
+
+/** Devuelve datos agregados para los clientes seleccionados, o null si no hay filtro. */
+function getClData(yr) {
+  if (!vClientes.length) return null;
+  const all = vClientes.map(c => (CLIENT_DATA[yr]||{})[c]).filter(Boolean);
+  if (!all.length) return null;
+  if (all.length === 1) return all[0];
+  // Agregar múltiples clientes
+  const prodMap = {};
+  for (const cd of all) {
+    for (const p of (cd.prods||[])) {
+      const k = String(p.cod);
+      if (!prodMap[k]) prodMap[k] = {cod:p.cod, art:p.art, rub:p.rub||'', sub:p.sub||'', m:0, c:0, u:0, deps:{}};
+      prodMap[k].m += p.m||0; prodMap[k].c += p.c||0; prodMap[k].u += p.u||0;
+      for (const [d,dv] of Object.entries(p.deps||{})) {
+        if (!prodMap[k].deps[d]) prodMap[k].deps[d] = {m:0,c:0,u:0};
+        prodMap[k].deps[d].m += dv.m||0;
+        prodMap[k].deps[d].c += dv.c||0;
+        prodMap[k].deps[d].u += dv.u||0;
+      }
+    }
+  }
+  const moMap = {};
+  for (const cd of all) {
+    for (const m of (cd.monthly||[])) {
+      if (!moMap[m.mes]) moMap[m.mes] = {mes:m.mes, label:m.label, m:0, c:0, u:0};
+      moMap[m.mes].m += m.m||0; moMap[m.mes].c += m.c||0; moMap[m.mes].u += m.u||0;
+    }
+  }
+  return {
+    prods:   Object.values(prodMap),
+    monthly: Object.values(moMap).sort((a,b)=>a.mes-b.mes),
+    deps:    {},
+    m: all.reduce((s,d)=>s+(d.m||0),0),
+    c: all.reduce((s,d)=>s+(d.c||0),0),
+    u: all.reduce((s,d)=>s+(d.u||0),0),
+  };
+}
+
+/** Sufijo de título para el filtro de clientes activo. */
+function _clSfxStr() {
+  if (!vClientes.length) return '';
+  if (vClientes.length === 1) return ` · ${vClientes[0]}`;
+  return ` · ${vClientes.length} clientes`;
+}
+
+function clmselToggle(e) {
+  e.stopPropagation();
+  const panel = document.getElementById('clmsel-panel');
+  if (panel.classList.contains('open')) { clmselClose(); }
+  else {
+    panel.classList.add('open');
+    document.getElementById('clmsel-search').value = '';
+    clmselFilter();
+    setTimeout(() => document.addEventListener('click', _clmselOutside, {once:true}), 0);
+  }
+}
+function _clmselOutside(e) {
+  const wrap = document.getElementById('clmsel-wrap');
+  if (wrap && !wrap.contains(e.target)) { clmselClose(); }
+  else { setTimeout(() => document.addEventListener('click', _clmselOutside, {once:true}), 0); }
+}
+function clmselClose() {
+  const panel = document.getElementById('clmsel-panel');
+  if (panel) panel.classList.remove('open');
   renderVentas();
 }
-function populateClientFilter() {
-  const sel = document.getElementById('cliente-filter');
-  if (!sel) return;
-  const yr = String(vYear);
-  const clients = Object.keys((CLIENT_DATA[yr] || {})).sort((a,b) => {
-    const ua = (CLIENT_DATA[yr][a]||{}).u || 0;
-    const ub = (CLIENT_DATA[yr][b]||{}).u || 0;
-    return ub - ua;
+function clmselClear() {
+  vClientes = [];
+  document.querySelectorAll('#clmsel-opts input[type=checkbox]').forEach(cb => cb.checked = false);
+  _clmselUpdateBtn();
+}
+function clmselFilter() {
+  const q = (document.getElementById('clmsel-search').value||'').toLowerCase();
+  document.querySelectorAll('.clmsel-opt').forEach(opt => {
+    opt.style.display = q && !opt.dataset.val.toLowerCase().includes(q) ? 'none' : '';
   });
-  // Keep current selection if still valid
-  const prev = sel.value;
-  sel.innerHTML = '<option value="">Todos</option>' +
-    clients.map(c => `<option value="${c.replace(/"/g,'&quot;')}"${c===prev?' selected':''}>${c}</option>`).join('');
-  if (!clients.includes(prev)) { vCliente = ''; sel.value = ''; }
+}
+function clmselCheck(cb) {
+  const val = cb.value;
+  if (cb.checked) { if (!vClientes.includes(val)) vClientes.push(val); }
+  else { vClientes = vClientes.filter(v => v !== val); }
+  _clmselUpdateBtn();
+}
+function _clmselUpdateBtn() {
+  const lbl = document.getElementById('clmsel-label');
+  const btn = document.getElementById('clmsel-btn');
+  if (!lbl || !btn) return;
+  if (!vClientes.length) {
+    lbl.textContent = 'Todos'; btn.classList.remove('active');
+  } else if (vClientes.length === 1) {
+    const s = vClientes[0]; lbl.textContent = s.length > 24 ? s.slice(0,22)+'…' : s;
+    btn.classList.add('active');
+  } else {
+    lbl.textContent = `${vClientes.length} clientes`; btn.classList.add('active');
+  }
+}
+function populateClientFilter() {
+  const yr = String(vYear);
+  const clients = Object.keys(CLIENT_DATA[yr]||{}).sort((a,b)=>a.localeCompare(b,'es',{sensitivity:'base'}));
+  vClientes = vClientes.filter(c => clients.includes(c));
+  const opts = document.getElementById('clmsel-opts');
+  if (!opts) return;
+  opts.innerHTML = clients.map(c => {
+    const esc = c.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+    return `<label class="clmsel-opt" data-val="${esc}"><input type="checkbox" value="${esc}" ${vClientes.includes(c)?'checked':''} onchange="clmselCheck(this)"><span>${esc}</span></label>`;
+  }).join('');
+  _clmselUpdateBtn();
 }
 function setChartMode(mode) {
   chartMode = mode;
@@ -2105,9 +2249,9 @@ function renderVentas() {
   const mesStr = String(mes);
   const MESES_NOM = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
-  // ── Cliente activo ────────────────────────────────────────────────────────
-  const clData   = vCliente ? (CLIENT_DATA[yr]     || {})[vCliente]     || null : null;
-  const clDataP  = vCliente ? (CLIENT_DATA[yrPrev] || {})[vCliente]     || null : null;
+  // ── Cliente(s) activo(s) ─────────────────────────────────────────────────
+  const clData  = getClData(yr);
+  const clDataP = getClData(yrPrev);
 
   // Datos según mes y/o filtro de producto
   let ann, annP, series, deps, rubs;
@@ -2302,7 +2446,7 @@ function renderVentas() {
     }
   });
 
-  const _clSuffix  = vCliente ? ` · ${vCliente}` : '';
+  const _clSuffix  = _clSfxStr();
   const _pfSuffix  = pf.active ? (pf.rub ? ` [${pf.rub}]` : pf.search ? ` [${pf.search}]` : '') : '';
   const _allSuffix = _clSuffix + _pfSuffix;
   document.getElementById('chart-mes-title').textContent = mes > 0 ? `Salidas ${MESES_NOM[mes]} ${vYear} vs ${vYear-1}${_allSuffix}` : `Salidas mensuales ${vYear}${_allSuffix}`;
@@ -2589,8 +2733,7 @@ function renderSemanal(mes, series, clData) {
   if (!weeks.length) { wrap.style.display = 'none'; return; }
 
   wrap.style.display = '';
-  const clSuf = vCliente ? ` · ${vCliente}` : '';
-  title.textContent = `📆 Desglose semanal · ${mesLabel} ${vYear}${clSuf}`;
+  title.textContent = `📆 Desglose semanal · ${mesLabel} ${vYear}${_clSfxStr()}`;
 
   const totalU = weeks.reduce((s, w) => s + w.u, 0);
   const totalC = weeks.reduce((s, w) => s + w.c, 0);
@@ -2648,18 +2791,18 @@ function renderProds() {
   const yr     = String(vYear);
   const mes2   = getMesFiltro();
   const pf     = getProdFilter();
-  // Si hay cliente activo, usar sus productos
+  // Si hay cliente(s) activo(s), usar sus productos (agregados si son varios)
   let items;
-  if (vCliente) {
-    const clD = (CLIENT_DATA[yr] || {})[vCliente] || {};
+  const _clDP = getClData(yr);
+  if (_clDP) {
     if (mes2 > 0) {
-      const moEntry = (clD.monthly || []).find(s => s.mes === mes2);
+      const moEntry = (_clDP.monthly || []).find(s => s.mes === mes2);
       items = moEntry ? (moEntry.prods || []) : [];
     } else {
-      items = clD.prods || [];
+      items = _clDP.prods || [];
     }
   } else {
-    items  = mes2 > 0
+    items = mes2 > 0
       ? ((MONTHLY_DATA[yr] || {}).prods || {})[String(mes2)] || []
       : PROD_DATA[yr] || [];
   }
@@ -2692,7 +2835,7 @@ function renderProds() {
 
   const MESES_NOM2=['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   document.getElementById('prod-count').textContent = `${filtered.length} artículos`;
-  const _clSfx2 = (vCliente ? ` · ${vCliente}` : '') + (pf.active ? (pf.rub ? ` [${pf.rub}]` : pf.search ? ` [${pf.search}]` : '') : '');
+  const _clSfx2 = _clSfxStr() + (pf.active ? (pf.rub ? ` [${pf.rub}]` : pf.search ? ` [${pf.search}]` : '') : '');
   document.getElementById('v-prod-title').textContent = mes2 > 0 ? `📦 Detalle por artículo · ${MESES_NOM2[mes2]} ${yr}${_clSfx2}` : `📦 Detalle por artículo · ${yr}${_clSfx2}`;
 
   const acumColor = (v) => v <= 80 ? 'var(--green)' : v <= 95 ? 'var(--accent2)' : 'var(--muted)';
