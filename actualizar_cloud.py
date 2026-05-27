@@ -7,7 +7,9 @@ ejecuta la lógica de actualizar_bosquegin.py y sube bosquegin_data.js
 a GitHub via API (sin necesidad de tener la PC encendida).
 
 Variables de entorno requeridas:
-  GOOGLE_SERVICE_ACCOUNT_JSON  — JSON del service account de Google
+  GOOGLE_OAUTH_CLIENT_ID       — OAuth2 client ID
+  GOOGLE_OAUTH_CLIENT_SECRET   — OAuth2 client secret
+  GOOGLE_OAUTH_REFRESH_TOKEN   — OAuth2 refresh token (obtenido con get_oauth_token.py)
   DRIVE_ROOT_FOLDER_ID         — ID de la carpeta raíz en Drive
                                   (la que contiene la carpeta "Data")
   GITHUB_TOKEN                 — Token de acceso personal a GitHub
@@ -25,11 +27,15 @@ HERE        = os.path.dirname(os.path.abspath(__file__))
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _drive_service():
-    from google.oauth2 import service_account
+    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
-    creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
-    creds = service_account.Credentials.from_service_account_info(
-        creds_json, scopes=["https://www.googleapis.com/auth/drive.readonly"]
+    creds = Credentials(
+        token=None,
+        refresh_token=os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"],
+        client_id=os.environ["GOOGLE_OAUTH_CLIENT_ID"],
+        client_secret=os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
+        token_uri="https://oauth2.googleapis.com/token",
+        scopes=["https://www.googleapis.com/auth/drive.readonly"],
     )
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 

@@ -6,7 +6,9 @@ Expone /actualizar (POST) que descarga datos de Google Drive,
 procesa con actualizar_bosquegin.py y sube bosquegin_data.js a GitHub.
 
 Variables de entorno requeridas (configurar en Render dashboard):
-  GOOGLE_SERVICE_ACCOUNT_JSON  — JSON del service account (todo en una línea)
+  GOOGLE_OAUTH_CLIENT_ID       — OAuth2 client ID
+  GOOGLE_OAUTH_CLIENT_SECRET   — OAuth2 client secret
+  GOOGLE_OAUTH_REFRESH_TOKEN   — OAuth2 refresh token
   DRIVE_ROOT_FOLDER_ID         — ID de la carpeta raíz en Drive
   GITHUB_TOKEN                 — Personal access token con repo scope
 

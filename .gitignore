@@ -9,3 +9,6 @@ python_embed/
 *.vbs
 gc_relay_server.py
 servidor_bosquegin.py
+client_secret.json
+oauth_tokens.json
+get_oauth_token.py
