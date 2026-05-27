@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-actualizar_cloud.py — Versión cloud de actualizar_bosquegin.py
+actualizar_cloud.py — v2.0  Versión cloud sin dependencias externas de Google
 
 Descarga archivos de Google Drive a un directorio temporal,
 ejecuta la lógica de actualizar_bosquegin.py y sube bosquegin_data.js
@@ -14,7 +14,7 @@ Variables de entorno requeridas:
                                   (la que contiene la carpeta "Data")
   GITHUB_TOKEN                 — Token de acceso personal a GitHub
 """
-import os, sys, json, shutil, tempfile, importlib.util, urllib.request, base64
+import os, sys, json, shutil, tempfile, importlib.util, urllib.request, urllib.parse, base64
 from datetime import datetime
 
 GITHUB_REPO = "bosquegin/bosquegin-tablero"
@@ -23,74 +23,90 @@ HERE        = os.path.dirname(os.path.abspath(__file__))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  GOOGLE DRIVE
+#  GOOGLE OAUTH2 — token refresh sin dependencias externas
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _drive_service():
-    from google.oauth2.credentials import Credentials
-    from googleapiclient.discovery import build
-    creds = Credentials(
-        token=None,
-        refresh_token=os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"],
-        client_id=os.environ["GOOGLE_OAUTH_CLIENT_ID"],
-        client_secret=os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
-        token_uri="https://oauth2.googleapis.com/token",
-        scopes=["https://www.googleapis.com/auth/drive.readonly"],
+def _get_access_token():
+    """Obtiene un access token OAuth2 via refresh token (stdlib puro)."""
+    data = urllib.parse.urlencode({
+        "client_id":     os.environ["GOOGLE_OAUTH_CLIENT_ID"],
+        "client_secret": os.environ["GOOGLE_OAUTH_CLIENT_SECRET"],
+        "refresh_token": os.environ["GOOGLE_OAUTH_REFRESH_TOKEN"],
+        "grant_type":    "refresh_token",
+    }).encode()
+    req = urllib.request.Request(
+        "https://oauth2.googleapis.com/token", data=data,
+        headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    with urllib.request.urlopen(req, timeout=15) as r:
+        resp = json.loads(r.read())
+    if "access_token" not in resp:
+        raise RuntimeError(f"Token refresh fallido: {resp}")
+    return resp["access_token"]
 
 
-def _find_folder(svc, parent_id, name):
+# ═══════════════════════════════════════════════════════════════════════════════
+#  GOOGLE DRIVE — llamadas directas a la REST API v3
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _drive_get(token, endpoint, params=None):
+    """GET a Drive API v3."""
+    url = f"https://www.googleapis.com/drive/v3/{endpoint}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.loads(r.read())
+
+
+def _find_folder(token, parent_id, name):
     """Busca una subcarpeta por nombre dentro de parent_id."""
     q = (f"'{parent_id}' in parents and name='{name}' "
          f"and mimeType='application/vnd.google-apps.folder' and trashed=false")
-    r = svc.files().list(q=q, fields="files(id,name)").execute()
+    r = _drive_get(token, "files", {"q": q, "fields": "files(id,name)", "pageSize": "50"})
     items = r.get("files", [])
     return items[0]["id"] if items else None
 
 
-def _list_files(svc, folder_id, name_contains=None):
+def _list_files(token, folder_id, name_contains=None):
     """Lista archivos (no carpetas) en una carpeta Drive."""
     q = (f"'{folder_id}' in parents "
          f"and mimeType!='application/vnd.google-apps.folder' and trashed=false")
     if name_contains:
         q += f" and name contains '{name_contains}'"
-    r = svc.files().list(q=q, fields="files(id,name)", orderBy="name").execute()
+    r = _drive_get(token, "files",
+                   {"q": q, "fields": "files(id,name)", "orderBy": "name", "pageSize": "1000"})
     return r.get("files", [])
 
 
-def _download_file(svc, file_id, dest_path):
-    """Descarga un archivo de Drive a dest_path."""
-    from googleapiclient.http import MediaIoBaseDownload
-    import io
+def _download_file(token, file_id, dest_path):
+    """Descarga un archivo de Drive a dest_path via streaming."""
+    url = f"https://www.googleapis.com/drive/v3/files/{file_id}?alt=media"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}"})
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-    req = svc.files().get_media(fileId=file_id)
-    with open(dest_path, "wb") as f:
-        dl = MediaIoBaseDownload(f, req)
-        done = False
-        while not done:
-            _, done = dl.next_chunk()
+    with urllib.request.urlopen(req, timeout=120) as r, open(dest_path, "wb") as f:
+        shutil.copyfileobj(r, f)
 
 
-def _download_folder(svc, folder_id, dest_dir, name_contains=None):
+def _download_folder(token, folder_id, dest_dir, name_contains=None):
     """Descarga todos los archivos de una carpeta Drive a dest_dir."""
     os.makedirs(dest_dir, exist_ok=True)
-    files = _list_files(svc, folder_id, name_contains)
+    files = _list_files(token, folder_id, name_contains)
     for f in files:
         dest = os.path.join(dest_dir, f["name"])
-        _download_file(svc, f["id"], dest)
+        _download_file(token, f["id"], dest)
         print(f"  ↓ {f['name']}")
     return len(files)
 
 
-def _download_named(svc, folder_id, filename, dest_path):
+def _download_named(token, folder_id, filename, dest_path):
     """Descarga un archivo específico por nombre."""
-    files = _list_files(svc, folder_id)
+    files = _list_files(token, folder_id)
     match = next((f for f in files if f["name"] == filename), None)
     if not match:
         print(f"  ⚠ No encontrado en Drive: {filename}")
         return False
-    _download_file(svc, match["id"], dest_path)
+    _download_file(token, match["id"], dest_path)
     print(f"  ↓ {filename}")
     return True
 
@@ -101,10 +117,9 @@ def download_from_drive(tmpdir):
     Estructura esperada en Drive:
       <DRIVE_ROOT_FOLDER_ID>/
         Data/
-          Inventario/         ← archivos Stock*.xlsx
+          Inventario/         ← Stock*.xlsx + Stock_consolidado*.xlsx
           Salidas/
             Bosque salidas.xlsx
-            Salidas_consolidado.xlsx (opcional)
             GC/               ← Remitos GC*.xlsx
           Costos y PVP/       ← Analisis de costos y PVP - COSTOS.csv
           Supply Chain/
@@ -114,51 +129,58 @@ def download_from_drive(tmpdir):
     if not root_id:
         raise ValueError("Falta variable de entorno: DRIVE_ROOT_FOLDER_ID")
 
-    svc = _drive_service()
+    print("  Obteniendo token OAuth2...")
+    token = _get_access_token()
 
     # Navegar a carpeta Data (puede ser el root mismo o una subcarpeta)
-    data_id = _find_folder(svc, root_id, "Data") or root_id
+    data_id = _find_folder(token, root_id, "Data") or root_id
     print(f"  Drive: carpeta Data encontrada (id={data_id[:8]}...)")
 
-    # Inventario (stock Excel)
+    # Inventario (stock Excel + consolidado)
     print("  → Inventario...")
-    inv_id = _find_folder(svc, data_id, "Inventario")
+    inv_id = _find_folder(token, data_id, "Inventario")
     if inv_id:
-        n = _download_folder(svc, inv_id, os.path.join(tmpdir, "Data", "Inventario"))
+        n = _download_folder(token, inv_id, os.path.join(tmpdir, "Data", "Inventario"))
         print(f"     {n} archivos descargados")
     else:
         print("  ⚠ Carpeta Inventario no encontrada")
 
     # Salidas (ventas Excel + GC remitos)
     print("  → Salidas...")
-    sal_id = _find_folder(svc, data_id, "Salidas")
+    sal_id = _find_folder(token, data_id, "Salidas")
     if sal_id:
-        _download_named(svc, sal_id, "Bosque salidas.xlsx",
+        _download_named(token, sal_id, "Bosque salidas.xlsx",
                         os.path.join(tmpdir, "Data", "Salidas", "Bosque salidas.xlsx"))
-        _download_named(svc, sal_id, "Salidas_consolidado.xlsx",
+        _download_named(token, sal_id, "Salidas_consolidado.xlsx",
                         os.path.join(tmpdir, "Data", "Salidas", "Salidas_consolidado.xlsx"))
-        gc_id = _find_folder(svc, sal_id, "GC")
+        gc_id = _find_folder(token, sal_id, "GC")
         if gc_id:
             print("  → GC (remitos)...")
-            n = _download_folder(svc, gc_id,
+            n = _download_folder(token, gc_id,
                                  os.path.join(tmpdir, "Data", "Salidas", "GC"),
                                  name_contains="Remitos GC")
             print(f"     {n} remitos")
 
-    # Costos CSV (backup del Sheet)
+    # Costos CSV
     print("  → Costos...")
-    cos_id = _find_folder(svc, data_id, "Costos y PVP")
+    cos_id = _find_folder(token, data_id, "Costos y PVP")
     if cos_id:
-        _download_folder(svc, cos_id, os.path.join(tmpdir, "Data", "Costos y PVP"))
+        _download_folder(token, cos_id, os.path.join(tmpdir, "Data", "Costos y PVP"))
 
     # Supply Chain / proyecciones
-    sc_id = _find_folder(svc, data_id, "Supply Chain")
+    sc_id = _find_folder(token, data_id, "Supply Chain")
     if sc_id:
-        proy_id = _find_folder(svc, sc_id, "proyecciones")
+        proy_id = _find_folder(token, sc_id, "proyecciones")
         if proy_id:
             print("  → Proyecciones...")
-            _download_folder(svc, proy_id,
+            _download_folder(token, proy_id,
                              os.path.join(tmpdir, "Data", "Supply Chain", "proyecciones"))
+
+    # Productos (lookup rubro/subrubro)
+    prod_id = _find_folder(token, data_id, "Productos")
+    if prod_id:
+        print("  → Productos...")
+        _download_folder(token, prod_id, os.path.join(tmpdir, "Data", "Productos"))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -212,7 +234,7 @@ def main():
     try:
         # Crear estructura de directorios
         for d in ["Data/Inventario", "Data/Salidas/GC",
-                  "Data/Costos y PVP", "Data/Insumos",
+                  "Data/Costos y PVP", "Data/Insumos", "Data/Productos",
                   "Data/Supply Chain/proyecciones"]:
             os.makedirs(os.path.join(tmpdir, d), exist_ok=True)
 
@@ -227,7 +249,7 @@ def main():
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
-        # Redirigir todas las rutas al directorio temporal
+        # Redirigir TODAS las rutas al directorio temporal
         mod.BASE           = tmpdir
         mod.DATA_DIR       = os.path.join(tmpdir, "Data")
         mod.INV_DIR        = os.path.join(tmpdir, "Data", "Inventario")
@@ -239,9 +261,13 @@ def main():
         mod.SALIDAS_CONS   = os.path.join(tmpdir, "Data", "Salidas", "Salidas_consolidado.xlsx")
         mod.CONS_FILE      = os.path.join(tmpdir, "Data", "Inventario",
                                           "Stock_consolidado_por_deposito_y_dia.xlsx")
+        mod.PROD_F         = os.path.join(tmpdir, "Data", "Productos", "PRODUCTOS.xlsx")
+        mod.PROY_DIR       = os.path.join(tmpdir, "Data", "Supply Chain", "proyecciones")
+        mod.PROY_FILE      = os.path.join(tmpdir, "Data", "Supply Chain", "proyecciones",
+                                          "proyecciones.xlsx")
         mod.OUT_JS         = os.path.join(tmpdir, "bosquegin_data.js")
 
-        # En cloud no hay browser → deshabilitar CDP (costos usa CSV de Drive)
+        # En cloud no hay CDP (costos usa CSV de Drive)
         mod._download_costos_via_cdp = lambda url, port=9222: None
 
         # Saltar git push (lo hacemos nosotros via API)
