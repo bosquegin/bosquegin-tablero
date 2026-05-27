@@ -1,4 +1,4 @@
-// Auto-generado
+// Auto-generado — no editar manualmente
 window.BG_AUTH = [
   {"username": "supply@bosquegin.com", "nombre": "Supply", "role": "admin", "sections": ["overview", "inventario", "inv-intel", "ventas", "destileria", "supply", "logistica", "calendario", "costos", "inv-insumos", "admin"], "password_hash": "cb47f3dd7bacb3322a03f989774231dca8a20c39011e919e7221df60b600982e", "salt": "d4e2b6b020afca9671be10dd37d8b46c", "cloud_token": "6e1a9ff78338ec960d249df77ee45b9e03488a1aa0f3d56e68d9f46cfe1f95c2"},
   {"username": "pedidos@temple.com.ar", "nombre": "Franco", "role": "editor", "sections": ["inventario", "ventas", "logistica"], "password_hash": "49e0608eac61074078416638a67ca84c7711a0bd623720b2acd4f407b9e430cc", "salt": "0af6f5c46cdda4a8fd225ea31c74deeb", "cloud_token": "67afc959cb8f3dfebdf7820ccc7646c0b6b5d96bb211add285cf3bbc8749a960"},
