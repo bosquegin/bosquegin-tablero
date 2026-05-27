@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <script>
@@ -620,9 +620,9 @@
           <th data-col="sub"    class="sortable">Subrubro <span class="sort-icon">⇅</span></th>
           <th data-col="cod"    class="sortable" style="font-size:11px;padding:6px 4px">Cód <span class="sort-icon">⇅</span></th>
           <th data-col="art"    class="sortable">Artículo <span class="sort-icon">⇅</span></th>
-          <th data-col="stock"  class="sortable">Stock (uds) <span class="sort-icon">⇅</span></th>
+          <th data-col="stock"  class="sortable">Stock (un) <span class="sort-icon">⇅</span></th>
           <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Valor (ARS) ⓘ <span class="sort-icon">⇅</span></th>
-          <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (uds/mes) ⓘ <span class="sort-icon">⇅</span></th>
+          <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (un/mes) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="dias"   class="sortable" title="Meses de stock = stock ÷ demanda mensual (promedio 90d y 365d)">Meses ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="peso"   class="sortable" title="Peso individual del artículo en el inventario">Peso % <span class="sort-icon">⇅</span></th>
           <th data-col="pareto" class="sortable" title="Pareto acumulado">Acum % <span class="sort-icon">⇅</span></th>
@@ -712,9 +712,9 @@
         <tr>
           <th style="width:70px">Cód</th>
           <th>Descripción</th>
-          <th style="text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (uds)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
+          <th style="text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Valor (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Dem./mes (uds)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
+          <th style="text-align:right">Dem./mes (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Meses<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th>Estado</th>
         </tr>
@@ -901,7 +901,7 @@
           responsive:true, maintainAspectRatio:false, cutout:'65%',
           plugins: {
             legend: { display:false },
-            tooltip: { callbacks: { label: ctx => ` ${_fmt(ctx.raw)} uds (${totalUds?(ctx.raw/totalUds*100).toFixed(1):0}%)` } }
+            tooltip: { callbacks: { label: ctx => ` ${_fmt(ctx.raw)} un (${totalUds?(ctx.raw/totalUds*100).toFixed(1):0}%)` } }
           }
         }
       });
@@ -920,7 +920,7 @@
           </div>
           <div>
             <span style="font-weight:600">${cnt}</span>
-            <span style="color:var(--muted);margin-left:4px">${pct.toFixed(1)}% uds</span>
+            <span style="color:var(--muted);margin-left:4px">${pct.toFixed(1)}% un</span>
           </div>
         </div>`).join('');
     }
@@ -997,7 +997,7 @@
         },
         options: {
           responsive:true, maintainAspectRatio:false, indexAxis:'y',
-          plugins: { legend:{display:false}, tooltip:{callbacks:{label: ctx => ` ${_fmt(ctx.raw)} uds`}} },
+          plugins: { legend:{display:false}, tooltip:{callbacks:{label: ctx => ` ${_fmt(ctx.raw)} un`}} },
           scales: {
             x: { grid:{color:'rgba(255,255,255,.06)'}, ticks:{color:'#8892a4',font:{size:11}} },
             y: { grid:{display:false}, ticks:{color:'#8892a4',font:{size:11}} }
@@ -1023,7 +1023,7 @@
           responsive:true, maintainAspectRatio:false, cutout:'60%',
           plugins: {
             legend:{display:false},
-            tooltip:{callbacks:{label: ctx => { const p=totalUds?(ctx.raw/totalUds*100).toFixed(1):0; return ` ${_fmt(ctx.raw)} uds (${p}%)`; }}}
+            tooltip:{callbacks:{label: ctx => { const p=totalUds?(ctx.raw/totalUds*100).toFixed(1):0; return ` ${_fmt(ctx.raw)} un (${p}%)`; }}}
           }
         }
       });
@@ -1103,7 +1103,7 @@
     if (rubSorted.length > 0) {
       const [topRub, topV] = rubSorted[0];
       ins.push({ icon:'🏷️', color:'#38bdf8', title:`Rubro dominante: ${topRub}`,
-        text:`${topRub} concentra el ${totalUds?(topV/totalUds*100).toFixed(1):0}% del stock (${_fmt(topV)} uds). Monitoreá su rotación.` });
+        text:`${topRub} concentra el ${totalUds?(topV/totalUds*100).toFixed(1):0}% del stock (${_fmt(topV)} un). Monitoreá su rotación.` });
     }
 
     insEl.innerHTML = ins.map(i => `
@@ -1268,7 +1268,7 @@ function renderInvPareto(filtered, dep, depLabel) {
   // Unidades
   buildInvPareto(filtered,
     it => getStock(it, dep),
-    v  => v.toLocaleString('es-AR') + ' uds',
+    v  => v.toLocaleString('es-AR') + ' un',
     'inv-pu-tbody', 'inv-pu-title', '📦 Pareto por unidades · stock actual');
 
   // ── Small bar charts for each pareto ──────────────────────────────────────
@@ -1386,7 +1386,7 @@ function renderInvTable() {
   }).length;
   const paretoA = withPareto.filter(it => it.localPareto <= 70).length;
 
-  document.getElementById('inv-total').textContent     = totalStock.toLocaleString() + ' uds';
+  document.getElementById('inv-total').textContent     = totalStock.toLocaleString() + ' un';
   const depLabels2 = {klozer_ofi:'KLOZER + OFICINA',klozer:'KLOZER',klozer_mkt:'KLOZER MKT',ofi:'OFICINA',shop_gallery:'SHOP GALLERY',avolta:'AVOLTA'};
   document.getElementById('inv-dep-label').textContent  = depLabels2[dep] || dep;
   document.getElementById('inv-sin-rot').textContent    = sinRot;
@@ -1624,7 +1624,7 @@ function renderOverview() {
     ])}
     ${card('var(--accent)', '📦', 'Inventario Productos', 'inventario', [
       { label: 'Stock total (KLOZER + OFICINA)',
-        value: totalB.toLocaleString('es-AR') + ' uds',
+        value: totalB.toLocaleString('es-AR') + ' un',
         sub: (()=>{const c=inv.reduce((s,x)=>s+(x.both||0)*costUnit(x.cod),0); return 'KLOZER: '+totalK.toLocaleString('es-AR')+' · MKT: '+inv.reduce((s,x)=>s+(x.klozer_mkt||0),0).toLocaleString('es-AR')+' · OFICINA: '+totalO.toLocaleString('es-AR')+(c>0?' · '+_fmtARS(c):'');})() },
       { label: 'Artículos activos',
         value: inv.filter(x=>x.both>0).length + ' / ' + inv.length },
@@ -1755,14 +1755,14 @@ function renderOverview() {
       <div class="kpi-value" id="v-margen">—</div>
       <div class="kpi-change" id="v-mg-vs">vs año anterior</div>
       <div class="kpi-sub" id="v-costo">Costo: —</div>
-      <div class="kpi-sub" id="v-uds2" style="margin-top:2px">— uds</div>
+      <div class="kpi-sub" id="v-uds2" style="margin-top:2px">— un</div>
     </div>
     <div class="kpi-card yellow">
       <div class="kpi-icon">📅</div>
       <div class="kpi-label">Mejor mes</div>
       <div class="kpi-value" id="v-best-mes">—</div>
       <div class="kpi-change" id="v-best-val">—</div>
-      <div class="kpi-sub" id="v-best-uds" style="margin-top:2px">— uds</div>
+      <div class="kpi-sub" id="v-best-uds" style="margin-top:2px">— un</div>
       <div class="kpi-sub" id="v-worst">Menor: —</div>
     </div>
     <div class="kpi-card green">
@@ -1801,7 +1801,7 @@ function renderOverview() {
         <thead>
           <tr>
             <th>Semana</th>
-            <th style="text-align:right">Salidas (uds)</th>
+            <th style="text-align:right">Salidas (un)</th>
             <th style="text-align:right">% del mes</th>
             <th style="text-align:right">Costo</th>
           </tr>
@@ -1833,11 +1833,11 @@ function renderOverview() {
           <th class="sortable" onclick="setProdSort('sub')"  data-pcol="sub">Subrubro <span class="sort-icon">⇅</span></th>
           <th class="sortable" onclick="setProdSort('cod')"  data-pcol="cod">Cód <span class="sort-icon">⇅</span></th>
           <th class="sortable" onclick="setProdSort('art')"  data-pcol="art">Producto <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setProdSort('u')"    data-pcol="u"   style="text-align:right">Salidas (uds) <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setProdSort('u')"    data-pcol="u"   style="text-align:right">Salidas (un) <span class="sort-icon">⇅</span></th>
           <th class="sortable" onclick="setProdSort('pct')"  data-pcol="pct" style="text-align:right">Peso % <span class="sort-icon">⇅</span></th>
           <th class="sortable" onclick="setProdSort('acum')" data-pcol="acum" style="text-align:right">Acum % <span class="sort-icon">⇅</span></th>
-          <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:10px;opacity:.7">uds/mes</span></th>
-          <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:10px;opacity:.7">uds/mes</span></th>
+          <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:10px;opacity:.7">un/mes</span></th>
+          <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:10px;opacity:.7">un/mes</span></th>
         </tr>
       </thead>
       <tbody id="prod-tbody"></tbody>
@@ -1853,7 +1853,7 @@ function renderOverview() {
       <thead>
         <tr id="v-mes-thead">
           <th class="sortable" onclick="setVMesSort('mes')" style="cursor:pointer;user-select:none">Mes <span class="sort-icon" id="vms-icon-mes">⇅</span></th>
-          <th class="sortable" onclick="setVMesSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (uds) <span class="sort-icon" id="vms-icon-u">⇅</span></th>
+          <th class="sortable" onclick="setVMesSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vms-icon-u">⇅</span></th>
           <th style="text-align:right">Monto</th>
           <th style="text-align:right;color:var(--muted)">Proy. mes</th>
           <th class="sortable" onclick="setVMesSort('varm')" style="text-align:right;cursor:pointer;user-select:none">Δ mes ant. <span class="sort-icon" id="vms-icon-varm">⇅</span></th>
@@ -1893,7 +1893,7 @@ function renderOverview() {
       <thead>
         <tr id="v-dep-thead">
           <th class="sortable" onclick="setVDepSort('dep')" style="cursor:pointer;user-select:none">Depósito <span class="sort-icon" id="vds-icon-dep">⇅</span></th>
-          <th class="sortable" onclick="setVDepSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (uds) <span class="sort-icon" id="vds-icon-u">⇅</span></th>
+          <th class="sortable" onclick="setVDepSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vds-icon-u">⇅</span></th>
           <th class="sortable" onclick="setVDepSort('pct')" style="text-align:right;cursor:pointer;user-select:none">% del total <span class="sort-icon" id="vds-icon-pct">⇅</span></th>
         </tr>
       </thead>
@@ -1913,10 +1913,10 @@ function renderOverview() {
           <th>Subrubro</th>
           <th>Cód</th>
           <th>Artículo</th>
-          <th class="sortable" onclick="setVRubSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (uds) <span class="sort-icon" id="vrs-icon-u">⇅</span></th>
+          <th class="sortable" onclick="setVRubSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vrs-icon-u">⇅</span></th>
           <th style="text-align:right">% del total</th>
-          <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:10px;opacity:.7">uds/mes</span></th>
-          <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:10px;opacity:.7">uds/mes</span></th>
+          <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:10px;opacity:.7">un/mes</span></th>
+          <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:10px;opacity:.7">un/mes</span></th>
         </tr>
       </thead>
       <tbody id="v-rub-tbody"></tbody>
@@ -2239,9 +2239,9 @@ function renderVentas() {
     return '$' + Math.round(v).toLocaleString('es-AR');
   }
   document.getElementById('v-total').textContent   = fmtM(ann.c);
-  document.getElementById('v-uds').textContent     = ann.u.toLocaleString('es-AR') + ' uds';
+  document.getElementById('v-uds').textContent     = ann.u.toLocaleString('es-AR') + ' un';
   document.getElementById('v-margen').textContent  = annP ? fmtM(annP.c) : '—';
-  document.getElementById('v-costo').textContent   = annP ? annP.u.toLocaleString('es-AR') + ' uds' : '';
+  document.getElementById('v-costo').textContent   = annP ? annP.u.toLocaleString('es-AR') + ' un' : '';
   document.getElementById('v-uds2').textContent    = '';
 
   if (annP) {
@@ -2251,7 +2251,7 @@ function renderVentas() {
     const arrowC = ann.c >= (annP.c||0) ? '▲' : '▼';
     document.getElementById('v-vs').textContent    = `${arrowC} ${Math.abs(varC)}% vs ${yrPrev}`;
     document.getElementById('v-vs').className      = 'kpi-change ' + (ann.c >= (annP.c||0) ? 'up' : 'down');
-    document.getElementById('v-mg-vs').textContent = `${arrow} ${Math.abs(varU)}% uds vs ${yrPrev}`;
+    document.getElementById('v-mg-vs').textContent = `${arrow} ${Math.abs(varU)}% un vs ${yrPrev}`;
   } else {
     document.getElementById('v-vs').textContent    = 'Sin año anterior';
     document.getElementById('v-mg-vs').textContent = '';
@@ -2264,7 +2264,7 @@ function renderVentas() {
     const worst = activos.reduce((a,b) => b.c < a.c ? b : a);
     document.getElementById('v-best-mes').textContent  = best.label;
     document.getElementById('v-best-val').textContent  = fmtM(best.c);
-    document.getElementById('v-best-uds').textContent  = best.u.toLocaleString('es-AR') + ' uds';
+    document.getElementById('v-best-uds').textContent  = best.u.toLocaleString('es-AR') + ' un';
     document.getElementById('v-worst').textContent     = 'Menor: ' + worst.label + ' · ' + fmtM(worst.c);
   }
 
@@ -2275,7 +2275,7 @@ function renderVentas() {
     const [topDep, topV] = depArr[0];
     document.getElementById('v-dep-top').textContent = topDep;
     document.getElementById('v-dep-pct').textContent = pct(topV.c, totDep) + ' del monto';
-    document.getElementById('v-dep-sub').textContent = topV.u.toLocaleString('es-AR') + ' uds · ' + fmtM(topV.c);
+    document.getElementById('v-dep-sub').textContent = topV.u.toLocaleString('es-AR') + ' un · ' + fmtM(topV.c);
   }
 
   // ── Gráfico mensual ───────────────────────────────────────────────────────
@@ -2416,7 +2416,7 @@ function renderVentas() {
   document.getElementById('v-mes-tbody').innerHTML = rows;
   document.getElementById('v-mes-tfoot').innerHTML = `<tr style="font-weight:700;color:var(--text)">
     <td>TOTAL ${vYear}</td>
-    <td style="text-align:right">${totU.toLocaleString('es-AR')} uds</td>
+    <td style="text-align:right">${totU.toLocaleString('es-AR')} un</td>
     <td style="text-align:right;color:var(--accent3)">${fmtM(totC)}</td>
     <td></td><td></td><td></td>
   </tr>`;
@@ -2428,7 +2428,7 @@ function renderVentas() {
   chartDepC = new Chart(document.getElementById('chartDeps').getContext('2d'), {
     type: 'bar',
     data: { labels: depEntries.map(([d])=>d),
-      datasets:[{ label:'Salidas (uds)',
+      datasets:[{ label:'Salidas (un)',
         data: depEntries.map(([,v])=>v.u),
         backgroundColor: depEntries.map(([d])=>DEP_COLORS[d]||'#94a3b8'), borderRadius:6 }]},
     options: { indexAxis:'y', responsive:true, maintainAspectRatio:false,
@@ -2466,7 +2466,7 @@ function renderVentas() {
         backgroundColor: RUB_COLORS.slice(0,rubEntries.length), borderWidth:2, borderColor:'#1c2230' }]},
     options: { responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{position:'right', labels:{boxWidth:10,padding:10,font:{size:11}}},
-        tooltip:{callbacks:{label:ctx=>`${ctx.parsed.toLocaleString()} uds`}} }}
+        tooltip:{callbacks:{label:ctx=>`${ctx.parsed.toLocaleString()} un`}} }}
   });
   document.getElementById('rub-chart-sub').textContent = `Unidades · ${vYear}`;
 
@@ -2548,7 +2548,7 @@ function renderVentas() {
   document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_allSuffix}`;
   renderProds();
   renderSemanal(mes, series, clData);
-  document.getElementById('v-count').textContent = `${activos.length} meses con datos · ${totU.toLocaleString('es-AR')} uds`;
+  document.getElementById('v-count').textContent = `${activos.length} meses con datos · ${totU.toLocaleString('es-AR')} un`;
   updateVentasSortIcons();
 }
 
@@ -2986,11 +2986,11 @@ function renderSupply() {
   const kmTot = items.reduce((s,x)=>s+(x.klozer_mkt||0),0);
   const oTot  = items.reduce((s,x)=>s+x.ofi,0);
   const alerts = items.filter(x=>{const s=overallStatus(x);return s==='zero'||s==='crit'||s==='low';});
-  document.getElementById('sc-klozer-total').textContent  = kTot.toLocaleString()+' uds';
+  document.getElementById('sc-klozer-total').textContent  = kTot.toLocaleString()+' un';
   document.getElementById('sc-klozer-art').textContent    = hasK.length+' artículos';
-  document.getElementById('sc-klozmkt-total').textContent = kmTot.toLocaleString()+' uds';
+  document.getElementById('sc-klozmkt-total').textContent = kmTot.toLocaleString()+' un';
   document.getElementById('sc-klozmkt-art').textContent   = hasKM.filter(x=>(x.klozer_mkt||0)>0).length+' artículos';
-  document.getElementById('sc-ofi-total').textContent     = oTot.toLocaleString()+' uds';
+  document.getElementById('sc-ofi-total').textContent     = oTot.toLocaleString()+' un';
   document.getElementById('sc-ofi-art').textContent       = hasO.length+' artículos';
   document.getElementById('sc-alerts-count').textContent  = alerts.length;
 
@@ -3126,7 +3126,7 @@ function renderSupply() {
     }
     return `
       <div style="font-size:11px;font-weight:700;letter-spacing:.06em;color:rgb(${colorRgb});margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
-        ${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} uds total
+        ${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} un total
       </div>
       <div style="overflow-x:auto">
       <table>
@@ -3134,9 +3134,9 @@ function renderSupply() {
           ${th('Rubro','rub',false,'sel')}
           ${th('Código','cod',false,'text')}
           ${th('Artículo','art',false,'text')}
-          ${th('Stock (uds)','stock',true,null)}
-          ${th('Objetivo '+repDays+'d (uds)','target',true,null)}
-          ${th('Reponer (uds)','qty',true,null)}
+          ${th('Stock (un)','stock',true,null)}
+          ${th('Objetivo '+repDays+'d (un)','target',true,null)}
+          ${th('Reponer (un)','qty',true,null)}
         </tr></thead>
         <tbody>
           ${depItems.map(x=>`<tr>
@@ -3395,17 +3395,17 @@ function renderDestileria() {
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="alert" data-sc-col="rub"    onclick="scSetSort('alert','rub')"    >Rubro <span class="sc-sort-icon">⇅</span></th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="alert" data-sc-col="cod"    onclick="scSetSort('alert','cod')"    >Código <span class="sc-sort-icon">⇅</span></th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="alert" data-sc-col="art"    onclick="scSetSort('alert','art')"    >Artículo <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="klozer" onclick="scSetSort('alert','klozer')">Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="klozer" onclick="scSetSort('alert','klozer')">Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="dias_k" onclick="scSetSort('alert','dias_k')">Meses <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(99,102,241,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(99,102,241,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="status_k" onclick="scSetSort('alert','status_k')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="klozer_mkt" onclick="scSetSort('alert','klozer_mkt')">Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="klozer_mkt" onclick="scSetSort('alert','klozer_mkt')">Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="dias_km" onclick="scSetSort('alert','dias_km')">Meses <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="status_km" onclick="scSetSort('alert','status_km')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="ofi"    onclick="scSetSort('alert','ofi')"   >Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="ofi"    onclick="scSetSort('alert','ofi')"   >Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="dias_o" onclick="scSetSort('alert','dias_o')">Meses <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(16,185,129,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(16,185,129,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="status_o" onclick="scSetSort('alert','status_o')">Estado <span class="sc-sort-icon">⇅</span></th>
         </tr>
       </thead>
@@ -3456,21 +3456,21 @@ function renderDestileria() {
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="stock" data-sc-col="rub"    onclick="scSetSort('stock','rub')"    >Rubro <span class="sc-sort-icon">⇅</span></th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="stock" data-sc-col="cod"    onclick="scSetSort('stock','cod')"    >Código <span class="sc-sort-icon">⇅</span></th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="stock" data-sc-col="art"    onclick="scSetSort('stock','art')"    >Artículo <span class="sc-sort-icon">⇅</span></th>
-          <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="stock" data-sc-col="total"  onclick="scSetSort('stock','total')"  >Total (uds) <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="klozer"    onclick="scSetSort('stock','klozer')"    >Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="cursor:pointer;user-select:none;white-space:nowrap" data-sc-table="stock" data-sc-col="total"  onclick="scSetSort('stock','total')"  >Total (un) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="klozer"    onclick="scSetSort('stock','klozer')"    >Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="dias_k90"  onclick="scSetSort('stock','dias_k90')" >M/90d <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="dias_k365" onclick="scSetSort('stock','dias_k365')">M/365d <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(99,102,241,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(99,102,241,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="status_k" onclick="scSetSort('stock','status_k')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="klozer_mkt" onclick="scSetSort('stock','klozer_mkt')">Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="klozer_mkt" onclick="scSetSort('stock','klozer_mkt')">Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="dias_km90"  onclick="scSetSort('stock','dias_km90')" >M/90d <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="dias_km365" onclick="scSetSort('stock','dias_km365')">M/365d <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="status_km" onclick="scSetSort('stock','status_km')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="ofi"      onclick="scSetSort('stock','ofi')"    >Stock (uds) <span class="sc-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="ofi"      onclick="scSetSort('stock','ofi')"    >Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="dias_o90"  onclick="scSetSort('stock','dias_o90')" >M/90d <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="dias_o365" onclick="scSetSort('stock','dias_o365')">M/365d <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(16,185,129,.05);font-size:10px">Mín/mes (uds)</th>
+          <th style="text-align:right;background:rgba(16,185,129,.05);font-size:10px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="status_o" onclick="scSetSort('stock','status_o')">Estado <span class="sc-sort-icon">⇅</span></th>
         </tr>
       </thead>
@@ -3682,27 +3682,27 @@ function renderLogistica() {
       <div class="table-title">🏭 Stock por canal de distribución</div>
       <div class="log-badge-row">
         <span>KLOZER (depósito propio)</span>
-        <span style="font-weight:700;color:var(--accent)">${totalK.toLocaleString()} uds</span>
+        <span style="font-weight:700;color:var(--accent)">${totalK.toLocaleString()} un</span>
       </div>
       <div class="log-badge-row">
         <span>KLOZER MKT</span>
-        <span style="font-weight:700;color:var(--accent2)">${totalKM.toLocaleString()} uds</span>
+        <span style="font-weight:700;color:var(--accent2)">${totalKM.toLocaleString()} un</span>
       </div>
       <div class="log-badge-row">
         <span>SHOP GALLERY</span>
-        <span style="font-weight:700;color:var(--accent3)">${totalSG.toLocaleString()} uds</span>
+        <span style="font-weight:700;color:var(--accent3)">${totalSG.toLocaleString()} un</span>
       </div>
       <div class="log-badge-row">
         <span>AVOLTA</span>
-        <span style="font-weight:700;color:var(--accent3)">${totalAV.toLocaleString()} uds</span>
+        <span style="font-weight:700;color:var(--accent3)">${totalAV.toLocaleString()} un</span>
       </div>
       <div class="log-badge-row" style="border-top:2px solid var(--border);margin-top:4px;padding-top:8px">
         <span>OFICINA</span>
-        <span style="font-weight:700;color:var(--green)">${totalO.toLocaleString()} uds</span>
+        <span style="font-weight:700;color:var(--green)">${totalO.toLocaleString()} un</span>
       </div>
       <div class="log-badge-row" style="font-weight:700">
         <span>TOTAL GENERAL</span>
-        <span style="color:var(--text)">${(totalK+totalKM+totalSG+totalAV+totalO).toLocaleString()} uds</span>
+        <span style="color:var(--text)">${(totalK+totalKM+totalSG+totalAV+totalO).toLocaleString()} un</span>
       </div>
     </div>
 
@@ -3734,7 +3734,7 @@ function renderLogistica() {
           <th class="sortable" onclick="setLogCritSort('rub')" style="cursor:pointer;user-select:none">Rubro <span class="sort-icon" id="lcs-icon-rub">${logCritSort.col==='rub'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogCritSort('cod')" style="cursor:pointer;user-select:none">Código <span class="sort-icon" id="lcs-icon-cod">${logCritSort.col==='cod'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogCritSort('art')" style="cursor:pointer;user-select:none">Artículo <span class="sort-icon" id="lcs-icon-art">${logCritSort.col==='art'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
-          <th class="sortable" onclick="setLogCritSort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock K+MKT (uds) <span class="sort-icon" id="lcs-icon-stock">${logCritSort.col==='stock'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
+          <th class="sortable" onclick="setLogCritSort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock K+MKT (un) <span class="sort-icon" id="lcs-icon-stock">${logCritSort.col==='stock'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogCritSort('meses90')" style="text-align:right;cursor:pointer;user-select:none">Meses/90d <span class="sort-icon" id="lcs-icon-meses90">${logCritSort.col==='meses90'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogCritSort('meses365')" style="text-align:right;cursor:pointer;user-select:none">Meses/365d <span class="sort-icon" id="lcs-icon-meses365">${logCritSort.col==='meses365'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogCritSort('min_k')" style="text-align:right;cursor:pointer;user-select:none">Mín ud/mes <span class="sort-icon" id="lcs-icon-min_k">${logCritSort.col==='min_k'?(logCritSort.asc?'▲':'▼'):'⇅'}</span></th>
@@ -3775,7 +3775,7 @@ function renderLogistica() {
       <thead>
         <tr>
           <th class="sortable" onclick="setLogRubSort('rub')" style="cursor:pointer;user-select:none">Rubro <span class="sort-icon" id="lrs-icon-rub">${logRubSort.col==='rub'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
-          <th class="sortable" onclick="setLogRubSort('uds')" style="text-align:right;cursor:pointer;user-select:none">Stock total (uds) <span class="sort-icon" id="lrs-icon-uds">${logRubSort.col==='uds'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
+          <th class="sortable" onclick="setLogRubSort('uds')" style="text-align:right;cursor:pointer;user-select:none">Stock total (un) <span class="sort-icon" id="lrs-icon-uds">${logRubSort.col==='uds'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogRubSort('artK')" style="text-align:right;cursor:pointer;user-select:none">Artículos <span class="sort-icon" id="lrs-icon-artK">${logRubSort.col==='artK'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogRubSort('sinRot')" style="text-align:right;cursor:pointer;user-select:none">Sin rotación <span class="sort-icon" id="lrs-icon-sinRot">${logRubSort.col==='sinRot'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
           <th class="sortable" onclick="setLogRubSort('critico')" style="text-align:right;cursor:pointer;user-select:none">Críticos <span class="sort-icon" id="lrs-icon-critico">${logRubSort.col==='critico'?(logRubSort.asc?'▲':'▼'):'⇅'}</span></th>
@@ -4359,13 +4359,13 @@ document.addEventListener('DOMContentLoaded', () => {
         <th>Subrubro</th>
         <th class="sortable" onclick="setProySort('cod')" style="cursor:pointer;user-select:none">C&#243;d <span class="sort-icon" id="ps-icon-cod">⇅</span></th>
         <th class="sortable" onclick="setProySort('art')" style="cursor:pointer;user-select:none">Producto <span class="sort-icon" id="ps-icon-art">⇅</span></th>
-        <th class="sortable" onclick="setProySort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock (uds) <span class="sort-icon" id="ps-icon-stock">⇅</span></th>
-        <th class="sortable" onclick="setProySort('min_k')" style="text-align:right;cursor:pointer;user-select:none">Min/mes (uds) <span class="sort-icon" id="ps-icon-min_k">⇅</span></th>
+        <th class="sortable" onclick="setProySort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock (un) <span class="sort-icon" id="ps-icon-stock">⇅</span></th>
+        <th class="sortable" onclick="setProySort('min_k')" style="text-align:right;cursor:pointer;user-select:none">Min/mes (un) <span class="sort-icon" id="ps-icon-min_k">⇅</span></th>
         <th class="sortable" onclick="setProySort('meses')" style="text-align:right;cursor:pointer;user-select:none">Meses <span class="sort-icon" id="ps-icon-meses">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug30')" style="text-align:right;cursor:pointer;user-select:none">Sug 30d (uds) <span class="sort-icon" id="ps-icon-sug30">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug60')" style="text-align:right;cursor:pointer;user-select:none">Sug 60d (uds) <span class="sort-icon" id="ps-icon-sug60">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug90')" style="text-align:right;cursor:pointer;user-select:none">Sug 90d (uds) <span class="sort-icon" id="ps-icon-sug90">⇅</span></th>
-        <th style="text-align:right">Cant. a comprar (uds)</th>
+        <th class="sortable" onclick="setProySort('sug30')" style="text-align:right;cursor:pointer;user-select:none">Sug 30d (un) <span class="sort-icon" id="ps-icon-sug30">⇅</span></th>
+        <th class="sortable" onclick="setProySort('sug60')" style="text-align:right;cursor:pointer;user-select:none">Sug 60d (un) <span class="sort-icon" id="ps-icon-sug60">⇅</span></th>
+        <th class="sortable" onclick="setProySort('sug90')" style="text-align:right;cursor:pointer;user-select:none">Sug 90d (un) <span class="sort-icon" id="ps-icon-sug90">⇅</span></th>
+        <th style="text-align:right">Cant. a comprar (un)</th>
         <th style="text-align:center">&#10003; Aprobar</th>
       </tr>
     </thead>
@@ -4398,8 +4398,8 @@ document.addEventListener('DOMContentLoaded', () => {
         <th>Producto</th>
         <th style="text-align:center">Lead time proveedor (d&#237;as)</th>
         <th style="text-align:center">Tiempo producci&#243;n (d&#237;as)</th>
-        <th style="text-align:center">Lote m&#237;nimo (uds)</th>
-        <th style="text-align:center">Stock de seguridad (uds)</th>
+        <th style="text-align:center">Lote m&#237;nimo (un)</th>
+        <th style="text-align:center">Stock de seguridad (un)</th>
         <th style="text-align:center">Pr&#243;xima compra estimada</th>
         <th style="text-align:center">Estado</th>
       </tr>
@@ -4742,7 +4742,7 @@ function renderCalProductView() {
   }).join('');
   document.getElementById('cal-main-content').innerHTML =
     '<div class="cal-section" style="margin-bottom:16px;overflow-x:auto">'+
-    '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Proyecci&#243;n de stock (uds) sin reposici&#243;n &middot; &#128308; quiebre &middot; &#128993; bajo m&#237;nimo</div>'+
+    '<div style="font-size:11px;color:var(--muted);margin-bottom:10px">Proyecci&#243;n de stock (un) sin reposici&#243;n &middot; &#128308; quiebre &middot; &#128993; bajo m&#237;nimo</div>'+
     '<table class="cal-table"><thead><tr><th>C&#243;d</th><th>Producto</th>'+
     '<th style="text-align:right">Stock hoy</th><th style="text-align:right">Dem/mes</th>'+hdrCells+'</tr></thead>'+
     '<tbody>'+rows+'</tbody></table></div>';
