@@ -662,13 +662,13 @@
           <th data-col="sub"    class="sortable">Subrubro <span class="sort-icon">⇅</span></th>
           <th data-col="cod"    class="sortable" style="font-size:9px;padding:6px 4px">Cód <span class="sort-icon">⇅</span></th>
           <th data-col="art"    class="sortable">Artículo <span class="sort-icon">⇅</span></th>
+          <th data-col="costo"  class="sortable" title="Costo unitario vigente (ARS)">Costo (ARS) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="stock"  class="sortable">Stock (un) <span class="sort-icon">⇅</span></th>
           <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Monto (ARS) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (un/mes) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="dias"   class="sortable" title="Meses de stock = stock ÷ demanda mensual (promedio 90d y 365d)">Meses ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="peso"   class="sortable" title="Peso individual del artículo en el inventario">Peso % <span class="sort-icon">⇅</span></th>
           <th data-col="pareto" class="sortable" title="Pareto acumulado">Acum % <span class="sort-icon">⇅</span></th>
-          <th data-col="fecha" class="sortable" title="Última fecha disponible del dato">Fecha <span class="sort-icon">⇅</span></th>
           <th>Estado</th>
         </tr>
       </thead>
@@ -1352,7 +1352,6 @@ function renderInvPareto(filtered, dep, depLabel) {
 
 // ── orden ─────────────────────────────────────────────────────────────────────
 function sortValue(item, col, dep) {
-    if (col === 'fecha') { if(dep==='ofi') return item.o_fecha||''; if(dep==='shop_gallery') return item.sg_fecha||''; if(dep==='avolta') return item.av_fecha||''; return item.k_fecha||item.o_fecha||''; }
   const stock = getStock(item, dep);
   const avg90 = getAvg90(item, dep);
   switch (col) {
@@ -1360,6 +1359,7 @@ function sortValue(item, col, dep) {
     case 'art':    return item.art;
     case 'rub':    return item.rub;
     case 'sub':    return item.sub;
+    case 'costo':  return costUnit(item.cod);
     case 'stock':  return stock;
     case 'valor':  return stock * costUnit(item.cod);
     case 'min':    return getMin(item, dep);
@@ -1471,17 +1471,17 @@ function renderInvTable() {
       <td style="color:var(--muted);font-size:9px;white-space:nowrap">${item.sub}</td>
       <td><code style="font-size:9px">${item.cod}</code></td>
       <td style="white-space:nowrap;font-size:9px" title="${artName(item.cod,item.art)}">${artName(item.cod,item.art)}</td>
+      <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--muted)">${costUnit(item.cod)>0?_fmtARSFull(costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="font-weight:700;text-align:right;white-space:nowrap">${stock.toLocaleString()}</td>
       <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--accent2)">${costUnit(item.cod)>0?_fmtARSFull(stock*costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right;color:var(--muted);white-space:nowrap">${minTxt}</td>
       <td style="text-align:right;white-space:nowrap;${diasColor}">${diasTxt}</td>
       <td style="text-align:right;white-space:nowrap;color:var(--muted)">${pesoTxt}</td>
       <td style="text-align:right;white-space:nowrap;font-weight:600;${acumCls}">${acumTxt}</td>
-      <td style="text-align:center;font-size:9px;color:var(--muted);white-space:nowrap">${dep==='ofi'?item.o_fecha||'—':dep==='shop_gallery'?item.sg_fecha||'—':dep==='avolta'?item.av_fecha||'—':dep==='klozer_mkt'?(item.km_fecha||'—'):(item.k_fecha||item.o_fecha||'—')}</td>
       <td>${estadoBadge(meses, min, stock)}</td>
     </tr>`;
   }
-  document.getElementById('inv-tbody').innerHTML = rows || '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:24px">Sin resultados</td></tr>';
+  document.getElementById('inv-tbody').innerHTML = rows || '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px">Sin resultados</td></tr>';
 
   // Pareto always on full dataset (filtered only by rubro+search, not dep)
   const invDataAll = INV_DATA.filter(item => {
