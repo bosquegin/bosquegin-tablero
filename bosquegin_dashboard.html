@@ -4238,10 +4238,31 @@ async function _runCloudUpdate() {
       return _fail('Sesión expirada — recargá la página e ingresá de nuevo');
     }
 
-    step.textContent = 'Conectando con el servidor…';
-    bar.style.width  = '15%';
+    // 3. Wake-up: Render free tier duerme tras inactividad — hacer ping /health
+    //    con reintentos hasta 60s para darle tiempo de arrancar
+    step.textContent = 'Despertando servidor…';
+    bar.style.width  = '8%';
+    var _awake = false;
+    for (var _wi = 0; _wi < 12; _wi++) {
+      try {
+        var _ctrl = new AbortController();
+        var _tid  = setTimeout(function(){ _ctrl.abort(); }, 5000);
+        var _hr   = await fetch(serverUrl + '/health', { signal: _ctrl.signal, cache: 'no-store' });
+        clearTimeout(_tid);
+        if (_hr.ok) { _awake = true; break; }
+      } catch(e) {}
+      step.textContent = 'Despertando servidor… (' + ((_wi+1)*5) + 's)';
+      bar.style.width  = (8 + _wi * 2) + '%';
+      await new Promise(function(r){ setTimeout(r, 5000); });
+    }
+    if (!_awake) {
+      return _fail('El servidor no responde después de 60s. Verificá que esté activo en Render.com');
+    }
 
-    // 3. Llamar al endpoint de actualización
+    step.textContent = 'Conectando con el servidor…';
+    bar.style.width  = '35%';
+
+    // 4. Llamar al endpoint de actualización
     var res = await fetch(serverUrl + endpoint, {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
