@@ -2089,6 +2089,17 @@ const DEP_COLORS = {
   'KLOZER MKT':'#34d399','DIRECTORO EXPORTACIONES':'#f87171','SIN DEPOSITO':'#94a3b8',
   'FILIDORO':'#c084fc'
 };
+// Normaliza claves de depósito que vienen con formato distinto del dato origen
+function normDep(d) { return d === 'KLOZER_MKT' ? 'KLOZER MKT' : d; }
+function normDeps(obj) {
+  const r = {};
+  for (const [k, v] of Object.entries(obj)) {
+    const nk = normDep(k);
+    if (r[nk]) r[nk] = { m:(r[nk].m||0)+(v.m||0), c:(r[nk].c||0)+(v.c||0), u:(r[nk].u||0)+(v.u||0), mg:0 };
+    else r[nk] = v;
+  }
+  return r;
+}
 const RUB_COLORS = ['#4ade80','#38bdf8','#f59e0b','#f87171','#a78bfa','#fb923c','#34d399','#c084fc','#94a3b8'];
 
 function round1(n) { return Math.round(n*10)/10; }
@@ -2265,8 +2276,9 @@ function renderVentas() {
   function buildDepsFromProds(arr) {
     const dm={};
     for(const p of arr) for(const [d,dv] of Object.entries(p.deps||{})){
-      if(!dm[d]) dm[d]={m:0,c:0,u:0};
-      dm[d].m+=dv.m; dm[d].c+=(dv.c||0); dm[d].u+=dv.u;
+      const nd=normDep(d);
+      if(!dm[nd]) dm[nd]={m:0,c:0,u:0};
+      dm[nd].m+=dv.m; dm[nd].c+=(dv.c||0); dm[nd].u+=dv.u;
     }
     return Object.fromEntries(Object.entries(dm).map(([k,v])=>[k,{...v,mg:mgFn(v.m,v.c)}]));
   }
@@ -2275,8 +2287,9 @@ function renderVentas() {
     for(const p of arr){
       if(!rm[p.rub]) rm[p.rub]={};
       for(const [dep,dv] of Object.entries(p.deps||{})){
-        if(!rm[p.rub][dep]) rm[p.rub][dep]={m:0,c:0,u:0};
-        rm[p.rub][dep].m+=dv.m||0; rm[p.rub][dep].c+=dv.c||0; rm[p.rub][dep].u+=dv.u||0;
+        const nd=normDep(dep);
+        if(!rm[p.rub][nd]) rm[p.rub][nd]={m:0,c:0,u:0};
+        rm[p.rub][nd].m+=dv.m||0; rm[p.rub][nd].c+=dv.c||0; rm[p.rub][nd].u+=dv.u||0;
       }
       if(Object.keys(p.deps||{}).length===0){
         if(!rm[p.rub]['—']) rm[p.rub]['—']={m:0,c:0,u:0};
@@ -2323,7 +2336,7 @@ function renderVentas() {
                return pu>0 ? {m:0,c:pm.reduce((s,x)=>s+x.c,0),u:pu,mg:0} : null;
              })() : null;
     series = clSeriesEff;   // full year filtered series for chart
-    deps   = pf.active ? buildDepsFromProds(clProdsF) : (clData.deps || {});
+    deps   = pf.active ? buildDepsFromProds(clProdsF) : normDeps(clData.deps || {});
     rubs   = buildRubsFromProds(clProdsF);
 
   } else if (pf.active) {
@@ -2348,13 +2361,13 @@ function renderVentas() {
     ann    = VD.annual[yr]     || {m:0,c:0,u:0,mg:0};
     annP   = VD.annual[yrPrev] || null;
     series = VD.monthly[yr]    || [];
-    deps   = VD.deps[yr]       || {};
+    deps   = normDeps(VD.deps[yr]       || {});
     rubs   = VD.rubros[yr]     || {};
   } else {
     // Vista de un mes específico
-    const mdDeps = ((MONTHLY_DATA[yr]     || {}).deps || {})[mesStr] || {};
-    const mdRubs = ((MONTHLY_DATA[yr]     || {}).rubs || {})[mesStr] || {};
-    const mdDepP = ((MONTHLY_DATA[yrPrev] || {}).deps || {})[mesStr] || {};
+    const mdDeps = normDeps(((MONTHLY_DATA[yr]     || {}).deps || {})[mesStr] || {});
+    const mdRubs =          ((MONTHLY_DATA[yr]     || {}).rubs || {})[mesStr] || {};
+    const mdDepP = normDeps(((MONTHLY_DATA[yrPrev] || {}).deps || {})[mesStr] || {});
 
     const depsArr = Object.values(mdDeps);
     const totM = depsArr.reduce((s,d)=>s+d.m,0);
@@ -2430,7 +2443,7 @@ function renderVentas() {
   for (const _p of _pCosto) {
     const _hd = _p.deps && Object.keys(_p.deps).length > 0;
     if (_hd) {
-      for (const [_d,_dv] of Object.entries(_p.deps)) _costoDep[_d] = (_costoDep[_d]||0) + (_dv.u||0)*costUnit(_p.cod);
+      for (const [_d,_dv] of Object.entries(_p.deps)) { const _nd=normDep(_d); _costoDep[_nd] = (_costoDep[_nd]||0) + (_dv.u||0)*costUnit(_p.cod); }
     } else {
       _costoDep['—'] = (_costoDep['—']||0) + (_p.u||0)*costUnit(_p.cod);
     }
