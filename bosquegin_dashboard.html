@@ -663,7 +663,7 @@
           <th data-col="cod"    class="sortable" style="font-size:9px;padding:6px 4px">Cód <span class="sort-icon">⇅</span></th>
           <th data-col="art"    class="sortable">Artículo <span class="sort-icon">⇅</span></th>
           <th data-col="stock"  class="sortable">Stock (un) <span class="sort-icon">⇅</span></th>
-          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Valor (ARS) ⓘ <span class="sort-icon">⇅</span></th>
+          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Costo (ARS) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (un/mes) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="dias"   class="sortable" title="Meses de stock = stock ÷ demanda mensual (promedio 90d y 365d)">Meses ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="peso"   class="sortable" title="Peso individual del artículo en el inventario">Peso % <span class="sort-icon">⇅</span></th>
@@ -686,7 +686,7 @@
     <!-- Pareto Financiero (valor de inventario = stock × costo) -->
     <div class="table-card" style="margin-bottom:0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="table-title" id="inv-pf-title">💰 Pareto financiero · valor de inventario</div>
+        <div class="table-title" id="inv-pf-title">💰 Pareto financiero · costo de inventario</div>
         <span style="font-size:9px;color:var(--muted)">A=10% · B=20% · C=70%</span>
       </div>
       <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
@@ -696,7 +696,7 @@
             <th style="width:28px">#</th>
             <th>Artículo</th>
             <th>Rubro</th>
-            <th style="text-align:right">Valor ARS</th>
+            <th style="text-align:right">Costo ARS</th>
             <th style="text-align:right">Acum %</th>
             <th>Seg.</th>
           </tr>
@@ -755,7 +755,7 @@
           <th style="width:70px">Cód</th>
           <th>Descripción</th>
           <th style="text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Valor (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
+          <th style="text-align:right">Costo (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Dem./mes (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Meses<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th>Estado</th>
@@ -951,7 +951,7 @@
     const abcLeg = document.getElementById('inv-intel-abc-legend');
     if (abcLeg) {
       abcLeg.innerHTML = [
-        ['#4ade80','A — Alto valor', nA, pA],
+        ['#4ade80','A — Alto costo', nA, pA],
         ['#38bdf8','B — Medio',      nB, pB],
         ['#64748b','C — Bajo',       nC, pC],
       ].map(([col, label, cnt, pct]) => `
@@ -1836,7 +1836,7 @@ function renderOverview() {
           <div class="chart-subtitle">Unidades · Año seleccionado vs anterior</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="year-btn active" id="btn-monto"  onclick="setChartMode('monto')">Monto</button>
+          <button class="year-btn active" id="btn-monto"  onclick="setChartMode('monto')">Costo</button>
           <button class="year-btn"        id="btn-uds"    onclick="setChartMode('uds')">Unidades</button>
           <button class="year-btn"        id="btn-margen" onclick="setChartMode('margen')">Margen %</button>
         </div>
@@ -1907,7 +1907,7 @@ function renderOverview() {
         <tr id="v-mes-thead">
           <th class="sortable" onclick="setVMesSort('mes')" style="cursor:pointer;user-select:none">Mes <span class="sort-icon" id="vms-icon-mes">⇅</span></th>
           <th class="sortable" onclick="setVMesSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vms-icon-u">⇅</span></th>
-          <th style="text-align:right">Monto</th>
+          <th style="text-align:right">Costo</th>
           <th style="text-align:right;color:var(--muted)">Proy. mes</th>
           <th class="sortable" onclick="setVMesSort('varm')" style="text-align:right;cursor:pointer;user-select:none">Δ mes ant. <span class="sort-icon" id="vms-icon-varm">⇅</span></th>
           <th class="sortable" onclick="setVMesSort('var')" style="text-align:right;cursor:pointer;user-select:none">Δ año ant. <span class="sort-icon" id="vms-icon-var">⇅</span></th>
@@ -2375,6 +2375,68 @@ function renderVentas() {
     rubs = mdRubs;
   }
 
+  // ── Cálculo de costo (costUnit × unidades) ────────────────────────────────
+  function _costoTotal(prods) {
+    return (prods||[]).reduce((s,p)=>s+(p.u||0)*costUnit(p.cod),0);
+  }
+  // Productos base para costo anual
+  let _pCosto, _pCostoP;
+  if (clData) {
+    const _clPF  = pf.active ? applyProdFilter(clData.prods||[], pf.rub, pf.search) : (clData.prods||[]);
+    const _clPFP = clDataP ? (pf.active ? applyProdFilter(clDataP.prods||[], pf.rub, pf.search) : (clDataP.prods||[])) : [];
+    _pCosto  = _clPF;
+    _pCostoP = _clPFP;
+  } else if (mes > 0) {
+    _pCosto  = pf.active ? applyProdFilter(((MONTHLY_DATA[yr]    ||{}).prods||{})[mesStr]||[], pf.rub, pf.search) : (((MONTHLY_DATA[yr]    ||{}).prods||{})[mesStr]||[]);
+    _pCostoP = pf.active ? applyProdFilter(((MONTHLY_DATA[yrPrev]||{}).prods||{})[mesStr]||[], pf.rub, pf.search) : (((MONTHLY_DATA[yrPrev]||{}).prods||{})[mesStr]||[]);
+  } else if (pf.active) {
+    _pCosto  = applyProdFilter(PROD_DATA[yr]     || [], pf.rub, pf.search);
+    _pCostoP = applyProdFilter(PROD_DATA[yrPrev] || [], pf.rub, pf.search);
+  } else {
+    _pCosto  = PROD_DATA[yr]     || [];
+    _pCostoP = PROD_DATA[yrPrev] || [];
+  }
+  const annCosto  = _costoTotal(_pCosto);
+  const annCostoP = _costoTotal(_pCostoP);
+
+  // Costo mensual (año actual)
+  const _costoMes = {};
+  if (clData) {
+    const _cpU = ann.u > 0 ? annCosto / ann.u : 0;
+    for (const _s of (series||[])) _costoMes[_s.mes] = (_s.u||0) * _cpU;
+  } else {
+    for (let _mo=1;_mo<=12;_mo++) {
+      const _mp = pf.active
+        ? applyProdFilter(((MONTHLY_DATA[yr]||{}).prods||{})[String(_mo)]||[], pf.rub, pf.search)
+        : (((MONTHLY_DATA[yr]||{}).prods||{})[String(_mo)]||[]);
+      _costoMes[_mo] = _costoTotal(_mp);
+    }
+  }
+  // Costo mensual (año anterior) para gráfico
+  const _costoMesP = {};
+  if (clDataP) {
+    const _cpUP = annP && annP.u > 0 ? annCostoP / annP.u : 0;
+    for (const _s of (clDataP.monthly||[])) _costoMesP[_s.mes] = (_s.u||0) * _cpUP;
+  } else {
+    for (let _mo=1;_mo<=12;_mo++) {
+      const _mpP = pf.active
+        ? applyProdFilter(((MONTHLY_DATA[yrPrev]||{}).prods||{})[String(_mo)]||[], pf.rub, pf.search)
+        : (((MONTHLY_DATA[yrPrev]||{}).prods||{})[String(_mo)]||[]);
+      _costoMesP[_mo] = _costoTotal(_mpP);
+    }
+  }
+  // Costo por depósito
+  const _costoDep = {};
+  for (const _p of _pCosto) {
+    const _hd = _p.deps && Object.keys(_p.deps).length > 0;
+    if (_hd) {
+      for (const [_d,_dv] of Object.entries(_p.deps)) _costoDep[_d] = (_costoDep[_d]||0) + (_dv.u||0)*costUnit(_p.cod);
+    } else {
+      _costoDep['—'] = (_costoDep['—']||0) + (_p.u||0)*costUnit(_p.cod);
+    }
+  }
+  const _totCostoDep = Object.values(_costoDep).reduce((s,v)=>s+v,0);
+
   // ── KPIs ──────────────────────────────────────────────────────────────────
   function fmtM(v) {
     if (!v || v === 0) return '—';
@@ -2382,54 +2444,54 @@ function renderVentas() {
     if (v >= 1e3)  return '$' + Math.round(v/1e3).toLocaleString('es-AR') + 'K';
     return '$' + Math.round(v).toLocaleString('es-AR');
   }
-  document.getElementById('v-total').textContent   = fmtM(ann.c);
+  document.getElementById('v-total').textContent   = fmtM(annCosto);
   document.getElementById('v-uds').textContent     = ann.u.toLocaleString('es-AR') + ' un';
-  document.getElementById('v-margen').textContent  = annP ? fmtM(annP.c) : '—';
+  document.getElementById('v-margen').textContent  = annP ? fmtM(annCostoP) : '—';
   document.getElementById('v-costo').textContent   = annP ? annP.u.toLocaleString('es-AR') + ' un' : '';
   document.getElementById('v-uds2').textContent    = '';
 
   if (annP) {
     const varU  = annP.u > 0 ? ((ann.u - annP.u)/annP.u*100).toFixed(1) : '—';
-    const varC  = annP.c > 0 ? ((ann.c - annP.c)/annP.c*100).toFixed(1) : '—';
+    const varC  = annCostoP > 0 ? ((annCosto - annCostoP)/annCostoP*100).toFixed(1) : '—';
     const arrow = ann.u >= (annP.u||0) ? '▲' : '▼';
-    const arrowC = ann.c >= (annP.c||0) ? '▲' : '▼';
+    const arrowC = annCosto >= (annCostoP||0) ? '▲' : '▼';
     document.getElementById('v-vs').textContent    = `${arrowC} ${Math.abs(varC)}% vs ${yrPrev}`;
-    document.getElementById('v-vs').className      = 'kpi-change ' + (ann.c >= (annP.c||0) ? 'up' : 'down');
+    document.getElementById('v-vs').className      = 'kpi-change ' + (annCosto >= (annCostoP||0) ? 'up' : 'down');
     document.getElementById('v-mg-vs').textContent = `${arrow} ${Math.abs(varU)}% un vs ${yrPrev}`;
   } else {
     document.getElementById('v-vs').textContent    = 'Sin año anterior';
     document.getElementById('v-mg-vs').textContent = '';
   }
 
-  // Mejor/peor mes (por monto)
+  // Mejor/peor mes (por costo)
   const activos = series.filter(s => s.u > 0);
   if (activos.length) {
-    const best  = activos.reduce((a,b) => b.c > a.c ? b : a);
-    const worst = activos.reduce((a,b) => b.c < a.c ? b : a);
+    const best  = activos.reduce((a,b) => (_costoMes[b.mes]||0) > (_costoMes[a.mes]||0) ? b : a);
+    const worst = activos.reduce((a,b) => (_costoMes[b.mes]||0) < (_costoMes[a.mes]||0) ? b : a);
     document.getElementById('v-best-mes').textContent  = best.label;
-    document.getElementById('v-best-val').textContent  = fmtM(best.c);
+    document.getElementById('v-best-val').textContent  = fmtM(_costoMes[best.mes]||0);
     document.getElementById('v-best-uds').textContent  = best.u.toLocaleString('es-AR') + ' un';
-    document.getElementById('v-worst').textContent     = 'Menor: ' + worst.label + ' · ' + fmtM(worst.c);
+    document.getElementById('v-worst').textContent     = 'Menor: ' + worst.label + ' · ' + fmtM(_costoMes[worst.mes]||0);
   }
 
-  // Canal top (por monto)
-  const depArr = Object.entries(deps).filter(([,v]) => v.u > 0).sort((a,b) => b[1].c - a[1].c);
-  const totDep = Object.values(deps).reduce((s,v) => s + v.c, 0);
+  // Canal top (por costo)
+  const depArr = Object.entries(deps).filter(([,v]) => v.u > 0).sort((a,b) => (_costoDep[b[0]]||0) - (_costoDep[a[0]]||0));
+  const totDep = _totCostoDep;
   if (depArr.length) {
     const [topDep, topV] = depArr[0];
     document.getElementById('v-dep-top').textContent = topDep;
-    document.getElementById('v-dep-pct').textContent = pct(topV.c, totDep) + ' del monto';
-    document.getElementById('v-dep-sub').textContent = topV.u.toLocaleString('es-AR') + ' un · ' + fmtM(topV.c);
+    document.getElementById('v-dep-pct').textContent = pct(_costoDep[topDep]||0, totDep) + ' del costo';
+    document.getElementById('v-dep-sub').textContent = topV.u.toLocaleString('es-AR') + ' un · ' + fmtM(_costoDep[topDep]||0);
   }
 
   // ── Gráfico mensual ───────────────────────────────────────────────────────
   const labels = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   // Cuando hay cliente activo solo aplica el modo uds (no hay monto/margen en CLIENT_DATA)
   const _effMode = clData ? 'uds' : chartMode;
-  const cur    = labels.map((_,i) => { const s = series.find(x => x.mes === i+1); return s ? (_effMode==='monto' ? (s.m||0)/1e6 : _effMode==='uds' ? s.u : (s.mg||0)) : null; });
+  const cur    = labels.map((_,i) => { const s = series.find(x => x.mes === i+1); return s ? (_effMode==='monto' ? (_costoMes[i+1]||0)/1e6 : _effMode==='uds' ? s.u : (s.mg||0)) : null; });
   const barColors = labels.map((_,i) => mes > 0 && i+1 === mes ? '#4ade80' : mes > 0 ? '#4ade8033' : '#4ade8088');
   const prevS  = clDataP ? (clDataP.monthly || []) : (VD.monthly[yrPrev] || []);
-  const prev   = labels.map((_,i) => { const s = prevS.find(x => x.mes === i+1); return s && s.u>0 ? (_effMode==='monto' ? (s.m||0)/1e6 : _effMode==='uds' ? s.u : (s.mg||0)) : null; });
+  const prev   = labels.map((_,i) => { const s = prevS.find(x => x.mes === i+1); return s && s.u>0 ? (_effMode==='monto' ? (_costoMesP[i+1]||0)/1e6 : _effMode==='uds' ? s.u : (s.mg||0)) : null; });
   const yLabel = chartMode==='monto' ? 'ARS M' : chartMode==='uds' ? 'Unidades' : 'Margen %';
   const yFmt   = chartMode==='margen' ? v => v+'%' : chartMode==='monto' ? v => '$'+v+'M' : v => v.toLocaleString();
 
@@ -2538,7 +2600,7 @@ function renderVentas() {
   let totC = 0;
   for (const s of seriesAug) {
     totU += s.u;
-    totC += (s.c || 0);
+    totC += (_costoMes[s.mes]||0);
     const vmo  = varFmt(s.varMoNum);
     const vyr  = varFmt(s.varUNum);
     const proyTxt = s.proyU !== null
@@ -2551,7 +2613,7 @@ function renderVentas() {
     rows += `<tr style="${isSelMes ? 'background:rgba(74,222,128,.08);outline:1px solid var(--accent)' : ''}">
       <td style="font-weight:600;white-space:nowrap">${mesLbl}${isSelMes ? ' ◀' : ''}</td>
       <td style="text-align:right;font-weight:700">${s.u.toLocaleString('es-AR')}</td>
-      <td style="text-align:right;color:var(--accent3);font-size:9px;white-space:nowrap">${fmtM(s.c)}</td>
+      <td style="text-align:right;color:var(--accent3);font-size:9px;white-space:nowrap">${fmtM(_costoMes[s.mes]||0)}</td>
       <td style="text-align:right;font-size:9px">${proyTxt}</td>
       <td style="text-align:right;${vmo.cls}">${vmo.txt}</td>
       <td style="text-align:right;${vyr.cls}">${vyr.txt}</td>
@@ -2691,7 +2753,7 @@ function renderVentas() {
   document.getElementById('v-rub-tbody').innerHTML = rubRows || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Sin datos</td></tr>';
   document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_allSuffix}`;
   renderProds();
-  renderSemanal(mes, series, clData);
+  renderSemanal(mes, series, clData, _costoMes[mes]||0);
   document.getElementById('v-count').textContent = `${activos.length} meses con datos · ${totU.toLocaleString('es-AR')} un`;
   updateVentasSortIcons();
 }
@@ -2699,7 +2761,7 @@ function renderVentas() {
 
 
 // ── SEMANAL ───────────────────────────────────────────────────────────────────
-function renderSemanal(mes, series, clData) {
+function renderSemanal(mes, series, clData, mesCostoTotal) {
   const wrap = document.getElementById('v-semanal-wrap');
   const tbody = document.getElementById('v-semanal-tbody');
   const title = document.getElementById('v-semanal-title');
@@ -2736,11 +2798,12 @@ function renderSemanal(mes, series, clData) {
   title.textContent = `📆 Desglose semanal · ${mesLabel} ${vYear}${_clSfxStr()}`;
 
   const totalU = weeks.reduce((s, w) => s + w.u, 0);
-  const totalC = weeks.reduce((s, w) => s + w.c, 0);
+  const _mct   = mesCostoTotal || 0;
   let rows = '';
   for (const w of weeks) {
-    const pct = totalU > 0 ? (w.u / totalU * 100).toFixed(1) : '0.0';
+    const pct  = totalU > 0 ? (w.u / totalU * 100).toFixed(1) : '0.0';
     const barW = totalU > 0 ? Math.round(w.u / totalU * 100) : 0;
+    const wCosto = totalU > 0 ? Math.round(_mct * w.u / totalU) : 0;
     rows += `<tr>
       <td style="white-space:nowrap">${w.label}</td>
       <td style="text-align:right;font-weight:600">${w.u.toLocaleString('es-AR')}</td>
@@ -2752,7 +2815,7 @@ function renderSemanal(mes, series, clData) {
           <span style="font-size:9px;color:var(--muted);min-width:34px;text-align:right">${pct}%</span>
         </div>
       </td>
-      <td style="text-align:right;color:var(--muted);font-size:9px">${w.c > 0 ? '$' + Math.round(w.c).toLocaleString('es-AR') : '—'}</td>
+      <td style="text-align:right;color:var(--muted);font-size:9px">${wCosto > 0 ? '$' + wCosto.toLocaleString('es-AR') : '—'}</td>
     </tr>`;
   }
   // Total row
@@ -2760,7 +2823,7 @@ function renderSemanal(mes, series, clData) {
     <td>Total ${mesLabel}</td>
     <td style="text-align:right">${totalU.toLocaleString('es-AR')}</td>
     <td style="font-size:9px;color:var(--muted)">100%</td>
-    <td style="text-align:right;color:var(--muted);font-size:9px">${totalC > 0 ? '$' + Math.round(totalC).toLocaleString('es-AR') : '—'}</td>
+    <td style="text-align:right;color:var(--muted);font-size:9px">${_mct > 0 ? '$' + Math.round(_mct).toLocaleString('es-AR') : '—'}</td>
   </tr>`;
   tbody.innerHTML = rows;
 }
