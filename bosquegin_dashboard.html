@@ -663,7 +663,7 @@
           <th data-col="cod"    class="sortable" style="font-size:9px;padding:6px 4px">Cód <span class="sort-icon">⇅</span></th>
           <th data-col="art"    class="sortable">Artículo <span class="sort-icon">⇅</span></th>
           <th data-col="stock"  class="sortable">Stock (un) <span class="sort-icon">⇅</span></th>
-          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Costo (ARS) ⓘ <span class="sort-icon">⇅</span></th>
+          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Monto (ARS) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (un/mes) ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="dias"   class="sortable" title="Meses de stock = stock ÷ demanda mensual (promedio 90d y 365d)">Meses ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="peso"   class="sortable" title="Peso individual del artículo en el inventario">Peso % <span class="sort-icon">⇅</span></th>
@@ -686,7 +686,7 @@
     <!-- Pareto Financiero (valor de inventario = stock × costo) -->
     <div class="table-card" style="margin-bottom:0">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <div class="table-title" id="inv-pf-title">💰 Pareto financiero · costo de inventario</div>
+        <div class="table-title" id="inv-pf-title">💰 Pareto financiero · monto de inventario</div>
         <span style="font-size:9px;color:var(--muted)">A=10% · B=20% · C=70%</span>
       </div>
       <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
@@ -696,7 +696,7 @@
             <th style="width:28px">#</th>
             <th>Artículo</th>
             <th>Rubro</th>
-            <th style="text-align:right">Costo ARS</th>
+            <th style="text-align:right">Monto ARS</th>
             <th style="text-align:right">Acum %</th>
             <th>Seg.</th>
           </tr>
@@ -755,7 +755,7 @@
           <th style="width:70px">Cód</th>
           <th>Descripción</th>
           <th style="text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Costo (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
+          <th style="text-align:right">Monto (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Dem./mes (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th style="text-align:right">Meses<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
           <th>Estado</th>
@@ -951,7 +951,7 @@
     const abcLeg = document.getElementById('inv-intel-abc-legend');
     if (abcLeg) {
       abcLeg.innerHTML = [
-        ['#4ade80','A — Alto costo', nA, pA],
+        ['#4ade80','A — Alto monto', nA, pA],
         ['#38bdf8','B — Medio',      nB, pB],
         ['#64748b','C — Bajo',       nC, pC],
       ].map(([col, label, cnt, pct]) => `
@@ -1836,7 +1836,7 @@ function renderOverview() {
           <div class="chart-subtitle">Unidades · Año seleccionado vs anterior</div>
         </div>
         <div style="display:flex;gap:6px">
-          <button class="year-btn active" id="btn-monto"  onclick="setChartMode('monto')">Costo</button>
+          <button class="year-btn active" id="btn-monto"  onclick="setChartMode('monto')">Monto</button>
           <button class="year-btn"        id="btn-uds"    onclick="setChartMode('uds')">Unidades</button>
           <button class="year-btn"        id="btn-margen" onclick="setChartMode('margen')">Margen %</button>
         </div>
@@ -1856,7 +1856,7 @@ function renderOverview() {
             <th>Semana</th>
             <th style="text-align:right">Salidas (un)</th>
             <th style="text-align:right">% del mes</th>
-            <th style="text-align:right">Costo</th>
+            <th style="text-align:right">Monto</th>
           </tr>
         </thead>
         <tbody id="v-semanal-tbody"></tbody>
@@ -1907,7 +1907,7 @@ function renderOverview() {
         <tr id="v-mes-thead">
           <th class="sortable" onclick="setVMesSort('mes')" style="cursor:pointer;user-select:none">Mes <span class="sort-icon" id="vms-icon-mes">⇅</span></th>
           <th class="sortable" onclick="setVMesSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vms-icon-u">⇅</span></th>
-          <th style="text-align:right">Costo</th>
+          <th style="text-align:right">Monto</th>
           <th style="text-align:right;color:var(--muted)">Proy. mes</th>
           <th class="sortable" onclick="setVMesSort('varm')" style="text-align:right;cursor:pointer;user-select:none">Δ mes ant. <span class="sort-icon" id="vms-icon-varm">⇅</span></th>
           <th class="sortable" onclick="setVMesSort('var')" style="text-align:right;cursor:pointer;user-select:none">Δ año ant. <span class="sort-icon" id="vms-icon-var">⇅</span></th>
@@ -2480,7 +2480,7 @@ function renderVentas() {
   if (depArr.length) {
     const [topDep, topV] = depArr[0];
     document.getElementById('v-dep-top').textContent = topDep;
-    document.getElementById('v-dep-pct').textContent = pct(_costoDep[topDep]||0, totDep) + ' del costo';
+    document.getElementById('v-dep-pct').textContent = pct(_costoDep[topDep]||0, totDep) + ' del monto';
     document.getElementById('v-dep-sub').textContent = topV.u.toLocaleString('es-AR') + ' un · ' + fmtM(_costoDep[topDep]||0);
   }
 
