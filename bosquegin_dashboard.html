@@ -1224,21 +1224,26 @@ function getStock(item, dep) {
   return (item.klozer||0)+(item.ofi||0);
 }
 function getAvg90(item, dep) {
-  if(dep==='klozer'||dep==='klozer_mkt') return item.k90||0;
-  if(dep==='ofi')                        return item.o90||0;
+  if(dep==='klozer')       return item.k90||0;
+  if(dep==='klozer_mkt')   return item.km90||0;
+  if(dep==='ofi')          return item.o90||0;
   if(dep==='shop_gallery'||dep==='avolta') return 0;
   return (item.k90||0)+(item.o90||0);  // klozer_ofi
 }
 function getMin(item, dep) {
-  if(dep==='klozer'||dep==='klozer_mkt') return item.min_k||0;
-  if(dep==='ofi')                        return item.min_o||0;
-  if(dep==='shop_gallery'||dep==='avolta') return 0;
+  if(dep==='klozer')       return item.min_k||0;
+  if(dep==='klozer_mkt')   return item.min_km||0;
+  if(dep==='ofi')          return item.min_o||0;
+  if(dep==='shop_gallery') return (window._SG_MIN&&window._SG_MIN[String(item.cod)])||0;
+  if(dep==='avolta')       return 0;
   return item.min_b||0;  // klozer_ofi
 }
 function getParetoPct(item, dep) {
-  if(dep==='klozer'||dep==='klozer_mkt') return item.pk||0;
-  if(dep==='ofi')                        return item.po||0;
-  if(dep==='shop_gallery'||dep==='avolta') return 0;
+  if(dep==='klozer')       return item.pk||0;
+  if(dep==='klozer_mkt')   { const mn=item.min_km||0; const st=item.klozer_mkt||0; return mn>0?st/mn:(st>0?9999:0); }
+  if(dep==='ofi')          return item.po||0;
+  if(dep==='shop_gallery') { const mn=(window._SG_MIN&&window._SG_MIN[String(item.cod)])||0; const st=item.shop_gallery||0; return mn>0?st/mn:(st>0?9999:0); }
+  if(dep==='avolta')       return 0;
   return item.pb||0;  // klozer_ofi
 }
 function diasStock(stock, avg90) {
@@ -1987,6 +1992,25 @@ const MONTHLY_DATA =BOSQUE_DATA.ventas.MONTHLY_DATA;
 const PROD_DATA =BOSQUE_DATA.ventas.PROD_DATA;
 const VD =BOSQUE_DATA.ventas.VD;
 const CLIENT_DATA =BOSQUE_DATA.ventas.CLIENT_DATA || {};
+
+// ── Mínimo mensual estimado para SHOP GALLERY (no viene en INV_DATA) ──────────
+// Prioridad: 2025 anual ÷12, luego año más reciente disponible ÷ meses con datos
+(function() {
+  const map = {};
+  // Año completo 2025
+  for (const p of (PROD_DATA['2025'] || [])) {
+    const sg = (p.deps || {})['SHOP GALLERY'];
+    if (sg && sg.u > 0) map[String(p.cod)] = sg.u / 12;
+  }
+  // Completar con 2026 parcial si no hay dato 2025
+  const months2026 = Object.keys((MONTHLY_DATA['2026'] || {}).prods || {}).length || 1;
+  for (const p of (PROD_DATA['2026'] || [])) {
+    if (map[String(p.cod)]) continue;
+    const sg = (p.deps || {})['SHOP GALLERY'];
+    if (sg && sg.u > 0) map[String(p.cod)] = sg.u / months2026;
+  }
+  window._SG_MIN = map;
+})();
 
 // ── Promedios rolling por artículo (cod → uds en ventana) ────────────────────
 function _buildTrailMap(days) {
@@ -4426,10 +4450,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (secs.includes(s)) tab.style.display = '';
       else                  { tab.style.display = 'none'; tab.classList.remove('active'); }
     });
-    // Actualizar button: visible para admin y editor en servidor local
+    // Actualizar button: visible para admin y editor (local → directo, remoto → túnel Render)
     var btnUpd = document.getElementById('btn-update');
-    var isLocal = (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
-    var canUpdate = isLocal && (me.role === 'admin' || me.role === 'editor');
+    var canUpdate = me.role === 'admin' || me.role === 'editor';
     if (btnUpd) btnUpd.style.display = canUpdate ? '' : 'none';
     // User chip: mostrar en todos los modos
     if (chip) chip.style.display = 'flex';
