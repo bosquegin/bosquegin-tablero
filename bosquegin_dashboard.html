@@ -659,16 +659,16 @@
       <thead>
         <tr id="inv-thead-row">
           <th data-col="rub"    class="sortable">Rubro <span class="sort-icon">⇅</span></th>
-          <th data-col="sub"    class="sortable">Subrubro <span class="sort-icon">⇅</span></th>
+          <th data-col="sub"    class="sortable">Sub­rubro <span class="sort-icon">⇅</span></th>
           <th data-col="cod"    class="sortable" style="font-size:9px;padding:6px 4px">Cód <span class="sort-icon">⇅</span></th>
           <th data-col="art"    class="sortable">Artículo <span class="sort-icon">⇅</span></th>
-          <th data-col="costo"  class="sortable" title="Costo unitario vigente (ARS)">Costo (ARS) ⓘ <span class="sort-icon">⇅</span></th>
-          <th data-col="stock"  class="sortable">Stock (un) <span class="sort-icon">⇅</span></th>
-          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Monto (ARS) ⓘ <span class="sort-icon">⇅</span></th>
-          <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín (un/mes) ⓘ <span class="sort-icon">⇅</span></th>
+          <th data-col="stock"  class="sortable">Stock<br><span style="font-weight:400;color:var(--muted)">(un)</span> <span class="sort-icon">⇅</span></th>
+          <th data-col="min"    class="sortable" title="(avg_diario_90d + avg_diario_365d) / 2 × 30 días — según depósito">Mín ⓘ<br><span style="font-weight:400;color:var(--muted)">(un/mes)</span> <span class="sort-icon">⇅</span></th>
           <th data-col="dias"   class="sortable" title="Meses de stock = stock ÷ demanda mensual (promedio 90d y 365d)">Meses ⓘ <span class="sort-icon">⇅</span></th>
           <th data-col="peso"   class="sortable" title="Peso individual del artículo en el inventario">Peso % <span class="sort-icon">⇅</span></th>
           <th data-col="pareto" class="sortable" title="Pareto acumulado">Acum % <span class="sort-icon">⇅</span></th>
+          <th data-col="costo"  class="sortable" title="Costo unitario vigente (ARS)">Costo ⓘ<br><span style="font-weight:400;color:var(--muted)">(ARS)</span> <span class="sort-icon">⇅</span></th>
+          <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Monto ⓘ<br><span style="font-weight:400;color:var(--muted)">(ARS)</span> <span class="sort-icon">⇅</span></th>
           <th>Estado</th>
         </tr>
       </thead>
@@ -1471,13 +1471,13 @@ function renderInvTable() {
       <td style="color:var(--muted);font-size:9px;white-space:nowrap">${item.sub}</td>
       <td><code style="font-size:9px">${item.cod}</code></td>
       <td style="white-space:nowrap;font-size:9px" title="${artName(item.cod,item.art)}">${artName(item.cod,item.art)}</td>
-      <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--muted)">${costUnit(item.cod)>0?_fmtARSFull(costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="font-weight:700;text-align:right;white-space:nowrap">${stock.toLocaleString()}</td>
-      <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--accent2)">${costUnit(item.cod)>0?_fmtARSFull(stock*costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
       <td style="text-align:right;color:var(--muted);white-space:nowrap">${minTxt}</td>
       <td style="text-align:right;white-space:nowrap;${diasColor}">${diasTxt}</td>
       <td style="text-align:right;white-space:nowrap;color:var(--muted)">${pesoTxt}</td>
       <td style="text-align:right;white-space:nowrap;font-weight:600;${acumCls}">${acumTxt}</td>
+      <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--muted)">${costUnit(item.cod)>0?_fmtARSFull(costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="text-align:right;white-space:nowrap;font-size:9px;color:var(--accent2)">${costUnit(item.cod)>0?_fmtARSFull(stock*costUnit(item.cod)):'<span style="color:var(--muted)">—</span>'}</td>
       <td>${estadoBadge(meses, min, stock)}</td>
     </tr>`;
   }
