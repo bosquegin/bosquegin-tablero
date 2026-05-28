@@ -13,7 +13,10 @@ Cambios v2.0:
   - update_consolidado() reconoce formato GC Simplificado y GC Comp
 """
 import os, json, re, glob
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
+
+# Zona horaria Argentina (UTC-3, sin DST)
+_AR = timezone(timedelta(hours=-3))
 
 import platform
 if platform.system() == "Windows":
@@ -988,7 +991,6 @@ def fetch_costos_completo():
     Retorna: (costos_dict, costos_data)
     """
     import csv, io
-    from datetime import datetime
 
     # ── 1. Descargar CSV si esta desactualizado ───────────────────────────────
     download_costos_csv()
@@ -1149,7 +1151,7 @@ def fetch_costos_completo():
         if costo_actual and costo_actual > 0:
             costos_dict[cod] = costo_actual
 
-    costos_data["actualizacion"] = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    costos_data["actualizacion"] = datetime.now(_AR).strftime("%Y-%m-%dT%H:%M:%S-03:00")
     n = len(costos_data["productos"])
     print(f"  Costos: {n} productos cargados desde {source}  |  {len(costos_dict)} con precio")
 
@@ -1955,7 +1957,7 @@ def generate_proyecciones(inv_data):
 # ─── 7. MAIN ──────────────────────────────────────────────────────────────────
 def main():
     print("=" * 60)
-    print(f"Actualizando Bosque Gin Dashboard — {datetime.now():%Y-%m-%d %H:%M}")
+    print(f"Actualizando Bosque Gin Dashboard — {datetime.now(_AR):%Y-%m-%d %H:%M} (AR)")
     print("=" * 60)
 
     # Configurar CDP en Brave (una vez; si ya está configurado no hace nada)
@@ -2068,7 +2070,7 @@ def main():
 
     new_data = {
         "meta": {
-            "generado":         datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "generado":         datetime.now(_AR).strftime("%Y-%m-%dT%H:%M:%S-03:00"),
             "ventas_hasta":     ventas_hasta,
             "stock_hasta":      stock_hasta,
             "destileria_hasta": max((m["key"] for m in destileria.get("months", [])), default="?"),
@@ -2106,7 +2108,7 @@ def main():
         import subprocess
         git_cmds = [
             ["git", "add", "bosquegin_data.js", "auth_static.js"],
-            ["git", "commit", "-m", "data: actualizar " + datetime.now().strftime("%Y-%m-%d %H:%M")],
+            ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
             ["git", "pull", "--rebase", "origin", "main"],
             ["git", "push", "origin", "main"],
         ]

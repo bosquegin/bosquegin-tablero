@@ -15,7 +15,9 @@ Variables de entorno requeridas:
   GITHUB_TOKEN                 — Token de acceso personal a GitHub
 """
 import os, sys, json, shutil, tempfile, importlib.util, urllib.request, urllib.parse, base64
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+_AR = timezone(timedelta(hours=-3))
 
 GITHUB_REPO = "bosquegin/bosquegin-tablero"
 GITHUB_FILE = "bosquegin_data.js"
@@ -205,7 +207,7 @@ def push_to_github(content, token):
 
     # Push
     body = json.dumps({
-        "message": f"data: actualizar cloud {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+        "message": f"data: actualizar cloud {datetime.now(_AR).strftime('%Y-%m-%d %H:%M')}",
         "content": base64.b64encode(content.encode("utf-8")).decode("ascii"),
         "sha": sha,
     }).encode("utf-8")

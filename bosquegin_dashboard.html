@@ -4279,7 +4279,7 @@ async function _runCloudUpdate() {
     }
     if (!res.ok) throw new Error('HTTP ' + res.status);
 
-    // 4. Leer respuesta en streaming (igual que modo local)
+    // 4. Leer respuesta en streaming
     let fullLog = '';
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
@@ -4295,8 +4295,11 @@ async function _runCloudUpdate() {
             break;
           }
         }
-        var lines = fullLog.split('\n').map(function(l){ return l.trim(); }).filter(Boolean);
-        if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 60);
+        // Filtrar keep-alives ("." sueltos) del detail
+        var lines = fullLog.split('\n')
+          .map(function(l){ return l.trim(); })
+          .filter(function(l){ return l && l !== '.'; });
+        if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 80);
         return read();
       });
     };

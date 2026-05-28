@@ -16,7 +16,7 @@ Variables opcionales:
   PORT                         — Puerto HTTP (Render lo setea automáticamente)
   CLOUD_COOLDOWN               — Segundos mínimos entre actualizaciones (default 180)
 """
-import os, json, time, hmac, hashlib, threading
+import os, json, time, hmac, hashlib, threading, queue
 from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
 
@@ -100,49 +100,70 @@ def actualizar():
         _last_update = now
         _running = True
 
-    # 3. Stream output
+    # 3. Stream output — ejecuta la actualización en un hilo separado y
+    #    hace yield de cada línea en tiempo real para mantener la conexión viva.
     def generate():
         global _running
         import io, sys, importlib.util, os
 
-        # Capturar stdout con un writer que hace yield
+        q = queue.Queue()
+        _DONE = object()  # sentinel
+
         class StreamCapture(io.TextIOBase):
+            """Redirige stdout al queue línea a línea."""
             def __init__(self):
-                self.buf = []
+                self._buf = ''
             def write(self, s):
-                if s:
-                    self.buf.append(s)
+                if not s:
+                    return 0
+                self._buf += s
+                while '\n' in self._buf:
+                    line, self._buf = self._buf.split('\n', 1)
+                    q.put(line + '\n')
                 return len(s)
             def flush(self):
-                pass
+                if self._buf:
+                    q.put(self._buf)
+                    self._buf = ''
 
-        cap = StreamCapture()
-        old_stdout = sys.stdout
-        sys.stdout = cap
+        def _worker():
+            cap = StreamCapture()
+            old_stdout = sys.stdout
+            sys.stdout = cap
+            try:
+                here = os.path.dirname(os.path.abspath(__file__))
+                spec = importlib.util.spec_from_file_location(
+                    "actualizar_cloud",
+                    os.path.join(here, "actualizar_cloud.py")
+                )
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                mod.main()
+                cap.flush()
+                q.put("\n✅ Actualización completada\n")
+            except Exception as e:
+                cap.flush()
+                q.put(f"\n❌ Error: {e}\n")
+            finally:
+                sys.stdout = old_stdout
+                q.put(_DONE)
+
+        t = threading.Thread(target=_worker, daemon=True)
+        t.start()
 
         try:
-            # Importar actualizar_cloud desde el mismo directorio
-            here = os.path.dirname(os.path.abspath(__file__))
-            spec = importlib.util.spec_from_file_location(
-                "actualizar_cloud",
-                os.path.join(here, "actualizar_cloud.py")
-            )
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            mod.main()
-
-            sys.stdout = old_stdout
-            # Devolver todo lo capturado
-            yield "".join(cap.buf)
-            yield "\n✅ Actualización completada"
-
-        except Exception as e:
-            sys.stdout = old_stdout
-            yield "".join(cap.buf)
-            yield f"\n❌ Error: {e}"
+            while True:
+                try:
+                    item = q.get(timeout=20)  # heartbeat cada 20s máx
+                except queue.Empty:
+                    yield ".\n"  # keep-alive para Render/proxy
+                    continue
+                if item is _DONE:
+                    break
+                yield item
         finally:
-            sys.stdout = old_stdout
             _running = False
+            t.join(timeout=5)
 
     return Response(
         stream_with_context(generate()),
