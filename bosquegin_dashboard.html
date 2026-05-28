@@ -597,7 +597,7 @@
   <div class="filter-bar" style="margin-bottom:16px;align-items:center;">
     <span class="filter-label">Depósito:</span>
     <select id="dep-filter" onchange="renderInvTable()" style="min-width:130px">
-      <option value="klozer_ofi">KLOZER + OFI</option>
+      <option value="klozer_ofi">KLOZER + OFICINA</option>
       <option value="klozer">KLOZER</option>
       <option value="klozer_mkt">KLOZER MKT</option>
       <option value="ofi">OFICINA</option>
@@ -782,7 +782,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <select id="inv-intel-dep" onchange="renderInvIntel()"
         style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;font-size:9px;outline:none;cursor:pointer">
-        <option value="klozer_ofi">KLOZER + OFI</option>
+        <option value="klozer_ofi">KLOZER + OFICINA</option>
         <option value="klozer">KLOZER</option>
         <option value="klozer_mkt">KLOZER MKT</option>
         <option value="ofi">OFICINA</option>
@@ -1391,7 +1391,7 @@ function renderInvTable() {
   const dep    = document.getElementById('dep-filter')?.value || 'klozer_ofi';
   const rub    = document.getElementById('rub-filter').value;
   const search = (document.getElementById('inv-search').value || '').toLowerCase();
-  const depLabels = { both:'KLOZER + OFI (todos)', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA', ofi:'OFICINA' };
+  const depLabels = { both:'KLOZER + OFICINA (todos)', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA', ofi:'OFICINA' };
 
   // Filtrar
   let filtered = INV_DATA.filter(item => {
