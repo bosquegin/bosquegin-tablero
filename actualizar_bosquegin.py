@@ -535,7 +535,9 @@ DEP_MAP = {
 
 
 def _last_ventas_date():
-    """Escanea Bosque salidas.xlsx y retorna la fecha maxima como string 'YYYY-MM-DD', o None."""
+    """Escanea Bosque salidas.xlsx y retorna la fecha maxima con datos reales
+    (cod + cantidad no nulos) como string 'YYYY-MM-DD', o None.
+    Ignora filas con solo fecha (marcadores de posición vacíos)."""
     if not os.path.exists(VENTAS_F):
         return None
     try:
@@ -545,6 +547,14 @@ def _last_ventas_date():
         last = "0"
         for row in ws.iter_rows(min_row=3, values_only=True):
             if not row or not row[0]: continue
+            # Ignorar filas sin código o sin cantidad (son marcadores de posición)
+            cod_raw = row[2] if len(row) > 2 else None
+            qty_raw = row[3] if len(row) > 3 else None
+            if cod_raw is None or qty_raw is None: continue
+            try:
+                qty = float(str(qty_raw).replace(",", "."))
+                if qty <= 0: continue
+            except: continue
             raw = row[0]
             if hasattr(raw, "year"):
                 d = f"{raw.year}-{raw.month:02d}-{raw.day:02d}"
