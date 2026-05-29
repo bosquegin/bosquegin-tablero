@@ -2133,6 +2133,70 @@ def main():
     except Exception as e:
         print("  Advertencia publicacion: %s" % e)
 
+    # ── Sincronizar código con Google Drive ───────────────────────────────────
+    _sync_to_drive()
+
+
+def _sync_to_drive():
+    """Copia los archivos clave del tablero a la carpeta de Google Drive
+    (G:/Mi unidad/Claude/Tablero operativo/) para que Drive Desktop los suba
+    automáticamente a la nube. Silencioso — no interrumpe si Drive no está."""
+    import shutil as _sh
+
+    DRIVE_DEST = r"G:\Mi unidad\Claude\Tablero operativo"
+    if not os.path.isdir(DRIVE_DEST):
+        return   # Drive Desktop no montado — saltar silenciosamente
+
+    FILES = [
+        "bosquegin_dashboard.html",
+        "actualizar_bosquegin.py",
+        "gc_downloader.py",
+        "servidor_render.py",
+        "actualizar_cloud.py",
+        "servidor_bosquegin.py",
+        "servidor_bosquegin_bg.bat",
+        "inicio_silencioso.vbs",
+        "iniciar_tablero.bat",
+        "iniciar_tablero_silencioso.vbs",
+        "cloud_config.js",
+        "render.yaml",
+        "requirements.txt",
+        "auth_static.js",
+        "index.html",
+        "oauth_tokens.json",
+        "client_secret.json",
+        "get_oauth_token.py",
+        "setup_brave_cdp.ps1",
+    ]
+
+    synced = 0
+    for fname in FILES:
+        src = os.path.join(BASE, fname)
+        dst = os.path.join(DRIVE_DEST, fname)
+        if not os.path.exists(src):
+            continue
+        try:
+            # Solo copiar si cambió (por tamaño o fecha)
+            if (not os.path.exists(dst)
+                    or os.path.getsize(src) != os.path.getsize(dst)
+                    or os.path.getmtime(src) > os.path.getmtime(dst)):
+                _sh.copy2(src, dst)
+                synced += 1
+        except Exception:
+            pass
+
+    # Sincronizar carpeta Versiones
+    vers_src = os.path.join(BASE, "Versiones")
+    vers_dst = os.path.join(DRIVE_DEST, "Versiones")
+    if os.path.isdir(vers_src):
+        try:
+            _sh.copytree(vers_src, vers_dst, dirs_exist_ok=True)
+        except Exception:
+            pass
+
+    if synced > 0:
+        print(f"\n[Drive] {synced} archivo(s) sincronizados -> {DRIVE_DEST}")
+
 
 if __name__ == "__main__":
     main()
