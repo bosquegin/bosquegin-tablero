@@ -553,7 +553,7 @@
     <span style="line-height:1.25">Costo<br><span style="font-size:9px">Dest./Cerv.</span></span>
   </div>
   <div class="tab" data-section="supply" onclick="showSection('supply', this)">
-    <span class="tab-icon">🚚</span> Supply Chain
+    <span class="tab-icon">🛒</span> Compras
   </div>
   <div class="tab" data-section="logistica" onclick="showSection('logistica', this)">
     <span class="tab-icon">🛒</span> Logística
@@ -1661,7 +1661,7 @@ function renderOverview() {
       { label: 'Al',
         value: stockFecha },
     ])}
-    ${card('var(--red)', '🚚', 'Supply Chain', 'supply', [
+    ${card('var(--red)', '🛒', 'Compras', 'supply', [
       { label: 'Stock crítico (< 1 mes)',
         value: scCrit + ' artículos',
         color: scCrit > 0 ? 'var(--red)' : 'var(--green)' },
@@ -3316,60 +3316,84 @@ function renderSupply() {
     return Math.max(0, Math.ceil(target - stock));
   }
   function buildRepTable(depLabel, depKey, itemsFn, stockFn, avgFn, minFn, colorRgb) {
-    let depItems = INV_DATA.filter(itemsFn).map(x => {
+    const depItems = INV_DATA.filter(itemsFn).map(x => {
       const stock = stockFn(x), avg = avgFn(x);
-      const qty = repQty(stock, avg);
+      const qty   = repQty(stock, avg);
       const target = Math.ceil(avg * repDays);
-      return { art: artName(x.cod,x.art), cod: x.cod, rub: x.rub||'—', stock, avg, min: minFn(x), qty, target };
+      return { art: artName(x.cod,x.art), cod: x.cod, rub: x.rub||'—', sub: x.sub||'', stock, avg, min: minFn(x), qty, target };
     }).filter(x => x.qty > 0);
-    // per-column filters
-    const colFilters = window['scRepFilter_'+depKey] || {};
-    if(colFilters.cod) depItems = depItems.filter(x => String(x.cod).includes(colFilters.cod));
-    if(colFilters.rub) depItems = depItems.filter(x => x.rub === colFilters.rub);
-    if(colFilters.art) depItems = depItems.filter(x => x.art.toLowerCase().includes(colFilters.art.toLowerCase()));
+
     if(!depItems.length) return `<div style="padding:20px;text-align:center;color:var(--muted);font-size:9px">Sin reposición necesaria para ${depLabel}</div>`;
+
+    // Inicializar / preservar estado editable
+    if (!window._repState) window._repState = {};
+    depItems.forEach(x => {
+      const key = depKey + '_' + x.cod;
+      if (!window._repState[key]) {
+        window._repState[key] = { qty: x.qty, apro: false, art: x.art, cod: x.cod, rub: x.rub, sub: x.sub, stock: x.stock, min: x.min, dep: depKey };
+      }
+    });
+
+    // Ordenar
     const colKey = 'scRep'+depKey+'Col', ascKey = 'scRep'+depKey+'Asc';
     const col = window[colKey]||'qty', asc = window[ascKey]!==undefined ? window[ascKey] : false;
     const strCols = ['art','cod','rub'];
-    depItems = depItems.slice().sort((a,b)=>{
+    const sorted = depItems.slice().sort((a,b)=>{
       const va=a[col], vb=b[col];
       return strCols.includes(col) ? (asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va))) : (asc?va-vb:vb-va);
     });
-    const totalQty = depItems.reduce((s,x)=>s+x.qty,0);
-    const iStyle = "font-size:9px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:3px;padding:1px 4px;margin-top:2px;display:block;width:100%;box-sizing:border-box;height:18px";
-    const rubOpts = [...new Set(INV_DATA.map(x=>x.rub||'').filter(Boolean))].sort()
-      .map(r=>`<option value="${r}" ${colFilters.rub===r?'selected':''}>${r}</option>`).join('');
-    function th(label, c, right, ftype) {
+
+    const totalQty  = depItems.reduce((s,x)=>s+x.qty,0);
+    const aproCount = depItems.filter(x=>(window._repState[depKey+'_'+x.cod]||{}).apro).length;
+
+    function th(label, c, right) {
       const active = c===col, icon = !active?'⇅':asc?'▲':'▼';
       const cs = active?`color:rgb(${colorRgb});`:'', as = right?'text-align:right;':'';
-      let fi = '';
-      if(ftype==='text') fi=`<input type="text" value="${colFilters[c]||''}" placeholder="Filtrar…" onclick="event.stopPropagation()" oninput="event.stopPropagation();scRepFilter('${depKey}','${c}',this.value)" style="${iStyle}">`;
-      else if(ftype==='sel') fi=`<select onclick="event.stopPropagation()" onchange="event.stopPropagation();scRepFilter('${depKey}','${c}',this.value)" style="${iStyle}"><option value="">Todos</option>${rubOpts}</select>`;
-      return `<th style="${as}${cs}cursor:pointer;user-select:none;font-size:9px;vertical-align:top;padding:4px 6px" onclick="scRepSort('${depKey}','${c}')"><span style="white-space:nowrap">${label} <span style="font-size:9px">${icon}</span></span>${fi}</th>`;
+      return `<th style="${as}${cs}cursor:pointer;user-select:none;font-size:9px;padding:6px;white-space:nowrap" onclick="scRepSort('${depKey}','${c}')">${label} <span>${icon}</span></th>`;
     }
+
     return `
-      <div style="font-size:9px;font-weight:700;letter-spacing:.06em;color:rgb(${colorRgb});margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
-        ${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} un total
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
+        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;color:rgb(${colorRgb})">${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} un sugeridas</span>
+        ${aproCount > 0 ? `<span style="font-size:9px;color:var(--accent)">✓ ${aproCount} aprobada(s)</span>` : ''}
       </div>
       <div style="overflow-x:auto">
       <table>
         <thead><tr>
-          ${th('Rubro','rub',false,'sel')}
-          ${th('Código','cod',false,'text')}
-          ${th('Artículo','art',false,'text')}
-          ${th('Stock (un)','stock',true,null)}
-          ${th('Objetivo '+repDays+'d (un)','target',true,null)}
-          ${th('Reponer (un)','qty',true,null)}
+          ${th('Rubro','rub',false)}
+          ${th('Código','cod',false)}
+          ${th('Artículo','art',false)}
+          ${th('Stock (un)','stock',true)}
+          ${th(`Obj. ${repDays}d (un)`,'target',true)}
+          <th style="text-align:right;font-size:9px;padding:6px;white-space:nowrap">Reponer (un)</th>
+          <th style="text-align:center;font-size:9px;padding:6px;white-space:nowrap">✓ Aprobar</th>
         </tr></thead>
         <tbody>
-          ${depItems.map(x=>`<tr>
-            <td style="font-size:9px;color:var(--muted);white-space:nowrap">${x.rub}</td>
-            <td><code style="font-size:9px">${x.cod}</code></td>
-            <td style="font-size:9px;white-space:nowrap" title="${x.art}">${x.art}</td>
-            <td style="text-align:right;font-size:9px">${x.stock.toLocaleString()}</td>
-            <td style="text-align:right;font-size:9px;color:var(--muted)">${x.target.toLocaleString()}</td>
-            <td style="text-align:right;font-weight:700;color:rgb(${colorRgb})">${x.qty.toLocaleString()}</td>
-          </tr>`).join('')}
+          ${sorted.map(x=>{
+            const key  = depKey + '_' + x.cod;
+            const st   = window._repState[key] || {};
+            const curQty  = st.qty !== undefined ? st.qty : x.qty;
+            const curApro = st.apro || false;
+            return `<tr>
+              <td style="font-size:9px;color:var(--muted);white-space:nowrap">${x.rub}</td>
+              <td><code style="font-size:9px">${x.cod}</code></td>
+              <td style="font-size:9px;white-space:nowrap" title="${x.art}">${x.art}</td>
+              <td style="text-align:right;font-size:9px">${x.stock.toLocaleString()}</td>
+              <td style="text-align:right;font-size:9px;color:var(--muted)">${x.target.toLocaleString()}</td>
+              <td style="text-align:right;padding:3px 6px">
+                <input type="number" min="0" value="${curQty}"
+                  style="width:72px;background:var(--surface);border:1px solid var(--border);
+                         color:rgb(${colorRgb});border-radius:6px;padding:3px 7px;
+                         font-size:9px;font-weight:700;text-align:right;outline:none"
+                  oninput="_repStateUpd('${key}','qty',+this.value)">
+              </td>
+              <td style="text-align:center;padding:3px 6px">
+                <input type="checkbox" ${curApro?'checked':''}
+                  style="width:15px;height:15px;cursor:pointer;accent-color:rgb(${colorRgb})"
+                  onchange="_repStateUpd('${key}','apro',this.checked)">
+              </td>
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
       </div>`;
@@ -3398,15 +3422,24 @@ function renderSupply() {
   });
 }
 
-function scRepFilter(depKey, field, val) {
-  if(!window['scRepFilter_'+depKey]) window['scRepFilter_'+depKey] = {};
-  window['scRepFilter_'+depKey][field] = val;
+function _repStateUpd(key, field, val) {
+  if (!window._repState) window._repState = {};
+  if (!window._repState[key]) window._repState[key] = {};
+  window._repState[key][field] = val;
+}
+function scRepDaysChange() {
+  window._repState = {};  // reiniciar al cambiar objetivo
   renderSupply();
 }
 function scRepSort(depKey, col) {
   const colKey = 'scRep'+depKey+'Col', ascKey = 'scRep'+depKey+'Asc';
   if(window[colKey]===col) window[ascKey] = !window[ascKey];
   else { window[colKey]=col; window[ascKey] = (col==='qty'||col==='stock'||col==='target') ? false : true; }
+  renderSupply();
+}
+function scRepFilter(depKey, field, val) {
+  if(!window['scRepFilter_'+depKey]) window['scRepFilter_'+depKey] = {};
+  window['scRepFilter_'+depKey][field] = val;
   renderSupply();
 }
 function scSetSort(table, col) {
@@ -3645,12 +3678,17 @@ function renderDestileria() {
       <div class="table-title">🛒 Reposición sugerida</div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label style="font-size:9px;color:var(--muted)">Objetivo:</label>
-        <select id="sc-rep-days" onchange="renderSupply()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
+        <select id="sc-rep-days" onchange="scRepDaysChange()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
           <option value="30">30 días</option>
           <option value="60" selected>60 días</option>
           <option value="90">90 días</option>
         </select>
-
+        <span id="sc-rep-save-msg" style="display:none;font-size:9px"></span>
+        <button id="sc-rep-save-btn" onclick="guardarRepSugerida()"
+          style="background:rgba(74,222,128,.12);border:1px solid var(--accent);color:var(--accent);
+                 border-radius:8px;padding:6px 14px;font-size:9px;font-weight:600;cursor:pointer">
+          &#128190; Guardar aprobaciones
+        </button>
       </div>
     </div>
     <div style="display:flex;flex-direction:column;gap:16px" id="sc-rep-grid">
@@ -4949,6 +4987,109 @@ function guardarProyeccion() {
   };
 }
 
+// ── guardarRepSugerida ────────────────────────────────────────────────────────
+function guardarRepSugerida() {
+  var state    = window._repState || {};
+  var aprobados = Object.values(state).filter(function(x){ return x.apro && x.qty > 0; });
+  var msg = document.getElementById('sc-rep-save-msg');
+  var btn = document.getElementById('sc-rep-save-btn');
+
+  if (!aprobados.length) {
+    msg.style.display = 'inline';
+    msg.style.color   = '#eab308';
+    msg.textContent   = 'Tildá al menos un artículo con cantidad.';
+    return;
+  }
+
+  // Reusar el mismo modal de cal-apro
+  var modal = document.getElementById('cal-apro-modal');
+  document.getElementById('cal-apro-count').textContent = aprobados.length;
+  document.getElementById('cal-apro-err').style.display = 'none';
+
+  var defDate = new Date();
+  defDate.setDate(defDate.getDate() + 15);
+  document.getElementById('cal-apro-fecha').value =
+    defDate.getFullYear() + '-' +
+    String(defDate.getMonth()+1).padStart(2,'0') + '-' +
+    String(defDate.getDate()).padStart(2,'0');
+  document.getElementById('cal-apro-prov').value = '';
+
+  document.getElementById('cal-apro-items').innerHTML =
+    aprobados.map(function(it){
+      return '<div style="padding:1px 0;border-bottom:1px solid var(--border)">▸ ' +
+             '<strong>' + (it.art||it.cod) + '</strong>' +
+             ' — ' + Number(it.qty).toLocaleString('es-AR') + ' un.</div>';
+    }).join('');
+
+  modal.style.display = 'flex';
+
+  document.getElementById('cal-apro-cancel').onclick = function() {
+    modal.style.display = 'none';
+  };
+
+  document.getElementById('cal-apro-confirm').onclick = function() {
+    var fecha = document.getElementById('cal-apro-fecha').value;
+    var prov  = document.getElementById('cal-apro-prov').value.trim();
+    var err   = document.getElementById('cal-apro-err');
+    if (!fecha) { err.style.display='block'; err.textContent='Ingresá la fecha de entrega.'; return; }
+
+    modal.style.display = 'none';
+
+    // Agregar al calendario
+    var todayStr = (function(){
+      var t=new Date();
+      return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    })();
+    aprobados.forEach(function(it){
+      CAL_EVENTS.push({ date:todayStr, tipo:'compra',  cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
+      CAL_EVENTS.push({ date:fecha,    tipo:'llegada', cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
+    });
+
+    // Navegar al mes de entrega si calendario está activo
+    var fDate = new Date(fecha + 'T12:00:00');
+    calYear  = fDate.getFullYear();
+    calMonth = fDate.getMonth();
+    if (document.getElementById('calendario').classList.contains('active')) renderCalendario();
+
+    // Mapear al formato de proyección y guardar en servidor
+    var items = aprobados.map(function(it){
+      return { cod:it.cod, art:it.art, rub:it.rub, sub:it.sub||'', stock:it.stock,
+               min_k:it.min||0, meses:0, cant_aprobada:it.qty, aprobado:true };
+    });
+
+    btn.textContent   = '&#8987; Guardando…';
+    btn.style.opacity = '0.6';
+
+    fetch('/guardar_proyeccion', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'same-origin', body:JSON.stringify(items)
+    })
+    .then(function(r){ if(_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function(d){
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'inline';
+      if (d.ok) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✓ ' + d.guardados + ' orden(es) guardada(s)' + (prov ? ' — ' + prov : '') + ' · calendario actualizado';
+        // Limpiar checkboxes aprobados
+        aprobados.forEach(function(it){ if(window._repState[it.dep+'_'+it.cod]) window._repState[it.dep+'_'+it.cod].apro=false; });
+        renderSupply();
+      } else {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Error: ' + d.error;
+      }
+    })
+    .catch(function(e){
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'inline';
+      msg.style.color   = '#ef4444';
+      msg.textContent   = 'Sin conexión: ' + e.message;
+    });
+  };
+}
+
 // ── renderCalendario ──────────────────────────────────────────────────────────
 function renderCalendario() {
   renderProyecciones();
@@ -5666,7 +5807,7 @@ function renderCalSummary() {
         <label><input type="checkbox" value="inventario"  checked/> Inv. Productos</label>
         <label><input type="checkbox" value="ventas"      checked/> Salidas</label>
         <label><input type="checkbox" value="destileria"  checked/> Destilería</label>
-        <label><input type="checkbox" value="supply"      checked/> Supply Chain</label>
+        <label><input type="checkbox" value="supply"      checked/> Compras</label>
         <label><input type="checkbox" value="logistica"   checked/> Logística</label>
         <label><input type="checkbox" value="calendario"  checked/> Calendario</label>
         <label><input type="checkbox" value="costos"      checked/> Costos</label>
