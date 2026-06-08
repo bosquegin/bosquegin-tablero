@@ -3316,21 +3316,35 @@ function renderSupply() {
     return Math.max(0, Math.ceil(target - stock));
   }
   function buildRepTable(depLabel, depKey, itemsFn, stockFn, avgFn, minFn, colorRgb) {
+    // Tránsito: llegadas confirmadas en CAL_EVENTS con fecha >= hoy
+    const _today = new Date(); _today.setHours(0,0,0,0);
+    function transitQty(cod) {
+      return (CAL_EVENTS||[]).reduce(function(s,ev){
+        if (ev.cod == cod && ev.tipo === 'llegada') {
+          const d = new Date(ev.date + 'T00:00:00');
+          if (d >= _today) return s + (ev.qty||0);
+        }
+        return s;
+      }, 0);
+    }
+
     const depItems = INV_DATA.filter(itemsFn).map(x => {
-      const stock = stockFn(x), avg = avgFn(x);
-      const qty   = repQty(stock, avg);
+      const stock  = stockFn(x), avg = avgFn(x);
+      const qty    = repQty(stock, avg);
       const target = Math.ceil(avg * repDays);
-      return { art: artName(x.cod,x.art), cod: x.cod, rub: x.rub||'—', sub: x.sub||'', stock, avg, min: minFn(x), qty, target };
+      const transit = transitQty(x.cod);
+      return { art: artName(x.cod,x.art), cod: x.cod, rub: x.rub||'—', sub: x.sub||'', stock, avg, min: minFn(x), qty, target, transit };
     }).filter(x => x.qty > 0);
 
     if(!depItems.length) return `<div style="padding:20px;text-align:center;color:var(--muted);font-size:9px">Sin reposición necesaria para ${depLabel}</div>`;
 
-    // Inicializar / preservar estado editable
+    // Inicializar / preservar estado editable  (qty default = sugerido - tránsito)
     if (!window._repState) window._repState = {};
     depItems.forEach(x => {
       const key = depKey + '_' + x.cod;
       if (!window._repState[key]) {
-        window._repState[key] = { qty: x.qty, apro: false, art: x.art, cod: x.cod, rub: x.rub, sub: x.sub, stock: x.stock, min: x.min, dep: depKey };
+        const netQty = Math.max(0, x.qty - x.transit);
+        window._repState[key] = { qty: netQty, apro: false, art: x.art, cod: x.cod, rub: x.rub, sub: x.sub, stock: x.stock, min: x.min, dep: depKey };
       }
     });
 
@@ -3339,12 +3353,14 @@ function renderSupply() {
     const col = window[colKey]||'qty', asc = window[ascKey]!==undefined ? window[ascKey] : false;
     const strCols = ['art','cod','rub'];
     const sorted = depItems.slice().sort((a,b)=>{
-      const va=a[col], vb=b[col];
+      const va = col==='transit' ? a.transit : a[col];
+      const vb = col==='transit' ? b.transit : b[col];
       return strCols.includes(col) ? (asc?String(va).localeCompare(String(vb)):String(vb).localeCompare(String(va))) : (asc?va-vb:vb-va);
     });
 
-    const totalQty  = depItems.reduce((s,x)=>s+x.qty,0);
-    const aproCount = depItems.filter(x=>(window._repState[depKey+'_'+x.cod]||{}).apro).length;
+    const totalQty     = depItems.reduce((s,x)=>s+x.qty,0);
+    const totalTransit = depItems.reduce((s,x)=>s+x.transit,0);
+    const aproCount    = depItems.filter(x=>(window._repState[depKey+'_'+x.cod]||{}).apro).length;
 
     function th(label, c, right) {
       const active = c===col, icon = !active?'⇅':asc?'▲':'▼';
@@ -3352,9 +3368,13 @@ function renderSupply() {
       return `<th style="${as}${cs}cursor:pointer;user-select:none;font-size:9px;padding:6px;white-space:nowrap" onclick="scRepSort('${depKey}','${c}')">${label} <span>${icon}</span></th>`;
     }
 
+    const transitSummary = totalTransit > 0
+      ? ` · <span style="color:var(--green);font-weight:700">${totalTransit.toLocaleString()} en tránsito</span>`
+      : '';
+
     return `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border)">
-        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;color:rgb(${colorRgb})">${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} un sugeridas</span>
+        <span style="font-size:9px;font-weight:700;letter-spacing:.06em;color:rgb(${colorRgb})">${depLabel} · ${depItems.length} artículos · ${totalQty.toLocaleString()} un sugeridas${transitSummary}</span>
         ${aproCount > 0 ? `<span style="font-size:9px;color:var(--accent)">✓ ${aproCount} aprobada(s)</span>` : ''}
       </div>
       <div style="overflow-x:auto">
@@ -3365,25 +3385,35 @@ function renderSupply() {
           ${th('Artículo','art',false)}
           ${th('Stock (un)','stock',true)}
           ${th(`Obj. ${repDays}d (un)`,'target',true)}
+          ${th('En tránsito (un)','transit',true)}
           <th style="text-align:right;font-size:9px;padding:6px;white-space:nowrap">Reponer (un)</th>
           <th style="text-align:center;font-size:9px;padding:6px;white-space:nowrap">✓ Aprobar</th>
         </tr></thead>
         <tbody>
           ${sorted.map(x=>{
-            const key  = depKey + '_' + x.cod;
-            const st   = window._repState[key] || {};
-            const curQty  = st.qty !== undefined ? st.qty : x.qty;
+            const key     = depKey + '_' + x.cod;
+            const st      = window._repState[key] || {};
+            const netSug  = Math.max(0, x.qty - x.transit);
+            const curQty  = st.qty !== undefined ? st.qty : netSug;
             const curApro = st.apro || false;
+            const covered = x.transit > 0 && x.transit >= x.qty;
             return `<tr>
               <td style="font-size:9px;color:var(--muted);white-space:nowrap">${x.rub}</td>
               <td><code style="font-size:9px">${x.cod}</code></td>
               <td style="font-size:9px;white-space:nowrap" title="${x.art}">${x.art}</td>
               <td style="text-align:right;font-size:9px">${x.stock.toLocaleString()}</td>
               <td style="text-align:right;font-size:9px;color:var(--muted)">${x.target.toLocaleString()}</td>
+              <td style="text-align:right;font-size:9px;padding:4px 6px;font-weight:${x.transit>0?'700':'400'};color:${x.transit>0?'var(--green)':'var(--muted)'}">
+                ${x.transit > 0
+                  ? `<span title="Llegadas confirmadas en calendario">${x.transit.toLocaleString()} ✈</span>`
+                  : '—'}
+              </td>
               <td style="text-align:right;padding:3px 6px">
                 <input type="number" min="0" value="${curQty}"
-                  style="width:72px;background:var(--surface);border:1px solid var(--border);
-                         color:rgb(${colorRgb});border-radius:6px;padding:3px 7px;
+                  style="width:72px;background:var(--surface);
+                         border:1px solid ${covered?'var(--green)':'var(--border)'};
+                         color:${covered?'var(--green)':`rgb(${colorRgb})`};
+                         border-radius:6px;padding:3px 7px;
                          font-size:9px;font-weight:700;text-align:right;outline:none"
                   oninput="_repStateUpd('${key}','qty',+this.value)">
               </td>
@@ -5071,9 +5101,8 @@ function guardarRepSugerida() {
       msg.style.display = 'inline';
       if (d.ok) {
         msg.style.color = '#10b981';
-        msg.textContent = '✓ ' + d.guardados + ' orden(es) guardada(s)' + (prov ? ' — ' + prov : '') + ' · calendario actualizado';
-        // Limpiar checkboxes aprobados
-        aprobados.forEach(function(it){ if(window._repState[it.dep+'_'+it.cod]) window._repState[it.dep+'_'+it.cod].apro=false; });
+        msg.textContent = '✓ ' + d.guardados + ' orden(es) guardada(s)' + (prov ? ' — ' + prov : '') + ' · tránsito actualizado';
+        window._repState = {};   // recalcular tránsito con los nuevos eventos
         renderSupply();
       } else {
         msg.style.color = '#ef4444';
