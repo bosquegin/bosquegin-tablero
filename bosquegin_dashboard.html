@@ -545,9 +545,6 @@
     <span class="tab-icon">📦</span>
     <span style="line-height:1.25">Inventario<br><span style="font-size:9px">Productos</span></span>
   </div>
-  <div class="tab" data-section="inv-intel" onclick="showSection('inv-intel', this)">
-    <span class="tab-icon">🔍</span> Inv. Intel
-  </div>
   <div class="tab" data-section="ventas" onclick="showSection('ventas', this)">
     <span class="tab-icon">📤</span> Salidas
   </div>
@@ -766,31 +763,14 @@
     </div>
   </div>
 
-</section>
-
-<!-- ═══════════════════════════════════════════════════════ -->
-<!--  INV. INTELIGENTE                                      -->
-<!-- ═══════════════════════════════════════════════════════ -->
-<section id="inv-intel" class="section">
-
-  <!-- HEADER -->
-  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
-    <div>
-      <div style="font-size:18px;font-weight:700;letter-spacing:.3px">Intelligence de Inventario</div>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px">Convirtiendo stock en decisiones de supply chain</div>
+  <!-- ── INTELLIGENCE DE INVENTARIO ───────────────────────── -->
+  <div style="display:flex;align-items:center;gap:12px;margin-top:28px;margin-bottom:18px">
+    <div style="flex:1;height:1px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font-size:13px;font-weight:700;letter-spacing:.3px;color:var(--text)">🔍 Intelligence de Inventario</span>
+      <div id="inv-intel-fecha" style="font-size:9px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:5px 12px"></div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <select id="inv-intel-dep" onchange="renderInvIntel()"
-        style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 12px;font-size:9px;outline:none;cursor:pointer">
-        <option value="klozer_ofi">KLOZER + OFICINA</option>
-        <option value="klozer">KLOZER</option>
-        <option value="klozer_mkt">KLOZER MKT</option>
-        <option value="ofi">OFICINA</option>
-        <option value="shop_gallery">SHOP GALLERY</option>
-        <option value="avolta">AVOLTA</option>
-      </select>
-      <div id="inv-intel-fecha" style="font-size:9px;color:var(--muted);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:7px 14px"></div>
-    </div>
+    <div style="flex:1;height:1px;background:var(--border)"></div>
   </div>
 
   <!-- KPI ROW -->
@@ -868,7 +848,7 @@
   }
 
   function renderInvIntel() {
-    const dep   = document.getElementById('inv-intel-dep').value;
+    const dep   = document.getElementById('dep-filter')?.value || 'klozer_ofi';
     const items = (typeof INV_DATA !== 'undefined' ? INV_DATA : []) || [];
 
     const stk  = it => getStock(it, dep);
@@ -1498,6 +1478,7 @@ function renderInvTable() {
   renderInvPareto(invDataAll, 'klozer_ofi', 'KLOZER + OFICINA');
   updateParetoChart(withPareto.slice(0, 20), dep, depLabels2[dep]||dep);
   renderRotRub();
+  if (typeof renderInvIntel === 'function') renderInvIntel();
 }
 
 function updateParetoChart(items, dep, depLabel) {
@@ -1553,7 +1534,6 @@ function showSection(id, el) {
   el.classList.add('active');
   if (id === 'overview')   renderOverview();
   if (id === 'inventario') renderInvTable();
-  if (id === 'inv-intel')  renderInvIntel();
   if (id === 'ventas')     setTimeout(renderVentas, 50);
   if (id === 'destileria') renderDestileria();
   if (id === 'supply')     renderSupply();
@@ -5597,7 +5577,6 @@ function renderCalSummary() {
       <div class="adm-sec-grid" id="adm-sections">
         <label><input type="checkbox" value="overview"    checked/> Resumen</label>
         <label><input type="checkbox" value="inventario"  checked/> Inv. Productos</label>
-        <label><input type="checkbox" value="inv-intel"   checked/> Inv. Intel</label>
         <label><input type="checkbox" value="ventas"      checked/> Salidas</label>
         <label><input type="checkbox" value="destileria"  checked/> Destilería</label>
         <label><input type="checkbox" value="supply"      checked/> Supply Chain</label>
@@ -5617,7 +5596,7 @@ function renderCalSummary() {
 </div>
 <script>
 (function(){
-  var ALL_SECS = ["overview","inventario","inv-intel","ventas","destileria",
+  var ALL_SECS = ["overview","inventario","ventas","destileria",
                   "supply","logistica","calendario","costos","inv-insumos"];
   var _uCache = {};   // id -> user object
 
