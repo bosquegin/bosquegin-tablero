@@ -743,7 +743,12 @@
   <div class="table-card" style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="table-title">🏷️ Rotación por rubro y subrubro</div>
-      <span style="font-size:9px;color:var(--muted)">Stock ÷ demanda mensual · por depósito</span>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:9px;color:var(--muted)">Stock ÷ demanda mensual · por depósito</span>
+        <button onclick="printRotRub()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--card)'">
+          🖨️ Imprimir
+        </button>
+      </div>
     </div>
     <div style="overflow-x:auto">
     <table id="rot-rub-table">
@@ -2934,6 +2939,47 @@ function renderProds() {
   updateProdSortIcons();
 }
 
+
+// ── Imprimir Rotación por rubro ───────────────────────────────────────────────
+function printRotRub() {
+  const tbl = document.getElementById('rot-rub-table');
+  if (!tbl) return;
+  const win = window.open('', '_blank', 'width=900,height=700');
+  win.document.write(`<!DOCTYPE html><html><head>
+  <meta charset="utf-8">
+  <title>Rotación por rubro y subrubro — Bosque Gin</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:11px;color:#111;padding:24px}
+    h2{font-size:14px;font-weight:700;margin-bottom:4px}
+    .sub{font-size:10px;color:#666;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:5px 8px;text-align:left;border-bottom:1px solid #ddd;font-size:10px;white-space:nowrap}
+    td:nth-child(4),td:nth-child(5),td:nth-child(6),td:nth-child(7){text-align:right}
+    .grp-header td{font-weight:700;font-size:9px;text-transform:uppercase;letter-spacing:.04em;color:#555;background:#f5f5f5;border-top:2px solid #ccc;padding:5px 8px}
+    .grp-total td{font-weight:700;background:#eef2ff;border-top:1px solid #c7d2fe}
+    .sub-row td{font-weight:600;color:#555;background:#fafafa;padding-left:16px}
+    .art-row td:first-child{padding-left:32px;color:#666}
+    .badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:9px;font-weight:600}
+    .badge-green{background:#dcfce7;color:#166534}
+    .badge-yellow{background:#fef9c3;color:#854d0e}
+    .badge-red{background:#fee2e2;color:#991b1b}
+    .badge-gray{background:#f1f5f9;color:#475569}
+    .badge-blue{background:#dbeafe;color:#1d4ed8}
+    .red{color:#dc2626;font-weight:700}
+    .yellow{color:#ca8a04;font-weight:700}
+    .green{color:#16a34a}
+    .muted{color:#9ca3af}
+    @media print{body{padding:12px}}
+  </style>
+  </head><body>
+  <h2>🏷️ Rotación por rubro y subrubro</h2>
+  <div class="sub">Stock ÷ demanda mensual · ${new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+  <table>${tbl.innerHTML}</table>
+  </body></html>`);
+  win.document.close();
+  win.onload = function() { win.focus(); win.print(); };
+}
 
 // ── Rotación por rubro / subrubro — 3 grupos fijos, stock consolidado ────────
 function renderRotRub() {
