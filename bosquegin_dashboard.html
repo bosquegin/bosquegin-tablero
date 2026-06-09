@@ -1445,7 +1445,7 @@ function renderInvTable() {
     const avg90 = getAvg90(item, dep);
     const min   = getMin(item, dep);
     const meses = getParetoPct(item, dep);
-    const diasTxt   = (meses === 0 && min === 0) ? '—' : meses > 99 ? '>99' : String(Math.ceil(meses));
+    const diasTxt   = (meses === 0 && min === 0) ? '—' : meses > 99 ? '>99' : meses.toFixed(1);
     const diasColor = (meses === 0 && min === 0) ? '' : meses < 1 ? 'color:var(--red);font-weight:700' : meses < 1.5 ? 'color:var(--yellow);font-weight:700' : 'color:var(--green)';
     const minTxt    = min === 0 ? '—' : String(Math.ceil(min));
     const pesoTxt = item.localPeso > 0 ? item.localPeso.toFixed(1) + '%' : '—';
