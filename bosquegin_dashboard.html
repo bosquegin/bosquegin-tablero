@@ -3083,7 +3083,11 @@ function renderRotRub() {
         </tr>`;
 
       // ── Artículos del subrubro ──────────────────────────────────────
-      const artsSorted = [...arts].sort((a, b) => stkTot(b) - stkTot(a));
+      const artsSorted = [...arts].sort((a, b) => {
+        const rc = (a.rub||'').localeCompare(b.rub||'', 'es');
+        if (rc !== 0) return rc;
+        return artName(a.cod,a.art).localeCompare(artName(b.cod,b.art), 'es');
+      });
       for (const it of artsSorted) {
         const stk   = stkTot(it);
         const dem   = demTot(it);
