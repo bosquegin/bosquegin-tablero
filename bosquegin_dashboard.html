@@ -747,16 +747,7 @@
     </div>
     <div style="overflow-x:auto">
     <table id="rot-rub-table">
-      <thead>
-        <tr>
-          <th>Artículo</th>
-          <th style="text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Monto (ARS)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Dem./mes (un)<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th style="text-align:right">Meses<br><span style="font-weight:400;color:var(--muted)">Total</span></th>
-          <th>Estado</th>
-        </tr>
-      </thead>
+      <thead></thead>
       <tbody id="rot-rub-tbody"></tbody>
     </table>
     </div>
@@ -3040,9 +3031,21 @@ function renderRotRub() {
     const accent = GRUPO_ACCENT[grupo];
     const bgGrp  = GRUPO_COLOR[grupo];
 
-    // ── Cabecera del grupo ──────────────────────────────────────────────
-    rows += `<tr style="background:${bgGrp};border-top:2px solid ${accent}">
-      <td style="font-weight:700;font-size:9px;padding:10px 12px;color:${accent}">
+    // ── Encabezado de columnas (se repite por grupo) ────────────────────
+    const TH = 'font-size:9px;font-weight:700;color:var(--muted);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap';
+    rows += `<tr style="background:var(--card);border-top:2px solid ${accent}">
+      <td style="${TH}">Rubro</td>
+      <td style="${TH}">Código</td>
+      <td style="${TH}">Descripción</td>
+      <td style="${TH};text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)</td>
+      <td style="${TH};text-align:right">Monto (ARS)</td>
+      <td style="${TH};text-align:right">Dem./mes (un)</td>
+      <td style="${TH};text-align:right">Meses</td>
+      <td style="${TH}">Estado</td>
+    </tr>`;
+    // ── Fila total del grupo ────────────────────────────────────────────
+    rows += `<tr style="background:${bgGrp}">
+      <td colspan="3" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
         ${grupo} <span style="font-weight:400;font-size:9px;color:var(--muted)">${gArts} artículos</span>
       </td>
       <td style="text-align:right;font-weight:700;${BL}">${gStk.toLocaleString('es-AR')}</td>
@@ -3069,7 +3072,7 @@ function renderRotRub() {
 
       // Fila de subrubro (siempre visible, sin columna subrubro)
       rows += `<tr style="background:rgba(255,255,255,.025)">
-          <td style="padding-left:20px;font-size:9px;font-weight:600;color:var(--muted)">
+          <td colspan="3" style="padding-left:20px;font-size:9px;font-weight:600;color:var(--muted)">
             ↳ ${sub} <span style="font-weight:400">(${arts.length})</span>
           </td>
           <td style="text-align:right;font-size:9px;${BL}">${sSt > 0 ? sSt.toLocaleString('es-AR') : '—'}</td>
@@ -3089,13 +3092,10 @@ function renderRotRub() {
         const nombre = artName(it.cod, it.art);
         const nomTxt = nombre;
         rows += `<tr style="border-bottom:1px solid rgba(45,55,72,.4)">
-          <td style="padding-left:36px;font-size:9px;white-space:nowrap" title="${nombre}">
-            <code style="color:var(--muted)">${it.cod}</code>
-            <span style="color:rgba(255,255,255,.2);margin:0 4px">·</span>
-            ${nomTxt}
-          </td>
-          <td style="text-align:right;font-size:9px;font-weight:${stk>0?'700':'400'};
-              ${BL};${stk===0?'color:var(--muted)':''}">
+          <td style="padding-left:36px;font-size:9px;color:var(--muted);white-space:nowrap">${it.rub||'—'}</td>
+          <td style="font-size:9px;white-space:nowrap"><code>${it.cod}</code></td>
+          <td style="font-size:9px;white-space:nowrap" title="${nombre}">${nombre}</td>
+          <td style="text-align:right;font-size:9px;font-weight:${stk>0?'700':'400'};${BL};${stk===0?'color:var(--muted)':''}">
             ${stk > 0 ? stk.toLocaleString('es-AR') : '—'}
           </td>
           <td style="text-align:right;font-size:9px;color:var(--accent2)">${fmtVal(valor)}</td>
