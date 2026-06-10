@@ -3319,83 +3319,75 @@ function renderRotacionMensual() {
     </tr>`;
 
     // ── Fila de detalle (oculta por defecto) ─────────────────────────────────
-    // Stock items ordenados por stk desc
     const sItems = (stockItems[rub] || []).slice().sort((a,b) => b.stk - a.stk);
-    const stkLabel = isBeb ? 'Stock Klozer (un)' : 'Stock total (un)';
+    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
+    const P = 'padding:4px 8px;font-size:9px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.05)';
 
-    // Tabla de stock
-    const stkRows = sItems.map(it => {
-      const pct = stock > 0 ? (it.stk / stock * 100).toFixed(1) : '0';
-      return `<tr>
-        <td style="padding:3px 8px;font-size:9px;color:var(--muted);white-space:nowrap"><code>${it.cod}</code></td>
-        <td style="padding:3px 8px;font-size:9px;white-space:nowrap">${it.art}</td>
-        <td style="padding:3px 8px;font-size:9px;text-align:right;font-weight:600">${it.stk.toLocaleString('es-AR')}</td>
-        <td style="padding:3px 8px;font-size:9px;text-align:right;color:var(--muted)">${pct}%</td>
-      </tr>`;
-    }).join('');
-    const stkTotalRow = `<tr style="border-top:1px solid var(--border)">
-      <td colspan="2" style="padding:3px 8px;font-size:9px;font-weight:700">Total</td>
-      <td style="padding:3px 8px;font-size:9px;text-align:right;font-weight:700">${stock.toLocaleString('es-AR')}</td>
-      <td style="padding:3px 8px;font-size:9px;text-align:right;color:var(--muted)">100%</td>
-    </tr>`;
+    const moCols = meses.map(mo => `<th style="${P};text-align:right;color:var(--muted);font-weight:700">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('');
 
-    // Tabla de ventas por mes (artículos × mes)
-    const ventCols = meses.map(mo => `<th style="padding:3px 6px;font-size:9px;text-align:right;white-space:nowrap;color:var(--muted)">${mo.lbl} ${mo.yr2}</th>`).join('');
-    const ventRows = sItems.map(it => {
+    // Filas de artículos: ventas por mes
+    const artRows = sItems.map(it => {
       const codStr = String(it.cod);
       const vCells = meses.map(mo => {
         const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
-        return `<td style="padding:3px 6px;font-size:9px;text-align:right;${v===0?'color:var(--muted)':''}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
       }).join('');
-      return `<tr><td style="padding:3px 6px;font-size:9px;color:var(--muted);white-space:nowrap"><code>${it.cod}</code></td>
-        <td style="padding:3px 6px;font-size:9px;white-space:nowrap">${it.art}</td>${vCells}</tr>`;
+      return `<tr>
+        <td style="${P};color:var(--muted)"><code>${it.cod}</code></td>
+        <td style="${P}">${it.art}</td>
+        <td style="${P};text-align:right;font-weight:600">${it.stk.toLocaleString('es-AR')}</td>
+        ${vCells}
+      </tr>`;
     }).join('');
-    const ventTotalRow = (() => {
-      const totCells = meses.map(mo => {
-        const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-        return `<td style="padding:3px 6px;font-size:9px;text-align:right;font-weight:700;border-top:1px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
-      }).join('');
-      return `<tr><td colspan="2" style="padding:3px 6px;font-size:9px;font-weight:700;border-top:1px solid var(--border)">Total ventas</td>${totCells}</tr>`;
-    })();
-    const mesesRow = (() => {
-      const mCells = meses.map(mo => {
-        const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-        const m = v > 0 ? stock / v : null;
-        const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
-        return `<td style="padding:3px 6px;font-size:9px;text-align:right;font-weight:700;${mCol(m)}">${txt}</td>`;
-      }).join('');
-      return `<tr style="background:rgba(255,255,255,.04)">
-        <td colspan="2" style="padding:3px 6px;font-size:9px;font-weight:700;color:var(--accent)">= Meses de stock</td>${mCells}</tr>`;
-    })();
+
+    // Fila total ventas
+    const totVentCells = meses.map(mo => {
+      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
+      return `<td style="${P};text-align:right;font-weight:700;border-top:2px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+    }).join('');
+
+    // Fila stock (mismo valor en todas las columnas)
+    const stkCells = meses.map(() =>
+      `<td style="${P};text-align:right;color:var(--accent2);font-weight:700;border-top:1px solid rgba(255,255,255,.05)">${stock.toLocaleString('es-AR')}</td>`
+    ).join('');
+
+    // Fila meses = stock / ventas
+    const mesCells = meses.map(mo => {
+      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
+      const m = v > 0 ? stock / v : null;
+      const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
+      return `<td style="${P};text-align:right;font-weight:700;${mCol(m)}">${txt}</td>`;
+    }).join('');
 
     rows += `<tr id="rot-det-${rub}" style="display:none">
       <td colspan="${ncols}" style="padding:0;border-bottom:2px solid var(--border)">
-        <div style="padding:12px 16px;background:rgba(15,23,42,.6);display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
-          <!-- Stock -->
-          <div>
-            <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">${stkLabel}</div>
-            <table style="border-collapse:collapse">
-              <thead><tr>
-                <th style="padding:3px 8px;font-size:9px;text-align:left;color:var(--muted)">Cód</th>
-                <th style="padding:3px 8px;font-size:9px;text-align:left;color:var(--muted)">Artículo</th>
-                <th style="padding:3px 8px;font-size:9px;text-align:right;color:var(--muted)">Stock</th>
-                <th style="padding:3px 8px;font-size:9px;text-align:right;color:var(--muted)">%</th>
-              </tr></thead>
-              <tbody>${stkRows}${stkTotalRow}</tbody>
-            </table>
-          </div>
-          <!-- Ventas x mes -->
-          <div style="overflow-x:auto;max-width:calc(100% - 280px);min-width:200px">
-            <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Ventas por mes (un)</div>
-            <table style="border-collapse:collapse">
-              <thead><tr>
-                <th style="padding:3px 6px;font-size:9px;text-align:left;color:var(--muted)">Cód</th>
-                <th style="padding:3px 6px;font-size:9px;text-align:left;color:var(--muted)">Artículo</th>
-                ${ventCols}
-              </tr></thead>
-              <tbody>${ventRows}${ventTotalRow}${mesesRow}</tbody>
-            </table>
-          </div>
+        <div style="padding:10px 16px;background:rgba(15,23,42,.7);overflow-x:auto">
+          <table style="border-collapse:collapse;width:100%">
+            <thead><tr>
+              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Cód</th>
+              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Artículo</th>
+              <th style="${P};text-align:right;color:var(--muted);font-weight:700">${stkLabel}</th>
+              ${moCols}
+            </tr></thead>
+            <tbody>
+              ${artRows}
+              <tr style="background:rgba(255,255,255,.03)">
+                <td colspan="2" style="${P};font-weight:700;border-top:2px solid var(--border)">Total ventas del mes</td>
+                <td style="${P};text-align:right;color:var(--muted);border-top:2px solid var(--border)">—</td>
+                ${totVentCells}
+              </tr>
+              <tr style="background:rgba(255,255,255,.03)">
+                <td colspan="2" style="${P};font-weight:700;color:var(--accent2)">${stkLabel} actual</td>
+                <td style="${P};text-align:right;font-weight:700;color:var(--accent2)">${stock.toLocaleString('es-AR')}</td>
+                ${stkCells}
+              </tr>
+              <tr style="background:rgba(99,102,241,.08)">
+                <td colspan="2" style="${P};font-weight:700;color:var(--accent)">= Meses de cobertura</td>
+                <td style="${P};color:var(--muted)">—</td>
+                ${mesCells}
+              </tr>
+            </tbody>
+          </table>
         </div>
       </td>
     </tr>`;
