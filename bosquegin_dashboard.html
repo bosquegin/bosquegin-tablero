@@ -758,6 +758,23 @@
     </div>
   </div>
 
+  <!-- ── ROTACIÓN MENSUAL POR RUBRO ───────────────────────── -->
+  <div class="table-card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="table-title">📅 Rotación mensual por rubro</div>
+      <span style="font-size:9px;color:var(--muted)">Meses de cobertura = stock actual ÷ ventas del mes</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="rot-mensual-table" style="width:100%;border-collapse:collapse">
+        <thead id="rot-mensual-thead"></thead>
+        <tbody id="rot-mensual-tbody"></tbody>
+      </table>
+    </div>
+    <div style="margin-top:8px;font-size:9px;color:var(--muted)">
+      ⓘ Refleja cuántos meses duraría el <strong>stock actual</strong> al ritmo de ventas de cada mes histórico. Útil para detectar estacionalidad y picos de demanda.
+    </div>
+  </div>
+
   <!-- ── INTELLIGENCE DE INVENTARIO ───────────────────────── -->
   <div style="display:flex;align-items:center;gap:12px;margin-top:28px;margin-bottom:18px">
     <div style="flex:1;height:1px;background:var(--border)"></div>
@@ -1473,6 +1490,7 @@ function renderInvTable() {
   renderInvPareto(invDataAll, 'klozer_ofi', 'KLOZER + OFICINA');
   updateParetoChart(withPareto.slice(0, 20), dep, depLabels2[dep]||dep);
   renderRotRub();
+  renderRotacionMensual();
   if (typeof renderInvIntel === 'function') renderInvIntel();
 }
 
@@ -3197,6 +3215,100 @@ function renderRotRub() {
 
   const el = document.getElementById('rot-rub-tbody');
   if (el) el.innerHTML = rows;
+}
+
+// ── Rotación mensual por rubro ─────────────────────────────────────────────────
+function renderRotacionMensual() {
+  const thEl = document.getElementById('rot-mensual-thead');
+  const tbEl = document.getElementById('rot-mensual-tbody');
+  if (!thEl || !tbEl) return;
+
+  const MNLBL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const EXCLUIDOS = new Set([
+    '100007','100009','600010','600012','400013','400014','400003',
+    '400001','400002','400000','200005','200003','200004','200008',
+    '200007','400012','500014','400007','700011','700010','700012','700009',
+  ]);
+  const RUBROS_ORDER = ['BEBIDAS','CRISTALERIA','INDUMENTARIA','COMBO','ESTUCHE','BOTELLAS','BOTÁNICOS','MOBILIARIO'];
+  const RUBROS_LABEL = {
+    'BEBIDAS':'🍾 Bebidas','CRISTALERIA':'🥃 Cristalería','INDUMENTARIA':'👕 Indumentaria',
+    'COMBO':'📦 Combo','ESTUCHE':'🎁 Estuche','BOTELLAS':'🍶 Botellas',
+    'BOTÁNICOS':'🌿 Botánicos','MOBILIARIO':'🪑 Mobiliario',
+  };
+
+  // Últimos 13 meses (mes actual inclusive)
+  const now = new Date();
+  const meses = [];
+  for (let i = 12; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    meses.push({ yr: String(d.getFullYear()), m: String(d.getMonth() + 1), lbl: MNLBL[d.getMonth()], yr2: String(d.getFullYear()).slice(2) });
+  }
+
+  // Stock actual por rubro (Bebidas = solo klozer, resto consolidado)
+  const stockByRub = {};
+  for (const it of INV_DATA) {
+    if (EXCLUIDOS.has(String(it.cod))) continue;
+    const rub = (it.rub || 'OTROS').toUpperCase().trim();
+    if (!stockByRub[rub]) stockByRub[rub] = 0;
+    stockByRub[rub] += rub === 'BEBIDAS' ? (it.klozer || 0) : (it.klozer||0) + (it.klozer_mkt||0) + (it.ofi||0);
+  }
+
+  // Ventas por rubro × mes desde MONTHLY_DATA
+  const ventasByRub = {};
+  for (const mo of meses) {
+    const prods = ((MONTHLY_DATA[mo.yr] || {}).prods || {})[mo.m] || [];
+    const key = mo.yr + '_' + mo.m;
+    for (const p of prods) {
+      const rub = (p.rub || 'OTROS').toUpperCase().trim();
+      if (!ventasByRub[rub]) ventasByRub[rub] = {};
+      ventasByRub[rub][key] = (ventasByRub[rub][key] || 0) + (p.u || 0);
+    }
+  }
+
+  // Estilos de celda
+  const TH = 'padding:6px 8px;text-align:right;font-size:9px;font-weight:700;color:var(--muted);white-space:nowrap;border-bottom:2px solid var(--border)';
+  const isCurrentMonth = (mo) => mo.yr === String(now.getFullYear()) && mo.m === String(now.getMonth() + 1);
+  function cellStyle(m, isCur) {
+    const base = `padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;border-bottom:1px solid var(--border);${isCur ? 'background:rgba(255,255,255,.04)' : ''}`;
+    if (m === null) return base + ';color:var(--muted)';
+    if (m < 1)      return base + ';color:var(--red);font-weight:700';
+    if (m < 1.5)    return base + ';color:var(--yellow);font-weight:700';
+    if (m >= 99)    return base + ';color:var(--muted)';
+    return base + ';color:var(--green)';
+  }
+
+  // Header
+  const thCols = meses.map(mo => {
+    const cur = isCurrentMonth(mo);
+    return `<th style="${TH}${cur ? ';color:var(--text);border-bottom:2px solid var(--accent)' : ''}">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`;
+  }).join('');
+  thEl.innerHTML = `<tr>
+    <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;color:var(--muted);border-bottom:2px solid var(--border);min-width:130px">Rubro</th>
+    ${thCols}
+  </tr>`;
+
+  // Filas
+  let rows = '';
+  for (const rub of RUBROS_ORDER) {
+    const stock = stockByRub[rub] || 0;
+    if (stock === 0) continue;
+    const label = RUBROS_LABEL[rub] || rub;
+    const cells = meses.map(mo => {
+      const key = mo.yr + '_' + mo.m;
+      const ventas = (ventasByRub[rub] || {})[key] || 0;
+      const cur = isCurrentMonth(mo);
+      if (ventas === 0) return `<td style="${cellStyle(null, cur)}">—</td>`;
+      const m = stock / ventas;
+      const txt = m >= 99 ? '>99' : m.toFixed(1);
+      return `<td style="${cellStyle(m, cur)}">${txt}</td>`;
+    }).join('');
+    rows += `<tr>
+      <td style="padding:5px 8px;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border)">${label}</td>
+      ${cells}
+    </tr>`;
+  }
+
+  tbEl.innerHTML = rows || `<tr><td colspan="${meses.length + 1}" style="text-align:center;color:var(--muted);padding:20px">Sin datos de ventas</td></tr>`;
 }
 
 document.addEventListener('DOMContentLoaded', () => { populateClientFilter(); renderVentas(); });
