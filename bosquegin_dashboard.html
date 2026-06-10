@@ -3285,11 +3285,28 @@ function _rotRenderRows() {
     const moCols = meses.map(mo => `<th style="${P};text-align:right;color:var(--muted);font-weight:700">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('');
     const artRows = sItems.map(it => {
       const codStr = String(it.cod);
-      const vCells = meses.map(mo => {
+      const BD = 'border-bottom:1px solid rgba(255,255,255,.05)';
+      const BDstrong = 'border-bottom:2px solid rgba(255,255,255,.1)';
+      // Fila Stock: código + nombre en rowspan 2, luego stock por mes (mismo valor)
+      const stkCellsArt = meses.map(mo =>
+        `<td style="${P};text-align:right;color:var(--accent2);font-weight:600;${BD}">${it.stk.toLocaleString('es-AR')}</td>`
+      ).join('');
+      // Fila Venta: ventas del mes
+      const ventCellsArt = meses.map(mo => {
         const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
-        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''};${BDstrong}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
       }).join('');
-      return `<tr><td style="${P};color:var(--muted)"><code>${it.cod}</code></td><td style="${P}">${it.art}</td><td style="${P};text-align:right;font-weight:600">${it.stk.toLocaleString('es-AR')}</td>${vCells}</tr>`;
+      return `
+        <tr>
+          <td rowspan="2" style="${P};color:var(--muted);vertical-align:middle;${BDstrong}"><code>${it.cod}</code></td>
+          <td rowspan="2" style="${P};vertical-align:middle;${BDstrong}">${it.art}</td>
+          <td style="${P};font-size:8px;color:var(--accent2);font-weight:700;${BD}">Stock</td>
+          ${stkCellsArt}
+        </tr>
+        <tr>
+          <td style="${P};font-size:8px;color:var(--muted);font-weight:700;${BDstrong}">Venta</td>
+          ${ventCellsArt}
+        </tr>`;
     }).join('');
     const totVentCells = meses.map(mo => {
       const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
