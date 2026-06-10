@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Resumen Productos x Destilería</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    color: #1a202c;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  header {
+    background: linear-gradient(135deg, #234e52 0%, #1a202c 100%);
+    color: #fff;
+    padding: 24px 32px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; }
+  header p { opacity: .8; margin-top: 4px; font-size: .9rem; }
+  .controls {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+  }
+  .control-group label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .control-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    background: #fff;
+    font-size: .95rem;
+    cursor: pointer;
+  }
+  .control-group select:focus {
+    outline: none;
+    border-color: #38b2ac;
+    box-shadow: 0 0 0 3px rgba(56,178,172,.15);
+  }
+  .product-toggles {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .product-toggles h3 {
+    font-size: .75rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 10px;
+  }
+  .toggle-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    background: #edf2f7;
+    color: #4a5568;
+    user-select: none;
+    transition: transform .15s;
+  }
+  .pill:hover { transform: translateY(-1px); }
+  .pill.active { color: #fff; }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    border-left: 4px solid #38b2ac;
+  }
+  .kpi-card.green { border-left-color: #48bb78; }
+  .kpi-card.orange { border-left-color: #ed8936; }
+  .kpi-card.purple { border-left-color: #9f7aea; }
+  .kpi-card.blue { border-left-color: #4299e1; }
+  .kpi-label {
+    font-size: .75rem;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .kpi-value {
+    font-size: 1.55rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin-top: 6px;
+    letter-spacing: -.02em;
+  }
+  .kpi-sub { font-size: .82rem; color: #718096; margin-top: 4px; }
+  .kpi-trend {
+    display: inline-flex;
+    gap: 4px;
+    font-size: .8rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-top: 6px;
+  }
+  .trend-up { background: #fed7d7; color: #c53030; }
+  .trend-down { background: #c6f6d5; color: #2f855a; }
+  .trend-flat { background: #edf2f7; color: #4a5568; }
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 1100px) { .chart-grid.two-cols { grid-template-columns: 1fr 1fr; } }
+  .chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .chart-card h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .chart-card .subtitle {
+    font-size: .85rem;
+    color: #718096;
+    margin-bottom: 16px;
+  }
+  .chart-wrap { position: relative; height: 360px; }
+  .chart-wrap.tall { height: 420px; }
+  .composition-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    margin-bottom: 24px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .85rem;
+  }
+  th, td {
+    text-align: right;
+    padding: 9px 10px;
+    border-bottom: 1px solid #edf2f7;
+  }
+  th:first-child, td:first-child,
+  th:nth-child(2), td:nth-child(2) { text-align: left; }
+  th {
+    background: #f7fafc;
+    color: #4a5568;
+    font-weight: 600;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    position: sticky;
+    top: 0;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 520px;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid #edf2f7;
+  }
+  .var-pos { color: #c53030; font-weight: 600; }
+  .var-neg { color: #2f855a; font-weight: 600; }
+  .var-flat { color: #718096; }
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: .7rem;
+    font-weight: 600;
+    background: #e6fffa;
+    color: #234e52;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Resumen Productos x Destilería</h1>
+    <p>Costos consolidados, impuestos, flete, PVP y CMV · POLDITOS · datos desde Dic 2024</p>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="month-select">Mes seleccionado</label>
+      <select id="month-select"></select>
+    </div>
+    <div class="control-group">
+      <label for="metric-select">Métrica</label>
+      <select id="metric-select">
+        <option value="COSTO (FINAL)" selected>Costo Final</option>
+        <option value="COSTO DESTILERIA">Costo Destilería</option>
+        <option value="COSTO NETO">Costo Neto</option>
+        <option value="COSTO PRODUCCIÓN Y FINANCIERO">Costo Producción y Financiero</option>
+        <option value="COSTO DE INSUMOS">Costo de Insumos</option>
+        <option value="COSTO SIN IVA">Costo Sin IVA</option>
+        <option value="IVA">IVA</option>
+        <option value="IMP INT">Imp. Internos</option>
+        <option value="PVP">PVP</option>
+        <option value="CMV">CMV (%)</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="linea-filter">Línea</label>
+      <select id="linea-filter">
+        <option value="all" selected>Todas las líneas</option>
+        <option value="BOSQUE">BOSQUE</option>
+        <option value="FERIADO">FERIADO</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="year-select">Año YTD</label>
+      <select id="year-select"></select>
+    </div>
+  </div>
+
+  <div class="product-toggles">
+    <h3>Productos a mostrar</h3>
+    <div class="toggle-pills" id="product-pills"></div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h2>Evolución mensual</h2>
+      <div class="subtitle" id="evol-subtitle"></div>
+      <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-grid two-cols">
+    <div class="chart-card">
+      <h2>Anualizado (YTD)</h2>
+      <div class="subtitle" id="ytd-subtitle"></div>
+      <div class="chart-wrap"><canvas id="chart-ytd"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>Variación mes/mes</h2>
+      <div class="subtitle" id="var-subtitle"></div>
+      <div class="chart-wrap"><canvas id="chart-var"></canvas></div>
+    </div>
+  </div>
+
+  <div class="composition-card">
+    <h2 style="font-size:1.05rem; font-weight:600; margin-bottom:4px;">Composición del costo · mes seleccionado</h2>
+    <div class="subtitle" id="comp-subtitle"></div>
+    <div class="chart-wrap tall"><canvas id="chart-composition"></canvas></div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Tabla detallada</h2>
+    <div class="subtitle">Métrica seleccionada por producto, con YTD y variación</div>
+    <div class="table-wrap">
+      <table id="data-table"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {"months": [{"key": "2024-12", "label": "Dic 2024"}, {"key": "2025-01", "label": "Ene 2025"}, {"key": "2025-02", "label": "Feb 2025"}, {"key": "2025-03", "label": "Mar 2025"}, {"key": "2025-04", "label": "Abr 2025"}, {"key": "2025-05", "label": "May 2025"}, {"key": "2025-06", "label": "Jun 2025"}, {"key": "2025-07", "label": "Jul 2025"}, {"key": "2025-08", "label": "Ago 2025"}, {"key": "2025-09", "label": "Sep 2025"}, {"key": "2025-10", "label": "Oct 2025"}, {"key": "2025-11", "label": "Nov 2025"}, {"key": "2025-12", "label": "Dic 2025"}, {"key": "2026-01", "label": "Ene 2026"}, {"key": "2026-02", "label": "Feb 2026"}, {"key": "2026-03", "label": "Mar 2026"}, {"key": "2026-04", "label": "Abr 2026"}], "metrics": ["COSTO PRODUCCIÓN Y FINANCIERO", "COSTO DE INSUMOS", "COSTO NETO", "IVA", "IMP INT", "IMP IIBB CORDOBA", "COSTO DESTILERIA", "MONTO FLETE", "CAJA PRESENTACION (COSTO)", "COSTO SIN IVA", "COSTO (FINAL)", "PVP", "CMV"], "products": [{"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO 500 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 1490.36, "COSTO DE INSUMOS": 1801.94, "COSTO NETO": 3292.3, "IVA": 691.383, "IMP INT": 1156.58499, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5140.26799, "MONTO FLETE": 769073.58, "CAJA PRESENTACION (COSTO)": 301.895, "COSTO SIN IVA": 4852.107207391306, "COSTO (FINAL)": 5543.490207391305, "PVP": 22400.0, "CMV": 0.24747724140139757}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1504.78625, "COSTO DE INSUMOS": 1830.6299999999997, "COSTO NETO": 3335.41625, "IVA": 700.4374125, "IMP INT": 1171.731729, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5207.585391, "MONTO FLETE": 1483062.0, "CAJA PRESENTACION (COSTO)": 301.9, "COSTO SIN IVA": 4948.630285, "COSTO (FINAL)": 5649.067697, "PVP": 22400.0, "CMV": 0.2521905222}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1519.75, "COSTO DE INSUMOS": 1871.3, "COSTO NETO": 3391.05, "IVA": 712.1205, "IMP INT": 1191.275865, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5294.446365, "MONTO FLETE": 1271196.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5043.356315, "COSTO (FINAL)": 5755.476815, "PVP": 23400.0, "CMV": 0.2459605476}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1603.11, "COSTO DE INSUMOS": 1881.68, "COSTO NETO": 3484.79, "IVA": 731.8059, "IMP INT": 1224.206727, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5440.802627, "MONTO FLETE": 722215.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5155.570677, "COSTO (FINAL)": 5887.376577, "PVP": 23400.0, "CMV": 0.2515972896}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1707.64, "COSTO DE INSUMOS": 1890.75, "COSTO NETO": 3598.39, "IVA": 755.6619, "IMP INT": 1264.114407, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5618.166307, "MONTO FLETE": 352433.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5265.3305, "COSTO (FINAL)": 6020.9924, "PVP": 24900.0, "CMV": 0.2418069237}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1732.97, "COSTO DE INSUMOS": 1905.6, "COSTO NETO": 3638.57, "IVA": 764.0997, "IMP INT": 1278.229641, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5680.899341, "MONTO FLETE": 716466.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5338.341591, "COSTO (FINAL)": 6102.441291, "PVP": 24900.0, "CMV": 0.2450779635}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1765.98, "COSTO DE INSUMOS": 1915.53, "COSTO NETO": 3681.51, "IVA": 773.1171, "IMP INT": 1293.314463, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5747.941563, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5376.955413, "COSTO (FINAL)": 6150.072513, "PVP": 24900.0, "CMV": 0.246990864}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1765.98, "COSTO DE INSUMOS": 1915.53, "COSTO NETO": 3681.51, "IVA": 773.1171, "IMP INT": 1293.314463, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5747.941563, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5376.955413, "COSTO (FINAL)": 6150.072513, "PVP": 24900.0, "CMV": 0.246990864}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1765.98, "COSTO DE INSUMOS": 2005.38, "COSTO NETO": 3771.36, "IVA": 791.9856, "IMP INT": 1324.878768, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5888.224368, "MONTO FLETE": 250000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5514.110459, "COSTO (FINAL)": 6306.096059, "PVP": 25900.0, "CMV": 0.2434786123}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1765.98, "COSTO DE INSUMOS": 2010.3, "COSTO NETO": 3776.28, "IVA": 793.0188, "IMP INT": 1326.607164, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5895.905964, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5525.018114, "COSTO (FINAL)": 6318.036914, "PVP": 25900.0, "CMV": 0.2439396492}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1817.2962499999999, "COSTO DE INSUMOS": 2450.06, "COSTO NETO": 4267.35625, "IVA": 896.1448125, "IMP INT": 1499.122251, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6662.623313, "MONTO FLETE": 300000.0, "CAJA PRESENTACION (COSTO)": 302.13, "COSTO SIN IVA": 6188.608501, "COSTO (FINAL)": 7084.753313, "PVP": 25900.0, "CMV": 0.273542599}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1817.2962499999999, "COSTO DE INSUMOS": 2450.06, "COSTO NETO": 4267.35625, "IVA": 896.1448125, "IMP INT": 1499.122251, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6662.623313, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6308.429701, "COSTO (FINAL)": 7204.574513, "PVP": 25900.0, "CMV": 0.2781689001}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1817.3, "COSTO DE INSUMOS": 2507.14, "COSTO NETO": 4324.44, "IVA": 908.1324, "IMP INT": 1519.175772, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6751.748172, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6371.594391, "COSTO (FINAL)": 7279.726791, "PVP": 25900.0, "CMV": 0.2810705325}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1886.5375, "COSTO DE INSUMOS": 2566.286459259259, "COSTO NETO": 4452.823959, "IVA": 935.0930314, "IMP INT": 1564.277057, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6952.194048, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6545.079636, "COSTO (FINAL)": 7480.172667, "PVP": 27195.0, "CMV": 0.27505691}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1886.5375, "COSTO DE INSUMOS": 2561.51823, "COSTO NETO": 4448.05573, "IVA": 934.0917033, "IMP INT": 1562.601978, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6944.749411, "MONTO FLETE": 708685.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6592.510758, "COSTO (FINAL)": 7526.602461, "PVP": 27195.0, "CMV": 0.2767642016}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1886.5375, "COSTO DE INSUMOS": 2606.796833029931, "COSTO NETO": 4493.334333, "IVA": 943.6002099, "IMP INT": 1578.508351, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7015.442894, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6642.11744, "COSTO (FINAL)": 7585.71765, "PVP": 27195.0, "CMV": 0.2789379537}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1980.86, "COSTO DE INSUMOS": 2621.52, "COSTO NETO": 4602.38, "IVA": 966.4998, "IMP INT": 1616.816094, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7185.695894, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 421.9512, "COSTO SIN IVA": 6789.47085, "COSTO (FINAL)": 7755.97065, "PVP": 22000.0, "CMV": 0.3525441205}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM 500 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 1550.15, "COSTO DE INSUMOS": 1956.01, "COSTO NETO": 3506.16, "IVA": 736.2936, "IMP INT": 1231.714008, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5474.167608, "MONTO FLETE": 769073.58, "CAJA PRESENTACION (COSTO)": 350.295, "COSTO SIN IVA": 5189.4962253913045, "COSTO (FINAL)": 5925.7898253913045, "PVP": 33600.0, "CMV": 0.17636279242236025}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1565.36875, "COSTO DE INSUMOS": 1991.78, "COSTO NETO": 3557.14875, "IVA": 747.0012375, "IMP INT": 1249.626356, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5553.776343, "MONTO FLETE": 1483062.0, "CAJA PRESENTACION (COSTO)": 350.295, "COSTO SIN IVA": 5296.652412, "COSTO (FINAL)": 6043.653649, "PVP": 33600.0, "CMV": 0.1798706443}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1581.18, "COSTO DE INSUMOS": 2042.24, "COSTO NETO": 3623.42, "IVA": 760.9182, "IMP INT": 1272.907446, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5657.245646, "MONTO FLETE": 1271196.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5357.357896, "COSTO (FINAL)": 6118.276096, "PVP": 35100.0, "CMV": 0.1743098603}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1666.49, "COSTO DE INSUMOS": 2054.79, "COSTO NETO": 3721.28, "IVA": 781.4688, "IMP INT": 1307.285664, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5810.034464, "MONTO FLETE": 722215.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5475.139614, "COSTO (FINAL)": 6256.608414, "PVP": 35100.0, "CMV": 0.178250952}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1777.37, "COSTO DE INSUMOS": 2064.63, "COSTO NETO": 3842.0, "IVA": 806.82, "IMP INT": 1349.6946, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 5998.5146, "MONTO FLETE": 352433.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5594.520693, "COSTO (FINAL)": 6401.340693, "PVP": 37350.0, "CMV": 0.1713879704}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1805.02, "COSTO DE INSUMOS": 2083.45, "COSTO NETO": 3888.47, "IVA": 816.5787, "IMP INT": 1366.019511, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6071.068211, "MONTO FLETE": 716466.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5676.031461, "COSTO (FINAL)": 6492.610161, "PVP": 37350.0, "CMV": 0.1738315973}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1838.91, "COSTO DE INSUMOS": 2094.67, "COSTO NETO": 3933.58, "IVA": 826.0518, "IMP INT": 1381.866654, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6141.498454, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5717.577604, "COSTO (FINAL)": 6543.629404, "PVP": 37350.0, "CMV": 0.1751975744}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1838.91, "COSTO DE INSUMOS": 2094.67, "COSTO NETO": 3933.58, "IVA": 826.0518, "IMP INT": 1381.866654, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6141.498454, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5717.577604, "COSTO (FINAL)": 6543.629404, "PVP": 37350.0, "CMV": 0.1751975744}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1838.91, "COSTO DE INSUMOS": 2196.5, "COSTO NETO": 4035.41, "IVA": 847.4361, "IMP INT": 1417.639533, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6300.485633, "MONTO FLETE": 250000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5870.921224, "COSTO (FINAL)": 6718.357324, "PVP": 38850.0, "CMV": 0.1729306904}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1838.91, "COSTO DE INSUMOS": 2201.68, "COSTO NETO": 4040.59, "IVA": 848.5239, "IMP INT": 1419.459267, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 6308.573167, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": 302.13095, "COSTO SIN IVA": 5882.180217, "COSTO (FINAL)": 6730.704117, "PVP": 38850.0, "CMV": 0.1732484972}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1894.7499999999998, "COSTO DE INSUMOS": 2617.1, "COSTO NETO": 4511.85, "IVA": 947.4885, "IMP INT": 1585.012905, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7044.351405, "MONTO FLETE": 300000.0, "CAJA PRESENTACION (COSTO)": 302.13, "COSTO SIN IVA": 6518.992905, "COSTO (FINAL)": 7466.481405, "PVP": 38850.0, "CMV": 0.1921874236}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1894.7499999999998, "COSTO DE INSUMOS": 2617.1, "COSTO NETO": 4511.85, "IVA": 947.4885, "IMP INT": 1585.012905, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7044.351405, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 6783.251805, "COSTO (FINAL)": 7730.740305, "PVP": 38850.0, "CMV": 0.1989894544}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1894.75, "COSTO DE INSUMOS": 2702.76, "COSTO NETO": 4597.51, "IVA": 965.4771, "IMP INT": 1615.105263, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7178.092363, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 6885.031582, "COSTO (FINAL)": 7850.508682, "PVP": 38850.0, "CMV": 0.2020722956}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1965.6374999999996, "COSTO DE INSUMOS": 2765.136459259259, "COSTO NETO": 4730.773959, "IVA": 993.4625314, "IMP INT": 1661.920892, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7386.157383, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 7065.111171, "COSTO (FINAL)": 8058.573702, "PVP": 40792.5, "CMV": 0.1975503757}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1965.6375, "COSTO DE INSUMOS": 2760.36823, "COSTO NETO": 4726.00573, "IVA": 992.4612033, "IMP INT": 1660.245813, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7378.712746, "MONTO FLETE": 708685.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 7112.542293, "COSTO (FINAL)": 8105.003496, "PVP": 40792.5, "CMV": 0.1986885701}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1965.6374999999996, "COSTO DE INSUMOS": 2805.59683302993, "COSTO NETO": 4771.234333, "IVA": 1001.95921, "IMP INT": 1676.134621, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7449.328164, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 7162.08141, "COSTO (FINAL)": 8164.04062, "PVP": 40792.5, "CMV": 0.2001358245}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2063.94, "COSTO DE INSUMOS": 2820.32, "COSTO NETO": 4884.26, "IVA": 1025.6946, "IMP INT": 1715.840538, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 7625.795138, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": 566.3889, "COSTO SIN IVA": 7314.812994, "COSTO (FINAL)": 8340.507594, "PVP": 28600.0, "CMV": 0.2916261396}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "REFUGIOS 500 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 2442.62, "COSTO DE INSUMOS": 3609.02, "COSTO NETO": 6051.639999999999, "IVA": 1270.8443999999997, "IMP INT": 2125.941132, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 9448.425532, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8177.581131999999, "COSTO (FINAL)": 9448.425532, "PVP": 44800.0, "CMV": 0.21090235562499998}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2464.23375, "COSTO DE INSUMOS": 3646.4874999999997, "COSTO NETO": 6110.72125, "IVA": 1283.251463, "IMP INT": 2146.696375, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 9540.669088, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8257.417625, "COSTO (FINAL)": 9540.669088, "PVP": 44800.0, "CMV": 0.2129613636}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2486.52, "COSTO DE INSUMOS": 3692.83, "COSTO NETO": 6179.35, "IVA": 1297.6635, "IMP INT": 2170.805655, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 9647.819155, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8350.155655, "COSTO (FINAL)": 9647.819155, "PVP": 46800.0, "CMV": 0.2061499819}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2635.85, "COSTO DE INSUMOS": 3707.93, "COSTO NETO": 6343.78, "IVA": 1332.1938, "IMP INT": 2228.569914, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 9904.543714, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8572.349914, "COSTO (FINAL)": 9904.543714, "PVP": 46800.0, "CMV": 0.2116355494}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2788.06, "COSTO DE INSUMOS": 3723.24, "COSTO NETO": 6511.3, "IVA": 1367.373, "IMP INT": 2287.41969, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 10166.09269, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8798.71969, "COSTO (FINAL)": 10166.09269, "PVP": 49800.0, "CMV": 0.2041384074}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2817.55, "COSTO DE INSUMOS": 4023.75, "COSTO NETO": 6841.3, "IVA": 1436.673, "IMP INT": 2403.34869, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10681.32169, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9244.64869, "COSTO (FINAL)": 10681.32169, "PVP": 49800.0, "CMV": 0.2144843713}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2875.61, "COSTO DE INSUMOS": 4053.31, "COSTO NETO": 6928.92, "IVA": 1455.0732, "IMP INT": 2434.129596, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10818.1228, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9363.049596, "COSTO (FINAL)": 10818.1228, "PVP": 49800.0, "CMV": 0.2172313814}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2875.61, "COSTO DE INSUMOS": 4053.31, "COSTO NETO": 6928.92, "IVA": 1455.0732, "IMP INT": 2434.129596, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10818.1228, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9363.049596, "COSTO (FINAL)": 10818.1228, "PVP": 49800.0, "CMV": 0.2172313814}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2875.61, "COSTO DE INSUMOS": 4197.63, "COSTO NETO": 7073.24, "IVA": 1485.3804, "IMP INT": 2484.829212, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11043.44961, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9558.069212, "COSTO (FINAL)": 11043.44961, "PVP": 51800.0, "CMV": 0.213194008}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2875.61, "COSTO DE INSUMOS": 4248.96, "COSTO NETO": 7124.57, "IVA": 1496.1597, "IMP INT": 2502.861441, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11123.59114, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9627.431441, "COSTO (FINAL)": 11123.59114, "PVP": 51800.0, "CMV": 0.2147411417}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2937.31625, "COSTO DE INSUMOS": 3694.8750000000005, "COSTO NETO": 6632.19125, "IVA": 1392.760163, "IMP INT": 2329.888786, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10354.8402, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8962.080036, "COSTO (FINAL)": 10354.8402, "PVP": 51800.0, "CMV": 0.1999003899}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2937.31625, "COSTO DE INSUMOS": 3694.8750000000005, "COSTO NETO": 6632.19125, "IVA": 1392.760163, "IMP INT": 2329.888786, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10354.8402, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8962.080036, "COSTO (FINAL)": 10354.8402, "PVP": 51800.0, "CMV": 0.1999003899}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2937.32, "COSTO DE INSUMOS": 3738.7, "COSTO NETO": 6676.02, "IVA": 1401.9642, "IMP INT": 2345.285826, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10423.27003, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9021.305826, "COSTO (FINAL)": 10423.27003, "PVP": 51800.0, "CMV": 0.2012214291}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 3061.1375, "COSTO DE INSUMOS": 3796.5899999999997, "COSTO NETO": 6857.7275, "IVA": 1440.122775, "IMP INT": 2409.119671, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10706.96995, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9266.847171, "COSTO (FINAL)": 10706.96995, "PVP": 54390.0, "CMV": 0.1968554871}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 3061.1375, "COSTO DE INSUMOS": 3739.795, "COSTO NETO": 6800.9325, "IVA": 1428.195825, "IMP INT": 2389.167587, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10618.29591, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9190.100087, "COSTO (FINAL)": 10618.29591, "PVP": 54390.0, "CMV": 0.1952251501}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 3061.1375, "COSTO DE INSUMOS": 3876.1049999999996, "COSTO NETO": 6937.2425, "IVA": 1456.820925, "IMP INT": 2437.05329, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10831.11672, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9374.29579, "COSTO (FINAL)": 10831.11672, "PVP": 54390.0, "CMV": 0.1991380165}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 3214.17, "COSTO DE INSUMOS": 3860.28, "COSTO NETO": 7074.45, "IVA": 1485.6345, "IMP INT": 2485.254285, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11045.33879, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9559.704285, "COSTO (FINAL)": 11045.33879, "PVP": 44000.0, "CMV": 0.2510304269}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": 0.0, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1888.32, "COSTO DE INSUMOS": 4311.68, "COSTO NETO": 6200.0, "IVA": 1302.0, "IMP INT": 2178.06, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 9680.06, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8378.06, "COSTO (FINAL)": 9680.06, "PVP": 35100.0, "CMV": 0.2757851852}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2021.29, "COSTO DE INSUMOS": 4353.27, "COSTO NETO": 6374.56, "IVA": 1338.6576, "IMP INT": 2239.382928, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 9952.600528, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8613.942928, "COSTO (FINAL)": 9952.600528, "PVP": 37350.0, "CMV": 0.266468555}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2057.17, "COSTO DE INSUMOS": 4014.52, "COSTO NETO": 6071.69, "IVA": 1275.0549, "IMP INT": 2132.984697, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 9479.729597, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8204.674697, "COSTO (FINAL)": 9479.729597, "PVP": 37350.0, "CMV": 0.2538080213}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2094.15, "COSTO DE INSUMOS": 4130.07, "COSTO NETO": 6224.22, "IVA": 1307.0862, "IMP INT": 2186.568486, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 9717.874686, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8410.788486, "COSTO (FINAL)": 9717.874686, "PVP": 37350.0, "CMV": 0.2601840612}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2094.15, "COSTO DE INSUMOS": 4130.07, "COSTO NETO": 6224.22, "IVA": 1307.0862, "IMP INT": 2186.568486, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 9717.874686, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8410.788486, "COSTO (FINAL)": 9717.874686, "PVP": 37350.0, "CMV": 0.2601840612}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2094.15, "COSTO DE INSUMOS": 4520.97, "COSTO NETO": 6615.12, "IVA": 1389.1752, "IMP INT": 2323.891656, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10328.18686, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8939.011656, "COSTO (FINAL)": 10328.18686, "PVP": 38850.0, "CMV": 0.2658477955}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2094.15, "COSTO DE INSUMOS": 4742.34, "COSTO NETO": 6836.49, "IVA": 1435.6629, "IMP INT": 2401.658937, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10673.81184, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9238.148937, "COSTO (FINAL)": 10673.81184, "PVP": 38850.0, "CMV": 0.2747441914}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2165.9137499999997, "COSTO DE INSUMOS": 4922.725, "COSTO NETO": 7088.63875, "IVA": 1488.614138, "IMP INT": 2490.238793, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11067.49168, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9578.877543, "COSTO (FINAL)": 11067.49168, "PVP": 38850.0, "CMV": 0.2848775207}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2165.9137499999997, "COSTO DE INSUMOS": 4922.725, "COSTO NETO": 7088.63875, "IVA": 1488.614138, "IMP INT": 2490.238793, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11067.49168, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9578.877543, "COSTO (FINAL)": 11067.49168, "PVP": 38850.0, "CMV": 0.2848775207}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2165.91, "COSTO DE INSUMOS": 4903.58, "COSTO NETO": 7069.49, "IVA": 1484.5929, "IMP INT": 2483.511837, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11037.59474, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9553.001837, "COSTO (FINAL)": 11037.59474, "PVP": 38850.0, "CMV": 0.2841079726}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2242.5, "COSTO DE INSUMOS": 4931.06, "COSTO NETO": 7173.56, "IVA": 1506.4476, "IMP INT": 2520.071628, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11200.07923, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9693.631628, "COSTO (FINAL)": 11200.07923, "PVP": 40792.5, "CMV": 0.2745622168}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2242.5, "COSTO DE INSUMOS": 4799.875, "COSTO NETO": 7042.375, "IVA": 1478.89875, "IMP INT": 2473.986338, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10995.26009, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9516.361338, "COSTO (FINAL)": 10995.26009, "PVP": 40792.5, "CMV": 0.2695412168}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2242.5, "COSTO DE INSUMOS": 4781.525, "COSTO NETO": 7024.025, "IVA": 1475.04525, "IMP INT": 2467.539983, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10966.61023, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9491.564983, "COSTO (FINAL)": 10966.61023, "PVP": 40792.5, "CMV": 0.2688388854}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2354.64, "COSTO DE INSUMOS": 4748.63, "COSTO NETO": 7103.27, "IVA": 1491.6867, "IMP INT": 2495.378751, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11090.33545, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9598.648751, "COSTO (FINAL)": 11090.33545, "PVP": 40792.5, "CMV": 0.2718719238}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM 750 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": 0.0, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1983.37, "COSTO DE INSUMOS": 4583.6, "COSTO NETO": 6566.97, "IVA": 1379.0637, "IMP INT": 2306.976561, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 10253.01, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8873.9463, "COSTO (FINAL)": 10253.01, "PVP": 56025.0, "CMV": 0.1830077644}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2125.81, "COSTO DE INSUMOS": 4626.35, "COSTO NETO": 6752.16, "IVA": 1417.9536, "IMP INT": 2372.033808, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10542.14741, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9124.193808, "COSTO (FINAL)": 10542.14741, "PVP": 56025.0, "CMV": 0.1881686284}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2165.24, "COSTO DE INSUMOS": 4293.3, "COSTO NETO": 6458.54, "IVA": 1356.2934, "IMP INT": 2268.885102, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10083.7185, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8727.425102, "COSTO (FINAL)": 10083.7185, "PVP": 56025.0, "CMV": 0.1799860509}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2203.55, "COSTO DE INSUMOS": 4410.78, "COSTO NETO": 6614.33, "IVA": 1389.0093, "IMP INT": 2323.614129, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10326.95343, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8937.944129, "COSTO (FINAL)": 10326.95343, "PVP": 56025.0, "CMV": 0.1843275936}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2203.55, "COSTO DE INSUMOS": 4410.78, "COSTO NETO": 6614.33, "IVA": 1389.0093, "IMP INT": 2323.614129, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10326.95343, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 8937.944129, "COSTO (FINAL)": 10326.95343, "PVP": 56025.0, "CMV": 0.1843275936}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2203.55, "COSTO DE INSUMOS": 4819.65, "COSTO NETO": 7023.2, "IVA": 1474.872, "IMP INT": 2467.25016, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 10965.32216, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9490.45016, "COSTO (FINAL)": 10965.32216, "PVP": 58275.0, "CMV": 0.1881651164}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2203.55, "COSTO DE INSUMOS": 5031.55, "COSTO NETO": 7235.1, "IVA": 1519.371, "IMP INT": 2541.69063, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11296.16163, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 9776.79063, "COSTO (FINAL)": 11296.16163, "PVP": 58275.0, "CMV": 0.1938423274}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2282.1287499999994, "COSTO DE INSUMOS": 5219.055, "COSTO NETO": 7501.18375, "IVA": 1575.248588, "IMP INT": 2635.165851, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11711.59819, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10136.3496, "COSTO (FINAL)": 11711.59819, "PVP": 58275.0, "CMV": 0.2009712259}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2282.1287499999994, "COSTO DE INSUMOS": 5219.055, "COSTO NETO": 7501.18375, "IVA": 1575.248588, "IMP INT": 2635.165851, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11711.59819, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10136.3496, "COSTO (FINAL)": 11711.59819, "PVP": 58275.0, "CMV": 0.2009712259}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 2282.13, "COSTO DE INSUMOS": 5213.54, "COSTO NETO": 7495.67, "IVA": 1574.0907, "IMP INT": 2633.228871, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11702.98957, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10128.89887, "COSTO (FINAL)": 11702.98957, "PVP": 58275.0, "CMV": 0.2008235019}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2361.1624999999995, "COSTO DE INSUMOS": 5241.03, "COSTO NETO": 7602.1925, "IVA": 1596.460425, "IMP INT": 2670.650225, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11869.30315, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10272.84273, "COSTO (FINAL)": 11869.30315, "PVP": 61188.75, "CMV": 0.1939785197}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2361.1625, "COSTO DE INSUMOS": 5113.145, "COSTO NETO": 7474.3075, "IVA": 1569.604575, "IMP INT": 2625.724225, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11669.6363, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10100.03172, "COSTO (FINAL)": 11669.6363, "PVP": 61188.75, "CMV": 0.1907153897}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2361.1624999999995, "COSTO DE INSUMOS": 5094.724999999999, "COSTO NETO": 7455.8875, "IVA": 1565.736375, "IMP INT": 2619.253279, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11640.87715, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10075.14078, "COSTO (FINAL)": 11640.87715, "PVP": 61188.75, "CMV": 0.1902453826}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 2479.24, "COSTO DE INSUMOS": 5062.66, "COSTO NETO": 7541.9, "IVA": 1583.799, "IMP INT": 2649.46947, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 11775.16847, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 10191.36947, "COSTO (FINAL)": 11775.16847, "PVP": 61188.75, "CMV": 0.1924400886}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "REFUGIOS 750 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": 0.0, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": null, "COSTO DE INSUMOS": null, "COSTO NETO": null, "IVA": null, "IMP INT": null, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": null, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": null, "COSTO (FINAL)": null, "PVP": null, "CMV": null}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3511.17, "COSTO DE INSUMOS": 5851.63, "COSTO NETO": 9362.8, "IVA": 1966.188, "IMP INT": 3289.15164, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 14024.58, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 12058.392, "COSTO (FINAL)": 14024.58, "PVP": 74700.0, "CMV": 0.1877453815}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3719.1, "COSTO DE INSUMOS": 5516.08, "COSTO NETO": 9235.18, "IVA": 1939.3878, "IMP INT": 3244.318734, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 14418.88653, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 12479.49873, "COSTO (FINAL)": 14418.88653, "PVP": 74700.0, "CMV": 0.1930239161}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3761.52, "COSTO DE INSUMOS": 5658.38, "COSTO NETO": 9419.9, "IVA": 1978.179, "IMP INT": 3309.21087, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 14707.28987, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 12729.11087, "COSTO (FINAL)": 14707.28987, "PVP": 74700.0, "CMV": 0.1968847372}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3837.87, "COSTO DE INSUMOS": 6033.03, "COSTO NETO": 9870.9, "IVA": 2072.889, "IMP INT": 3467.64717, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 15411.43617, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 13338.54717, "COSTO (FINAL)": 15411.43617, "PVP": 74700.0, "CMV": 0.2063110598}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3837.87, "COSTO DE INSUMOS": 6033.03, "COSTO NETO": 9870.9, "IVA": 2072.889, "IMP INT": 3467.64717, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 15411.43617, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 13338.54717, "COSTO (FINAL)": 15411.43617, "PVP": 74700.0, "CMV": 0.2063110598}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3837.87, "COSTO DE INSUMOS": 6548.63, "COSTO NETO": 10386.5, "IVA": 2181.165, "IMP INT": 3648.77745, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 16216.44245, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14035.27745, "COSTO (FINAL)": 16216.44245, "PVP": 77700.0, "CMV": 0.208705823}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3837.87, "COSTO DE INSUMOS": 6833.23, "COSTO NETO": 10671.1, "IVA": 2240.931, "IMP INT": 3748.75743, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 16660.78843, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14419.85743, "COSTO (FINAL)": 16660.78843, "PVP": 77700.0, "CMV": 0.2144245615}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3925.9412500000008, "COSTO DE INSUMOS": 6968.611666666667, "COSTO NETO": 10894.55292, "IVA": 2287.856113, "IMP INT": 3827.25644, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 17009.66547, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14721.80936, "COSTO (FINAL)": 17009.66547, "PVP": 77700.0, "CMV": 0.2189146135}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3925.9412500000008, "COSTO DE INSUMOS": 6968.611666666667, "COSTO NETO": 10894.55292, "IVA": 2287.856113, "IMP INT": 3827.25644, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 17009.66547, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14721.80936, "COSTO (FINAL)": 17009.66547, "PVP": 77700.0, "CMV": 0.2189146135}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 3925.94, "COSTO DE INSUMOS": 6909.58, "COSTO NETO": 10835.52, "IVA": 2275.4592, "IMP INT": 3806.518176, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 16917.49738, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14642.03818, "COSTO (FINAL)": 16917.49738, "PVP": 77700.0, "CMV": 0.217728409}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 4088.2875, "COSTO DE INSUMOS": 6943.8566666666675, "COSTO NETO": 11032.14417, "IVA": 2316.750275, "IMP INT": 3875.592246, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 17224.48669, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14907.73641, "COSTO (FINAL)": 17224.48669, "PVP": 81585.0, "CMV": 0.2111232051}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 4088.2875, "COSTO DE INSUMOS": 6737.87167, "COSTO NETO": 10826.15917, "IVA": 2273.493426, "IMP INT": 3803.229716, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 16902.88231, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14629.38889, "COSTO (FINAL)": 16902.88231, "PVP": 81585.0, "CMV": 0.2071812504}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 4088.2875, "COSTO DE INSUMOS": 6705.921666666668, "COSTO NETO": 10794.20917, "IVA": 2266.783925, "IMP INT": 3792.00568, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 16852.99877, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14586.21485, "COSTO (FINAL)": 16852.99877, "PVP": 81585.0, "CMV": 0.2065698201}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 4292.71, "COSTO DE INSUMOS": 6652.63, "COSTO NETO": 10945.34, "IVA": 2298.5214, "IMP INT": 3845.097942, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 17088.95934, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 14790.43794, "COSTO (FINAL)": 17088.95934, "PVP": 81585.0, "CMV": 0.2094620254}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO MINIATURA 50 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 796.51, "COSTO DE INSUMOS": 383.6, "COSTO NETO": 1180.1100000000001, "IVA": 247.8231, "IMP INT": 414.572643, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1842.5057430000002, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1594.682643, "COSTO (FINAL)": 1842.5057430000002, "PVP": 5200.0, "CMV": 0.35432802750000003}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 797.2387499999999, "COSTO DE INSUMOS": 398.54, "COSTO NETO": 1195.77875, "IVA": 251.1135375, "IMP INT": 420.0770749, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1866.969362, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1615.855825, "COSTO (FINAL)": 1866.969362, "PVP": 5200.0, "CMV": 0.3590325697}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 798.01, "COSTO DE INSUMOS": 402.08, "COSTO NETO": 1200.09, "IVA": 252.0189, "IMP INT": 421.591617, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1873.700517, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1621.681617, "COSTO (FINAL)": 1873.700517, "PVP": 5500.0, "CMV": 0.3406728213}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 844.32, "COSTO DE INSUMOS": 404.37, "COSTO NETO": 1248.69, "IVA": 262.2249, "IMP INT": 438.664797, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1949.579697, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1687.354797, "COSTO (FINAL)": 1949.579697, "PVP": 7500.0, "CMV": 0.2599439596}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 894.55, "COSTO DE INSUMOS": 426.26, "COSTO NETO": 1320.81, "IVA": 277.3701, "IMP INT": 464.000553, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2062.180653, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1784.810553, "COSTO (FINAL)": 2062.180653, "PVP": 7500.0, "CMV": 0.2749574204}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 896.68, "COSTO DE INSUMOS": 427.51, "COSTO NETO": 1324.19, "IVA": 278.0799, "IMP INT": 465.187947, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2067.457847, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1789.377947, "COSTO (FINAL)": 2067.457847, "PVP": 7500.0, "CMV": 0.2756610463}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 914.11, "COSTO DE INSUMOS": 427.97, "COSTO NETO": 1342.08, "IVA": 281.8368, "IMP INT": 471.472704, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2095.389504, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1813.552704, "COSTO (FINAL)": 2095.389504, "PVP": 7500.0, "CMV": 0.2793852672}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 914.11, "COSTO DE INSUMOS": 427.97, "COSTO NETO": 1342.08, "IVA": 281.8368, "IMP INT": 471.472704, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2095.389504, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1813.552704, "COSTO (FINAL)": 2095.389504, "PVP": 7500.0, "CMV": 0.2793852672}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 914.11, "COSTO DE INSUMOS": 429.89, "COSTO NETO": 1344.0, "IVA": 282.24, "IMP INT": 472.1472, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2098.3872, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1816.1472, "COSTO (FINAL)": 2098.3872, "PVP": 7500.0, "CMV": 0.27978496}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 914.11, "COSTO DE INSUMOS": 455.43, "COSTO NETO": 1369.54, "IVA": 287.6034, "IMP INT": 481.119402, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2138.262802, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1850.659402, "COSTO (FINAL)": 2138.262802, "PVP": 7500.0, "CMV": 0.2851017069}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 926.51625, "COSTO DE INSUMOS": 1466.72, "COSTO NETO": 2393.23625, "IVA": 502.5796125, "IMP INT": 840.7438946, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3736.559757, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3233.980145, "COSTO (FINAL)": 3736.559757, "PVP": 7500.0, "CMV": 0.4982079676}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 926.51625, "COSTO DE INSUMOS": 1466.72, "COSTO NETO": 2393.23625, "IVA": 502.5796125, "IMP INT": 840.7438946, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3736.559757, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3233.980145, "COSTO (FINAL)": 3736.559757, "PVP": 7500.0, "CMV": 0.4982079676}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 926.52, "COSTO DE INSUMOS": 1449.59, "COSTO NETO": 2376.11, "IVA": 498.9831, "IMP INT": 834.727443, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3709.820543, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3210.837443, "COSTO (FINAL)": 3709.820543, "PVP": 7500.0, "CMV": 0.4946427391}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 945.65, "COSTO DE INSUMOS": 1525.9466666666667, "COSTO NETO": 2471.596667, "IVA": 519.0353, "IMP INT": 868.271909, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3858.903876, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3339.868576, "COSTO (FINAL)": 3858.903876, "PVP": 7875.0, "CMV": 0.4900195398}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 945.65, "COSTO DE INSUMOS": 1487.44667, "COSTO NETO": 2433.09667, "IVA": 510.9503007, "IMP INT": 854.7468602, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3798.793831, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3287.84353, "COSTO (FINAL)": 3798.793831, "PVP": 7875.0, "CMV": 0.4823865182}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 945.65, "COSTO DE INSUMOS": 1480.8366666666666, "COSTO NETO": 2426.486667, "IVA": 509.5622, "IMP INT": 852.424766, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3788.473633, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3278.911433, "COSTO (FINAL)": 3788.473633, "PVP": 7875.0, "CMV": 0.4810760168}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 992.96, "COSTO DE INSUMOS": 1488.34, "COSTO NETO": 2481.3, "IVA": 521.073, "IMP INT": 871.68069, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3874.05369, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3352.98069, "COSTO (FINAL)": 3874.05369, "PVP": 7875.0, "CMV": 0.4919433257}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM MINIATURA 50 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 806.01, "COSTO DE INSUMOS": 402.37, "COSTO NETO": 1208.38, "IVA": 253.7598, "IMP INT": 424.50389400000006, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1886.6436940000003, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1632.8838940000003, "COSTO (FINAL)": 1886.6436940000003, "PVP": 6800.0, "CMV": 0.2774476020588236}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 806.86375, "COSTO DE INSUMOS": 418.03999999999996, "COSTO NETO": 1224.90375, "IVA": 257.2297875, "IMP INT": 430.3086874, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1912.442225, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1655.212437, "COSTO (FINAL)": 1912.442225, "PVP": 6800.0, "CMV": 0.2812415037}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 807.76, "COSTO DE INSUMOS": 422.54, "COSTO NETO": 1230.3, "IVA": 258.363, "IMP INT": 432.20439, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1920.86739, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1662.50439, "COSTO (FINAL)": 1920.86739, "PVP": 7200.0, "CMV": 0.2667871375}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 854.37, "COSTO DE INSUMOS": 425.04, "COSTO NETO": 1279.41, "IVA": 268.6761, "IMP INT": 449.456733, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 1997.542833, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1728.866733, "COSTO (FINAL)": 1997.542833, "PVP": 9500.0, "CMV": 0.2102676666}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 905.62, "COSTO DE INSUMOS": 446.2, "COSTO NETO": 1351.82, "IVA": 283.8822, "IMP INT": 474.894366, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2110.596566, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1826.714366, "COSTO (FINAL)": 2110.596566, "PVP": 9500.0, "CMV": 0.2221680596}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 908.12, "COSTO DE INSUMOS": 447.79, "COSTO NETO": 1355.91, "IVA": 284.7411, "IMP INT": 476.331183, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2116.982283, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1832.241183, "COSTO (FINAL)": 2116.982283, "PVP": 9500.0, "CMV": 0.2228402403}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 925.69, "COSTO DE INSUMOS": 448.38, "COSTO NETO": 1374.07, "IVA": 288.5547, "IMP INT": 482.710791, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2145.335491, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1856.780791, "COSTO (FINAL)": 2145.335491, "PVP": 9500.0, "CMV": 0.2258247885}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 925.69, "COSTO DE INSUMOS": 448.38, "COSTO NETO": 1374.07, "IVA": 288.5547, "IMP INT": 482.710791, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2145.335491, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1856.780791, "COSTO (FINAL)": 2145.335491, "PVP": 9500.0, "CMV": 0.2258247885}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 925.69, "COSTO DE INSUMOS": 451.77, "COSTO NETO": 1377.46, "IVA": 289.2666, "IMP INT": 483.901698, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2150.628298, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1861.361698, "COSTO (FINAL)": 2150.628298, "PVP": 9500.0, "CMV": 0.2263819261}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 925.69, "COSTO DE INSUMOS": 477.34, "COSTO NETO": 1403.03, "IVA": 294.6363, "IMP INT": 492.884439, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 2190.550739, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 1895.914439, "COSTO (FINAL)": 2190.550739, "PVP": 9500.0, "CMV": 0.2305842883}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 938.8225, "COSTO DE INSUMOS": 1483.5999999999997, "COSTO NETO": 2422.4225, "IVA": 508.708725, "IMP INT": 850.9970243, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3782.128249, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3273.419524, "COSTO (FINAL)": 3782.128249, "PVP": 9500.0, "CMV": 0.3981187631}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 938.8225, "COSTO DE INSUMOS": 1483.5999999999997, "COSTO NETO": 2422.4225, "IVA": 508.708725, "IMP INT": 850.9970243, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3782.128249, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3273.419524, "COSTO (FINAL)": 3782.128249, "PVP": 9500.0, "CMV": 0.3981187631}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 938.82, "COSTO DE INSUMOS": 1469.24, "COSTO NETO": 2408.06, "IVA": 505.6926, "IMP INT": 845.951478, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3759.704078, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3254.011478, "COSTO (FINAL)": 3759.704078, "PVP": 9500.0, "CMV": 0.395758324}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 958.2375000000002, "COSTO DE INSUMOS": 1545.8366666666666, "COSTO NETO": 2504.074167, "IVA": 525.855575, "IMP INT": 879.6812548, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3909.610996, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3383.755421, "COSTO (FINAL)": 3909.610996, "PVP": 9975.0, "CMV": 0.391940952}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 958.2375, "COSTO DE INSUMOS": 1507.33667, "COSTO NETO": 2465.57417, "IVA": 517.7705757, "IMP INT": 866.1562059, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3849.500952, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3331.730376, "COSTO (FINAL)": 3849.500952, "PVP": 9975.0, "CMV": 0.3859148824}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 958.2375000000002, "COSTO DE INSUMOS": 1500.7166666666667, "COSTO NETO": 2458.954167, "IVA": 516.380375, "IMP INT": 863.8305988, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3839.16514, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3322.784765, "COSTO (FINAL)": 3839.16514, "PVP": 9975.0, "CMV": 0.3848787108}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1006.14, "COSTO DE INSUMOS": 1508.22, "COSTO NETO": 2514.36, "IVA": 528.0156, "IMP INT": 883.294668, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3925.670268, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3397.654668, "COSTO (FINAL)": 3925.670268, "PVP": 10237.5, "CMV": 0.3834598552}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROJO GRANEL", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 1214.26, "COSTO DE INSUMOS": 1003.81, "COSTO NETO": 2218.07, "IVA": 465.8, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2683.87, "MONTO FLETE": null, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2218.07, "COSTO (FINAL)": 2683.87, "PVP": 0.0, "CMV": 0.0}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1228.7, "COSTO DE INSUMOS": 1005.33, "COSTO NETO": 2234.03, "IVA": 469.1463, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2703.1763, "MONTO FLETE": 1483062.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2373.612306, "COSTO (FINAL)": 2842.758606, "PVP": 13400.0, "CMV": 0.2121461646}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1243.85, "COSTO DE INSUMOS": 1020.21, "COSTO NETO": 2264.06, "IVA": 475.4526, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2739.5126, "MONTO FLETE": 1271196.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2422.9595, "COSTO (FINAL)": 2898.4121, "PVP": 19200.0, "CMV": 0.1509589635}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1294.89, "COSTO DE INSUMOS": 1035.98, "COSTO NETO": 2330.87, "IVA": 489.4827, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 2820.3527, "MONTO FLETE": 722215.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2475.313, "COSTO (FINAL)": 2964.7957, "PVP": 19200.0, "CMV": 0.1544164427}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1405.53, "COSTO DE INSUMOS": 1150.25, "COSTO NETO": 2555.78, "IVA": 536.7138, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 3092.4938, "MONTO FLETE": 352433.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2656.475143, "COSTO (FINAL)": 3193.188943, "PVP": 19080.0, "CMV": 0.1673579111}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1442.18, "COSTO DE INSUMOS": 1155.34, "COSTO NETO": 2597.52, "IVA": 545.4792, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3142.9992, "MONTO FLETE": 716466.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2716.931, "COSTO (FINAL)": 3262.4102, "PVP": 19080.0, "CMV": 0.1709858595}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1463.8, "COSTO DE INSUMOS": 1156.25, "COSTO NETO": 2620.05, "IVA": 550.2105, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3170.2605, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2720.05, "COSTO (FINAL)": 3270.2605, "PVP": 19080.0, "CMV": 0.1713973008}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1463.8, "COSTO DE INSUMOS": 1156.25, "COSTO NETO": 2620.05, "IVA": 550.2105, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3170.2605, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2720.05, "COSTO (FINAL)": 3270.2605, "PVP": 19080.0, "CMV": 0.1713973008}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1463.8, "COSTO DE INSUMOS": 1257.44, "COSTO NETO": 2721.24, "IVA": 571.4604, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3292.7004, "MONTO FLETE": 250000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2836.980741, "COSTO (FINAL)": 3408.441141, "PVP": 19920.0, "CMV": 0.171106483}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1463.8, "COSTO DE INSUMOS": 1259.22, "COSTO NETO": 2723.02, "IVA": 571.8342, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3294.8542, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2843.02, "COSTO (FINAL)": 3414.8542, "PVP": 19920.0, "CMV": 0.1714284237}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1535.4625, "COSTO DE INSUMOS": 1266.4399999999998, "COSTO NETO": 2801.9025, "IVA": 588.399525, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3390.302025, "MONTO FLETE": 300000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2921.9025, "COSTO (FINAL)": 3510.302025, "PVP": 19920.0, "CMV": 0.1762199812}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1535.4625, "COSTO DE INSUMOS": 1266.4399999999998, "COSTO NETO": 2801.9025, "IVA": 588.399525, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3390.302025, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2921.9025, "COSTO (FINAL)": 3510.302025, "PVP": 19920.0, "CMV": 0.1762199812}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1535.46, "COSTO DE INSUMOS": 1279.0, "COSTO NETO": 2814.46, "IVA": 591.0366, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3405.4966, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2920.487419, "COSTO (FINAL)": 3511.524019, "PVP": 19920.0, "CMV": 0.1762813263}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1578.1, "COSTO DE INSUMOS": 1250.3379999999995, "COSTO NETO": 2828.438, "IVA": 593.97198, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3422.40998, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 2934.465419, "COSTO (FINAL)": 3528.437399, "PVP": 20916.0, "CMV": 0.168695611}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1578.1, "COSTO DE INSUMOS": 1394.98723, "COSTO NETO": 2973.08723, "IVA": 624.3483183, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3597.435548, "MONTO FLETE": 708685.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3132.98908, "COSTO (FINAL)": 3757.337398, "PVP": 20916.0, "CMV": 0.179639386}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1578.1, "COSTO DE INSUMOS": 1422.15, "COSTO NETO": 3000.25, "IVA": 630.0525, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3630.3025, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3148.573556, "COSTO (FINAL)": 3778.626056, "PVP": 20916.0, "CMV": 0.1806572029}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1657.03, "COSTO DE INSUMOS": 1425.88, "COSTO NETO": 3082.91, "IVA": 647.4111, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 3730.3211, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3231.233556, "COSTO (FINAL)": 3878.644656, "PVP": 20916.0, "CMV": 0.1854391211}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROJO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 1468.21, "COSTO DE INSUMOS": 1825.23, "COSTO NETO": 3293.44, "IVA": 691.6224, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 3985.0624, "MONTO FLETE": 769073.58, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3394.7672173913043, "COSTO (FINAL)": 4086.389617391304, "PVP": 13400.0, "CMV": 0.30495444905905256}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1484.5600000000002, "COSTO DE INSUMOS": 1827.9775, "COSTO NETO": 3312.5375, "IVA": 695.632875, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4008.170375, "MONTO FLETE": 1483062.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3452.119806, "COSTO (FINAL)": 4147.752681, "PVP": 13400.0, "CMV": 0.3095337822}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1501.68, "COSTO DE INSUMOS": 1852.98, "COSTO NETO": 3354.66, "IVA": 704.4786, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4059.1386, "MONTO FLETE": 1271196.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3513.5595, "COSTO (FINAL)": 4218.0381, "PVP": 14400.0, "CMV": 0.2929193125}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1570.28, "COSTO DE INSUMOS": 1877.9, "COSTO NETO": 3448.18, "IVA": 724.1178, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4172.2978, "MONTO FLETE": 722215.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3592.623, "COSTO (FINAL)": 4316.7408, "PVP": 14400.0, "CMV": 0.2997736667}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1693.64, "COSTO DE INSUMOS": 1964.44, "COSTO NETO": 3658.08, "IVA": 768.1968, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4426.2768, "MONTO FLETE": 352433.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3758.775143, "COSTO (FINAL)": 4526.971943, "PVP": 15900.0, "CMV": 0.2847152165}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1731.4, "COSTO DE INSUMOS": 2015.67, "COSTO NETO": 3747.07, "IVA": 786.8847, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4533.9547, "MONTO FLETE": 716466.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3866.481, "COSTO (FINAL)": 4653.3657, "PVP": 15900.0, "CMV": 0.2926645094}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2021.24, "COSTO NETO": 3780.94, "IVA": 793.9974, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4574.9374, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3880.94, "COSTO (FINAL)": 4674.9374, "PVP": 15900.0, "CMV": 0.2940212201}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2021.24, "COSTO NETO": 3780.94, "IVA": 793.9974, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4574.9374, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3880.94, "COSTO (FINAL)": 4674.9374, "PVP": 15900.0, "CMV": 0.2940212201}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2113.0, "COSTO NETO": 3872.7, "IVA": 813.267, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4685.967, "MONTO FLETE": 250000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3988.440741, "COSTO (FINAL)": 4801.707741, "PVP": 16600.0, "CMV": 0.2892595025}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2120.71, "COSTO NETO": 3880.41, "IVA": 814.8861, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4695.2961, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4000.41, "COSTO (FINAL)": 4815.2961, "PVP": 16600.0, "CMV": 0.2900780783}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.1262499999998, "COSTO DE INSUMOS": 2135.375, "COSTO NETO": 3969.50125, "IVA": 833.5952625, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4803.096513, "MONTO FLETE": 300000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4089.50125, "COSTO (FINAL)": 4923.096513, "PVP": 16600.0, "CMV": 0.2965720791}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.1262499999998, "COSTO DE INSUMOS": 2135.375, "COSTO NETO": 3969.50125, "IVA": 833.5952625, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4803.096513, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4089.50125, "COSTO (FINAL)": 4923.096513, "PVP": 16600.0, "CMV": 0.2965720791}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.13, "COSTO DE INSUMOS": 2580.88, "COSTO NETO": 4415.01, "IVA": 927.1521, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5342.1621, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4521.037419, "COSTO (FINAL)": 5448.189519, "PVP": 16600.0, "CMV": 0.3282041879}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.3249999999998, "COSTO DE INSUMOS": 2146.1766666666667, "COSTO NETO": 4037.501667, "IVA": 847.87535, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4885.377017, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4143.529086, "COSTO (FINAL)": 4991.404436, "PVP": 17430.0, "CMV": 0.286368585}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.325, "COSTO DE INSUMOS": 2204.86515, "COSTO NETO": 4096.19015, "IVA": 860.1999315, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4956.390082, "MONTO FLETE": 708685.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4256.092, "COSTO (FINAL)": 5116.291932, "PVP": 17430.0, "CMV": 0.2935336736}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.3249999999998, "COSTO DE INSUMOS": 2401.5471847988642, "COSTO NETO": 4292.872185, "IVA": 901.5031588, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5194.375344, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4441.195741, "COSTO (FINAL)": 5342.6989, "PVP": 17430.0, "CMV": 0.3065231727}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1985.9, "COSTO DE INSUMOS": 2400.0, "COSTO NETO": 4385.9, "IVA": 921.039, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5306.939, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4534.223556, "COSTO (FINAL)": 5455.262556, "PVP": 17430.0, "CMV": 0.3129812138}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROSADO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "COSTO PRODUCCIÓN Y FINANCIERO": 1468.21, "COSTO DE INSUMOS": 1825.23, "COSTO NETO": 3293.44, "IVA": 691.6224, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 3985.0624, "MONTO FLETE": 769073.58, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3394.7672173913043, "COSTO (FINAL)": 4086.389617391304, "PVP": 13400.0, "CMV": 0.30495444905905256}, "2025-01": {"label": "Ene 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1484.5600000000002, "COSTO DE INSUMOS": 1827.9775, "COSTO NETO": 3312.5375, "IVA": 695.632875, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4008.170375, "MONTO FLETE": 1483062.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3452.119806, "COSTO (FINAL)": 4147.752681, "PVP": 13400.0, "CMV": 0.3095337822}, "2025-02": {"label": "Feb 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1501.68, "COSTO DE INSUMOS": 1852.98, "COSTO NETO": 3354.66, "IVA": 704.4786, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4059.1386, "MONTO FLETE": 1271196.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3513.5595, "COSTO (FINAL)": 4218.0381, "PVP": 14400.0, "CMV": 0.2929193125}, "2025-03": {"label": "Mar 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1570.28, "COSTO DE INSUMOS": 1877.9, "COSTO NETO": 3448.18, "IVA": 724.1178, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4172.2978, "MONTO FLETE": 722215.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3592.623, "COSTO (FINAL)": 4316.7408, "PVP": 14400.0, "CMV": 0.2997736667}, "2025-04": {"label": "Abr 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1693.64, "COSTO DE INSUMOS": 1964.44, "COSTO NETO": 3658.08, "IVA": 768.1968, "IMP INT": 0.0, "IMP IIBB CORDOBA": 0.0, "COSTO DESTILERIA": 4426.2768, "MONTO FLETE": 352433.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3758.775143, "COSTO (FINAL)": 4526.971943, "PVP": 15900.0, "CMV": 0.2847152165}, "2025-05": {"label": "May 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1731.4, "COSTO DE INSUMOS": 2015.67, "COSTO NETO": 3747.07, "IVA": 786.8847, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4533.9547, "MONTO FLETE": 716466.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3866.481, "COSTO (FINAL)": 4653.3657, "PVP": 15900.0, "CMV": 0.2926645094}, "2025-06": {"label": "Jun 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2021.24, "COSTO NETO": 3780.94, "IVA": 793.9974, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4574.9374, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3880.94, "COSTO (FINAL)": 4674.9374, "PVP": 15900.0, "CMV": 0.2940212201}, "2025-07": {"label": "Jul 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2021.24, "COSTO NETO": 3780.94, "IVA": 793.9974, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4574.9374, "MONTO FLETE": 500000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3880.94, "COSTO (FINAL)": 4674.9374, "PVP": 15900.0, "CMV": 0.2940212201}, "2025-08": {"label": "Ago 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2113.0, "COSTO NETO": 3872.7, "IVA": 813.267, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4685.967, "MONTO FLETE": 250000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 3988.440741, "COSTO (FINAL)": 4801.707741, "PVP": 16600.0, "CMV": 0.2892595025}, "2025-09": {"label": "Sep 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1759.7, "COSTO DE INSUMOS": 2120.71, "COSTO NETO": 3880.41, "IVA": 814.8861, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4695.2961, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4000.41, "COSTO (FINAL)": 4815.2961, "PVP": 16600.0, "CMV": 0.2900780783}, "2025-10": {"label": "Oct 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.1262499999998, "COSTO DE INSUMOS": 2135.375, "COSTO NETO": 3969.50125, "IVA": 833.5952625, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4803.096513, "MONTO FLETE": 300000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4089.50125, "COSTO (FINAL)": 4923.096513, "PVP": 16600.0, "CMV": 0.2965720791}, "2025-11": {"label": "Nov 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.1262499999998, "COSTO DE INSUMOS": 2135.375, "COSTO NETO": 3969.50125, "IVA": 833.5952625, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4803.096513, "MONTO FLETE": 600000.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4089.50125, "COSTO (FINAL)": 4923.096513, "PVP": 16600.0, "CMV": 0.2965720791}, "2025-12": {"label": "Dic 2025", "COSTO PRODUCCIÓN Y FINANCIERO": 1834.13, "COSTO DE INSUMOS": 2580.88, "COSTO NETO": 4415.01, "IVA": 927.1521, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5342.1621, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4521.037419, "COSTO (FINAL)": 5448.189519, "PVP": 16600.0, "CMV": 0.3282041879}, "2026-01": {"label": "Ene 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.3249999999998, "COSTO DE INSUMOS": 2146.1766666666667, "COSTO NETO": 4037.501667, "IVA": 847.87535, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4885.377017, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4143.529086, "COSTO (FINAL)": 4991.404436, "PVP": 17430.0, "CMV": 0.286368585}, "2026-02": {"label": "Feb 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.325, "COSTO DE INSUMOS": 2204.86515, "COSTO NETO": 4096.19015, "IVA": 860.1999315, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 4956.390082, "MONTO FLETE": 708685.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4256.092, "COSTO (FINAL)": 5116.291932, "PVP": 17430.0, "CMV": 0.2935336736}, "2026-03": {"label": "Mar 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1891.3249999999998, "COSTO DE INSUMOS": 2401.5471847988642, "COSTO NETO": 4292.872185, "IVA": 901.5031588, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5194.375344, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4441.195741, "COSTO (FINAL)": 5342.6989, "PVP": 17430.0, "CMV": 0.3065231727}, "2026-04": {"label": "Abr 2026", "COSTO PRODUCCIÓN Y FINANCIERO": 1985.9, "COSTO DE INSUMOS": 2400.0, "COSTO NETO": 4385.9, "IVA": 921.039, "IMP INT": 0.0, "IMP IIBB CORDOBA": null, "COSTO DESTILERIA": 5306.939, "MONTO FLETE": 657370.0, "CAJA PRESENTACION (COSTO)": null, "COSTO SIN IVA": 4534.223556, "COSTO (FINAL)": 5455.262556, "PVP": 17430.0, "CMV": 0.3129812138}}}]};
+
+const COLORS = [
+  '#38b2ac', '#4299e1', '#48bb78', '#ed8936', '#9f7aea',
+  '#f56565', '#ecc94b', '#667eea', '#fc8181', '#4fd1c5', '#d69e2e'
+];
+
+const METRIC_LABELS = {
+  'COSTO PRODUCCIÓN Y FINANCIERO': 'Costo Producción y Financiero',
+  'COSTO DE INSUMOS': 'Costo de Insumos',
+  'COSTO NETO': 'Costo Neto',
+  'IVA': 'IVA',
+  'IMP INT': 'Imp. Internos',
+  'IMP IIBB CORDOBA': 'IIBB Córdoba',
+  'COSTO DESTILERIA': 'Costo Destilería',
+  'MONTO FLETE': 'Monto Flete',
+  'CAJA PRESENTACION (COSTO)': 'Caja Presentación',
+  'COSTO SIN IVA': 'Costo Sin IVA',
+  'COSTO (FINAL)': 'Costo Final',
+  'PVP': 'PVP',
+  'CMV': 'CMV'
+};
+
+// State
+const state = {
+  selectedMonth: DATA.months[DATA.months.length - 1].key,
+  metric: 'COSTO (FINAL)',
+  lineaFilter: 'all',
+  selectedYear: '2026',
+  enabledProducts: new Set(DATA.products.map(p => p.producto))
+};
+
+const fmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const fmt2 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+const fmtPct = (v) => (v == null || isNaN(v)) ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+
+function isPctMetric(m) { return m === 'CMV'; }
+function fmtVal(v, metric) {
+  if (v == null) return '–';
+  if (isPctMetric(metric)) return (v * 100).toFixed(2) + '%';
+  return '$' + fmt2.format(v);
+}
+function fmtValShort(v, metric) {
+  if (v == null) return '–';
+  if (isPctMetric(metric)) return (v * 100).toFixed(1) + '%';
+  return '$' + fmt.format(v);
+}
+
+function getYears() {
+  return [...new Set(DATA.months.map(m => m.key.split('-')[0]))].sort();
+}
+function monthsInYear(year) {
+  return DATA.months.filter(m => m.key.startsWith(year));
+}
+function getValue(p, monthKey, metric) {
+  return p.data[monthKey]?.[metric] ?? null;
+}
+function getFiltered() {
+  return DATA.products.filter(p =>
+    (state.lineaFilter === 'all' || p.linea === state.lineaFilter) &&
+    state.enabledProducts.has(p.producto)
+  );
+}
+function colorFor(name) {
+  const idx = DATA.products.findIndex(p => p.producto === name);
+  return COLORS[idx % COLORS.length];
+}
+
+function initControls() {
+  const ms = document.getElementById('month-select');
+  DATA.months.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.key; o.textContent = m.label; ms.appendChild(o);
+  });
+  ms.value = state.selectedMonth;
+  ms.addEventListener('change', e => { state.selectedMonth = e.target.value; render(); });
+
+  const ys = document.getElementById('year-select');
+  getYears().forEach(y => {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y; ys.appendChild(o);
+  });
+  ys.value = state.selectedYear;
+  ys.addEventListener('change', e => { state.selectedYear = e.target.value; render(); });
+
+  document.getElementById('metric-select').addEventListener('change', e => {
+    state.metric = e.target.value; render();
+  });
+  document.getElementById('linea-filter').addEventListener('change', e => {
+    state.lineaFilter = e.target.value; render();
+  });
+
+  const pills = document.getElementById('product-pills');
+  DATA.products.forEach(p => {
+    const pill = document.createElement('span');
+    pill.className = 'pill active';
+    pill.style.background = colorFor(p.producto);
+    pill.style.borderColor = colorFor(p.producto);
+    pill.innerHTML = `<span class="legend-dot" style="background:#fff"></span>${p.linea} · ${p.producto}`;
+    pill.addEventListener('click', () => {
+      if (state.enabledProducts.has(p.producto)) {
+        state.enabledProducts.delete(p.producto);
+        pill.classList.remove('active');
+        pill.style.background = '#edf2f7';
+        pill.style.borderColor = '#cbd5e0';
+        pill.style.color = '#4a5568';
+        pill.querySelector('.legend-dot').style.background = '#cbd5e0';
+      } else {
+        state.enabledProducts.add(p.producto);
+        pill.classList.add('active');
+        pill.style.background = colorFor(p.producto);
+        pill.style.borderColor = colorFor(p.producto);
+        pill.style.color = '#fff';
+        pill.querySelector('.legend-dot').style.background = '#fff';
+      }
+      render();
+    });
+    pills.appendChild(pill);
+  });
+}
+
+function renderKPIs() {
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = '';
+  const products = getFiltered();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const prevIdx = monthIdx > 0 ? monthIdx - 1 : -1;
+  const monthLabel = DATA.months[monthIdx].label;
+
+  const valsMonth = products.map(p => getValue(p, state.selectedMonth, state.metric)).filter(v => v != null);
+
+  let aggMonth, aggLabel;
+  if (isPctMetric(state.metric)) {
+    aggMonth = valsMonth.length ? valsMonth.reduce((s, v) => s + v, 0) / valsMonth.length : 0;
+    aggLabel = 'Promedio';
+  } else {
+    aggMonth = valsMonth.reduce((s, v) => s + v, 0);
+    aggLabel = 'Total';
+  }
+
+  let varMM = null;
+  if (prevIdx >= 0) {
+    const valsPrev = products.map(p => getValue(p, DATA.months[prevIdx].key, state.metric)).filter(v => v != null);
+    let aggPrev;
+    if (isPctMetric(state.metric)) {
+      aggPrev = valsPrev.length ? valsPrev.reduce((s, v) => s + v, 0) / valsPrev.length : 0;
+    } else {
+      aggPrev = valsPrev.reduce((s, v) => s + v, 0);
+    }
+    if (aggPrev !== 0) varMM = (aggMonth - aggPrev) / aggPrev;
+  }
+
+  // YTD
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+
+  let ytdAgg, ytdLabel;
+  if (isPctMetric(state.metric)) {
+    const allVals = [];
+    products.forEach(p => ytdMonths.forEach(m => {
+      const v = getValue(p, m.key, state.metric);
+      if (v != null) allVals.push(v);
+    }));
+    ytdAgg = allVals.length ? allVals.reduce((s, v) => s + v, 0) / allVals.length : 0;
+    ytdLabel = 'Promedio YTD';
+  } else {
+    ytdAgg = products.reduce((s, p) => s + ytdMonths.reduce((ss, m) => ss + (getValue(p, m.key, state.metric) || 0), 0), 0);
+    ytdLabel = 'Total YTD';
+  }
+
+  // YoY same period
+  const prevYear = String(parseInt(state.selectedYear) - 1);
+  const prevYearMonths = monthsInYear(prevYear).slice(0, ytdMonths.length);
+  let ytdPrevAgg = null;
+  if (prevYearMonths.length > 0) {
+    if (isPctMetric(state.metric)) {
+      const allP = [];
+      products.forEach(p => prevYearMonths.forEach(m => {
+        const v = getValue(p, m.key, state.metric);
+        if (v != null) allP.push(v);
+      }));
+      ytdPrevAgg = allP.length ? allP.reduce((s, v) => s + v, 0) / allP.length : null;
+    } else {
+      ytdPrevAgg = products.reduce((s, p) => s + prevYearMonths.reduce((ss, m) => ss + (getValue(p, m.key, state.metric) || 0), 0), 0);
+    }
+  }
+  let yoyVar = null;
+  if (ytdPrevAgg != null && ytdPrevAgg !== 0) yoyVar = (ytdAgg - ytdPrevAgg) / ytdPrevAgg;
+
+  const cnt = valsMonth.length;
+  const kpis = [
+    {
+      label: `${aggLabel} · ${monthLabel}`,
+      value: fmtValShort(aggMonth, state.metric),
+      sub: `${cnt} producto${cnt !== 1 ? 's' : ''} con dato`,
+      trend: varMM,
+      cls: ''
+    },
+    {
+      label: `Variación vs mes anterior`,
+      value: fmtPct(varMM),
+      sub: prevIdx >= 0 ? `vs ${DATA.months[prevIdx].label}` : 'sin mes previo',
+      trend: varMM,
+      isVar: true,
+      cls: 'orange'
+    },
+    {
+      label: `${ytdLabel} ${state.selectedYear}`,
+      value: fmtValShort(ytdAgg, state.metric),
+      sub: `${ytdMonths.length} mes${ytdMonths.length !== 1 ? 'es' : ''} acumulado${ytdMonths.length !== 1 ? 's' : ''}`,
+      cls: 'green'
+    },
+    {
+      label: `YoY · vs ${prevYear}`,
+      value: yoyVar != null ? fmtPct(yoyVar) : 'n/d',
+      sub: prevYearMonths.length ? `mismos ${prevYearMonths.length} mes${prevYearMonths.length !== 1 ? 'es' : ''}` : 'sin datos comparables',
+      trend: yoyVar,
+      isVar: true,
+      cls: 'purple'
+    }
+  ];
+
+  kpis.forEach(k => {
+    const card = document.createElement('div');
+    card.className = 'kpi-card ' + k.cls;
+    let trendHtml = '';
+    if (k.trend != null && !k.isVar) {
+      const tcls = k.trend > 0.001 ? 'trend-up' : (k.trend < -0.001 ? 'trend-down' : 'trend-flat');
+      const arr = k.trend > 0.001 ? '↑' : (k.trend < -0.001 ? '↓' : '→');
+      trendHtml = `<div class="kpi-trend ${tcls}">${arr} ${fmtPct(k.trend)}</div>`;
+    }
+    let valStyle = '';
+    if (k.isVar && k.trend != null) {
+      valStyle = k.trend > 0.001 ? 'style="color:#c53030"' : (k.trend < -0.001 ? 'style="color:#2f855a"' : '');
+    }
+    card.innerHTML = `
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value" ${valStyle}>${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      ${trendHtml}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+let chMonthly, chYtd, chVar, chComp;
+
+function renderMonthlyChart() {
+  const products = getFiltered();
+  const labels = DATA.months.map(m => m.label);
+  const datasets = products.map(p => ({
+    label: p.producto,
+    data: DATA.months.map(m => {
+      const v = getValue(p, m.key, state.metric);
+      if (v == null) return null;
+      return isPctMetric(state.metric) ? v * 100 : v;
+    }),
+    borderColor: colorFor(p.producto),
+    backgroundColor: colorFor(p.producto) + '22',
+    tension: 0.25,
+    spanGaps: true,
+    pointRadius: 3,
+    pointHoverRadius: 6,
+    borderWidth: 2
+  }));
+  const selectedIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  document.getElementById('evol-subtitle').textContent =
+    `${METRIC_LABELS[state.metric]} · marca vertical en ${DATA.months[selectedIdx].label}`;
+
+  const isPct = isPctMetric(state.metric);
+  if (chMonthly) chMonthly.destroy();
+  chMonthly = new Chart(document.getElementById('chart-monthly').getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.dataset.label}: ${isPct ? c.parsed.y.toFixed(2) + '%' : '$' + fmt2.format(c.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => isPct ? v.toFixed(1) + '%' : '$' + fmt.format(v) }, grid: { color: '#edf2f7' } },
+        x: { grid: { display: false } }
+      }
+    },
+    plugins: [{
+      id: 'verticalLine',
+      afterDraw(chart) {
+        const x = chart.scales.x.getPixelForValue(selectedIdx);
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(237, 137, 54, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, chart.chartArea.top);
+        ctx.lineTo(x, chart.chartArea.bottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+function renderYtdChart() {
+  const products = getFiltered();
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+  const isPct = isPctMetric(state.metric);
+
+  document.getElementById('ytd-subtitle').textContent =
+    `${METRIC_LABELS[state.metric]} ${isPct ? 'promedio' : 'acumulado'} en ${state.selectedYear} (${ytdMonths.length} mes${ytdMonths.length !== 1 ? 'es' : ''})`;
+
+  const labels = products.map(p => p.producto);
+  const values = products.map(p => {
+    const vs = ytdMonths.map(m => getValue(p, m.key, state.metric)).filter(v => v != null);
+    if (!vs.length) return 0;
+    if (isPct) return (vs.reduce((s, v) => s + v, 0) / vs.length) * 100;
+    return vs.reduce((s, v) => s + v, 0);
+  });
+  const colors = products.map(p => colorFor(p.producto));
+
+  if (chYtd) chYtd.destroy();
+  chYtd = new Chart(document.getElementById('chart-ytd').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: `YTD ${state.selectedYear}`,
+        data: values,
+        backgroundColor: colors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => isPct ? c.parsed.x.toFixed(2) + '%' : '$' + fmt2.format(c.parsed.x) } }
+      },
+      scales: {
+        x: { ticks: { callback: v => isPct ? v.toFixed(1) + '%' : '$' + fmt.format(v) }, grid: { color: '#edf2f7' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderVarChart() {
+  const products = getFiltered();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const prevIdx = monthIdx > 0 ? monthIdx - 1 : -1;
+  const monthLabel = DATA.months[monthIdx].label;
+  const prevLabel = prevIdx >= 0 ? DATA.months[prevIdx].label : '–';
+
+  document.getElementById('var-subtitle').textContent =
+    `${METRIC_LABELS[state.metric]} · ${monthLabel} vs ${prevLabel}`;
+
+  const labels = products.map(p => p.producto);
+  const vars = products.map(p => {
+    const cur = getValue(p, state.selectedMonth, state.metric);
+    const prev = prevIdx >= 0 ? getValue(p, DATA.months[prevIdx].key, state.metric) : null;
+    if (cur == null || prev == null || prev === 0) return 0;
+    return ((cur - prev) / prev) * 100;
+  });
+  const colors = vars.map(v => v > 0 ? '#fc8181' : (v < 0 ? '#68d391' : '#cbd5e0'));
+
+  if (chVar) chVar.destroy();
+  chVar = new Chart(document.getElementById('chart-var').getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Var %', data: vars, backgroundColor: colors, borderRadius: 6 }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => c.parsed.x.toFixed(2) + '%' } }
+      },
+      scales: {
+        x: { ticks: { callback: v => v.toFixed(1) + '%' }, grid: { color: '#edf2f7' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderCompositionChart() {
+  const products = getFiltered();
+  const monthLabel = DATA.months.find(m => m.key === state.selectedMonth).label;
+  document.getElementById('comp-subtitle').textContent =
+    `Producción + Insumos + IVA + Imp. Internos + IIBB · stack por producto · ${monthLabel}`;
+
+  const labels = products.map(p => p.producto);
+  const compMetrics = [
+    { key: 'COSTO PRODUCCIÓN Y FINANCIERO', label: 'Producción y Financiero', color: '#38b2ac' },
+    { key: 'COSTO DE INSUMOS', label: 'Insumos', color: '#4299e1' },
+    { key: 'IVA', label: 'IVA', color: '#9f7aea' },
+    { key: 'IMP INT', label: 'Imp. Internos', color: '#ed8936' },
+    { key: 'IMP IIBB CORDOBA', label: 'IIBB Córdoba', color: '#f56565' }
+  ];
+  const datasets = compMetrics.map(cm => ({
+    label: cm.label,
+    data: products.map(p => getValue(p, state.selectedMonth, cm.key) || 0),
+    backgroundColor: cm.color,
+    borderRadius: 4
+  }));
+
+  if (chComp) chComp.destroy();
+  chComp = new Chart(document.getElementById('chart-composition').getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'bottom' },
+        tooltip: { callbacks: { label: (c) => `${c.dataset.label}: $${fmt2.format(c.parsed.y)}` } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, ticks: { callback: v => '$' + fmt.format(v) }, grid: { color: '#edf2f7' } }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const products = getFiltered();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const monthLabel = DATA.months[monthIdx].label;
+  const prevLabel = monthIdx > 0 ? DATA.months[monthIdx - 1].label : '–';
+
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+
+  let html = `<thead><tr>
+    <th>Producto</th>
+    <th>Línea</th>
+    <th>${METRIC_LABELS[state.metric]} · ${monthLabel}</th>
+    <th>${prevLabel}</th>
+    <th>Var %</th>
+    <th>${isPctMetric(state.metric) ? 'Promedio' : 'YTD'} ${state.selectedYear}</th>
+    <th>PVP ${monthLabel}</th>
+    <th>CMV ${monthLabel}</th>
+  </tr></thead><tbody>`;
+
+  products.forEach(p => {
+    const cur = getValue(p, state.selectedMonth, state.metric);
+    const prev = monthIdx > 0 ? getValue(p, DATA.months[monthIdx - 1].key, state.metric) : null;
+    const v = (cur != null && prev != null && prev !== 0) ? (cur - prev) / prev : null;
+
+    const ytdVals = ytdMonths.map(m => getValue(p, m.key, state.metric)).filter(x => x != null);
+    let ytdAgg;
+    if (isPctMetric(state.metric)) {
+      ytdAgg = ytdVals.length ? ytdVals.reduce((s, x) => s + x, 0) / ytdVals.length : null;
+    } else {
+      ytdAgg = ytdVals.reduce((s, x) => s + x, 0);
+    }
+
+    const pvp = getValue(p, state.selectedMonth, 'PVP');
+    const cmv = getValue(p, state.selectedMonth, 'CMV');
+    const vCls = v == null ? 'var-flat' : (v > 0.001 ? 'var-pos' : (v < -0.001 ? 'var-neg' : 'var-flat'));
+
+    html += `<tr>
+      <td><span class="legend-dot" style="background:${colorFor(p.producto)}"></span>${p.producto}</td>
+      <td style="color:#718096;font-size:.82rem"><span class="badge">${p.linea}</span></td>
+      <td>${fmtVal(cur, state.metric)}</td>
+      <td>${fmtVal(prev, state.metric)}</td>
+      <td class="${vCls}">${fmtPct(v)}</td>
+      <td>${ytdAgg != null && (ytdAgg !== 0 || ytdVals.length) ? fmtVal(ytdAgg, state.metric) : '–'}</td>
+      <td>${pvp != null ? '$' + fmt.format(pvp) : '–'}</td>
+      <td>${cmv != null ? (cmv * 100).toFixed(2) + '%' : '–'}</td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  document.getElementById('data-table').innerHTML = html;
+}
+
+function render() {
+  renderKPIs();
+  renderMonthlyChart();
+  renderYtdChart();
+  renderVarChart();
+  renderCompositionChart();
+  renderTable();
+}
+
+initControls();
+render();
+</script>
+</body>
+</html>

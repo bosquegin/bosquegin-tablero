@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Evolución Costos Destilería</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    color: #1a202c;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1400px; margin: 0 auto; }
+  header {
+    background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+    color: #fff;
+    padding: 24px 32px;
+    border-radius: 12px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  }
+  header h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; }
+  header p { opacity: .8; margin-top: 4px; font-size: .9rem; }
+  .controls {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 18px;
+  }
+  .control-group label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 6px;
+  }
+  .control-group select, .control-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 8px;
+    background: #fff;
+    font-size: .95rem;
+    color: #1a202c;
+    cursor: pointer;
+    transition: border-color .15s;
+  }
+  .control-group select:focus, .control-group input:focus {
+    outline: none;
+    border-color: #4299e1;
+    box-shadow: 0 0 0 3px rgba(66,153,225,.15);
+  }
+  .product-toggles {
+    background: #fff;
+    border-radius: 12px;
+    padding: 16px 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .product-toggles h3 {
+    font-size: .75rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 10px;
+  }
+  .toggle-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: .82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+    border: 1.5px solid transparent;
+    background: #edf2f7;
+    color: #4a5568;
+    user-select: none;
+  }
+  .pill.active { color: #fff; }
+  .pill:hover { transform: translateY(-1px); }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+    border-left: 4px solid #4299e1;
+  }
+  .kpi-card.green { border-left-color: #48bb78; }
+  .kpi-card.orange { border-left-color: #ed8936; }
+  .kpi-card.purple { border-left-color: #9f7aea; }
+  .kpi-label {
+    font-size: .75rem;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    font-weight: 600;
+  }
+  .kpi-value {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin-top: 6px;
+    letter-spacing: -.02em;
+  }
+  .kpi-sub { font-size: .82rem; color: #718096; margin-top: 4px; }
+  .kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: .8rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 6px;
+    margin-top: 6px;
+  }
+  .trend-up { background: #fed7d7; color: #c53030; }
+  .trend-down { background: #c6f6d5; color: #2f855a; }
+  .trend-flat { background: #edf2f7; color: #4a5568; }
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+  @media (min-width: 1100px) { .chart-grid.two-cols { grid-template-columns: 1fr 1fr; } }
+  .chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .chart-card h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #1a202c;
+    margin-bottom: 4px;
+  }
+  .chart-card .subtitle {
+    font-size: .85rem;
+    color: #718096;
+    margin-bottom: 16px;
+  }
+  .chart-wrap { position: relative; height: 360px; }
+  .chart-wrap.tall { height: 420px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .88rem;
+  }
+  th, td {
+    text-align: right;
+    padding: 10px 12px;
+    border-bottom: 1px solid #edf2f7;
+  }
+  th:first-child, td:first-child { text-align: left; }
+  th {
+    background: #f7fafc;
+    color: #4a5568;
+    font-weight: 600;
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    position: sticky;
+    top: 0;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 480px;
+    overflow-y: auto;
+    border-radius: 8px;
+    border: 1px solid #edf2f7;
+  }
+  .var-pos { color: #c53030; font-weight: 600; }
+  .var-neg { color: #2f855a; font-weight: 600; }
+  .var-flat { color: #718096; }
+  .legend-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Evolución Costos Destilería</h1>
+    <p>Análisis mensual y anualizado · POLDITOS · datos desde Dic 2024</p>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <label for="month-select">Mes seleccionado</label>
+      <select id="month-select"></select>
+    </div>
+    <div class="control-group">
+      <label for="cost-type">Tipo de costo</label>
+      <select id="cost-type">
+        <option value="neto" selected>Costo Neto (Producción + Insumos)</option>
+        <option value="prod_cost">Total Costo Producción y Financiero</option>
+        <option value="insumos">Total Costos Insumos</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="linea-filter">Filtrar por línea</label>
+      <select id="linea-filter">
+        <option value="all" selected>Todas las líneas</option>
+        <option value="BOSQUE">BOSQUE</option>
+        <option value="FERIADO">FERIADO</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label for="year-select">Año para anualizado (YTD)</label>
+      <select id="year-select"></select>
+    </div>
+  </div>
+
+  <div class="product-toggles">
+    <h3>Productos a mostrar</h3>
+    <div class="toggle-pills" id="product-pills"></div>
+  </div>
+
+  <div class="kpi-grid" id="kpi-grid"></div>
+
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h2>Evolución mensual</h2>
+      <div class="subtitle" id="evol-subtitle">Costo unitario por producto, mes a mes</div>
+      <div class="chart-wrap tall"><canvas id="chart-monthly"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-grid two-cols">
+    <div class="chart-card">
+      <h2>Anualizado (YTD)</h2>
+      <div class="subtitle" id="ytd-subtitle">Suma acumulada del costo unitario por producto</div>
+      <div class="chart-wrap"><canvas id="chart-ytd"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h2>Variación mes/mes</h2>
+      <div class="subtitle" id="var-subtitle">Variación del mes seleccionado vs el anterior</div>
+      <div class="chart-wrap"><canvas id="chart-var"></canvas></div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h2>Tabla detallada</h2>
+    <div class="subtitle">Valores por producto y mes, con variaciones</div>
+    <div class="table-wrap">
+      <table id="data-table"></table>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = {"months": [{"key": "2024-12", "label": "Dic 2024"}, {"key": "2025-01", "label": "Ene 2025"}, {"key": "2025-02", "label": "Feb 2025"}, {"key": "2025-03", "label": "Mar 2025"}, {"key": "2025-04", "label": "Abr 2025"}, {"key": "2025-05", "label": "May 2025"}, {"key": "2025-06", "label": "Jun 2025"}, {"key": "2025-07", "label": "Jul 2025"}, {"key": "2025-08", "label": "Ago 2025"}, {"key": "2025-09", "label": "Sep 2025"}, {"key": "2025-10", "label": "Oct 2025"}, {"key": "2025-11", "label": "Nov 2025"}, {"key": "2025-12", "label": "Dic 2025"}, {"key": "2026-01", "label": "Ene 2026"}, {"key": "2026-02", "label": "Feb 2026"}, {"key": "2026-03", "label": "Mar 2026"}, {"key": "2026-04", "label": "Abr 2026"}], "products": [{"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO 500 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 1490.36, "insumos": 1801.94, "neto": 3292.3}, "2025-01": {"label": "Ene 2025", "prod_cost": 1504.78625, "insumos": 1830.63, "neto": 3335.41625}, "2025-02": {"label": "Feb 2025", "prod_cost": 1519.75, "insumos": 1871.3, "neto": 3391.05}, "2025-03": {"label": "Mar 2025", "prod_cost": 1603.11, "insumos": 1881.68, "neto": 3484.79}, "2025-04": {"label": "Abr 2025", "prod_cost": 1707.64, "insumos": 1890.75, "neto": 3598.39}, "2025-05": {"label": "May 2025", "prod_cost": 1732.97, "insumos": 1905.6, "neto": 3638.57}, "2025-06": {"label": "Jun 2025", "prod_cost": 1765.98, "insumos": 1915.53, "neto": 3681.51}, "2025-07": {"label": "Jul 2025", "prod_cost": 1765.98, "insumos": 1915.53, "neto": 3681.51}, "2025-08": {"label": "Ago 2025", "prod_cost": 1765.98, "insumos": 2005.38, "neto": 3771.36}, "2025-09": {"label": "Sep 2025", "prod_cost": 1765.98, "insumos": 2010.3, "neto": 3776.28}, "2025-10": {"label": "Oct 2025", "prod_cost": 1817.29625, "insumos": 2450.06, "neto": 4267.35625}, "2025-11": {"label": "Nov 2025", "prod_cost": 1817.29625, "insumos": 2450.06, "neto": 4267.35625}, "2025-12": {"label": "Dic 2025", "prod_cost": 1817.3, "insumos": 2507.14, "neto": 4324.44}, "2026-01": {"label": "Ene 2026", "prod_cost": 1886.5375, "insumos": 2566.286459, "neto": 4452.823959}, "2026-02": {"label": "Feb 2026", "prod_cost": 1886.5375, "insumos": 2561.51823, "neto": 4448.05573}, "2026-03": {"label": "Mar 2026", "prod_cost": 1886.5375, "insumos": 2606.796833, "neto": 4493.334333}, "2026-04": {"label": "Abr 2026", "prod_cost": 1980.86, "insumos": 2621.52, "neto": 4602.38}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM 500 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 1550.15, "insumos": 1956.01, "neto": 3506.16}, "2025-01": {"label": "Ene 2025", "prod_cost": 1565.36875, "insumos": 1991.78, "neto": 3557.14875}, "2025-02": {"label": "Feb 2025", "prod_cost": 1581.18, "insumos": 2042.24, "neto": 3623.42}, "2025-03": {"label": "Mar 2025", "prod_cost": 1666.49, "insumos": 2054.79, "neto": 3721.28}, "2025-04": {"label": "Abr 2025", "prod_cost": 1777.37, "insumos": 2064.63, "neto": 3842.0}, "2025-05": {"label": "May 2025", "prod_cost": 1805.02, "insumos": 2083.45, "neto": 3888.47}, "2025-06": {"label": "Jun 2025", "prod_cost": 1838.91, "insumos": 2094.67, "neto": 3933.58}, "2025-07": {"label": "Jul 2025", "prod_cost": 1838.91, "insumos": 2094.67, "neto": 3933.58}, "2025-08": {"label": "Ago 2025", "prod_cost": 1838.91, "insumos": 2196.5, "neto": 4035.41}, "2025-09": {"label": "Sep 2025", "prod_cost": 1838.91, "insumos": 2201.68, "neto": 4040.59}, "2025-10": {"label": "Oct 2025", "prod_cost": 1894.75, "insumos": 2617.1, "neto": 4511.85}, "2025-11": {"label": "Nov 2025", "prod_cost": 1894.75, "insumos": 2617.1, "neto": 4511.85}, "2025-12": {"label": "Dic 2025", "prod_cost": 1894.75, "insumos": 2702.76, "neto": 4597.51}, "2026-01": {"label": "Ene 2026", "prod_cost": 1965.6375, "insumos": 2765.136459, "neto": 4730.773959}, "2026-02": {"label": "Feb 2026", "prod_cost": 1965.6375, "insumos": 2760.36823, "neto": 4726.00573}, "2026-03": {"label": "Mar 2026", "prod_cost": 1965.6375, "insumos": 2805.596833, "neto": 4771.234333}, "2026-04": {"label": "Abr 2026", "prod_cost": 2063.94, "insumos": 2820.32, "neto": 4884.26}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "REFUGIOS 500 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 2442.62, "insumos": 3609.02, "neto": 6051.639999999999}, "2025-01": {"label": "Ene 2025", "prod_cost": 2464.23375, "insumos": 3646.4875, "neto": 6110.72125}, "2025-02": {"label": "Feb 2025", "prod_cost": 2486.52, "insumos": 3692.83, "neto": 6179.35}, "2025-03": {"label": "Mar 2025", "prod_cost": 2635.85, "insumos": 3707.93, "neto": 6343.78}, "2025-04": {"label": "Abr 2025", "prod_cost": 2788.06, "insumos": 3723.24, "neto": 6511.3}, "2025-05": {"label": "May 2025", "prod_cost": 2817.55, "insumos": 4023.75, "neto": 6841.3}, "2025-06": {"label": "Jun 2025", "prod_cost": 2875.61, "insumos": 4053.31, "neto": 6928.92}, "2025-07": {"label": "Jul 2025", "prod_cost": 2875.61, "insumos": 4053.31, "neto": 6928.92}, "2025-08": {"label": "Ago 2025", "prod_cost": 2875.61, "insumos": 4197.63, "neto": 7073.24}, "2025-09": {"label": "Sep 2025", "prod_cost": 2875.61, "insumos": 4248.96, "neto": 7124.57}, "2025-10": {"label": "Oct 2025", "prod_cost": 2937.31625, "insumos": 3694.875, "neto": 6632.19125}, "2025-11": {"label": "Nov 2025", "prod_cost": 2937.31625, "insumos": 3694.875, "neto": 6632.19125}, "2025-12": {"label": "Dic 2025", "prod_cost": 2937.32, "insumos": 3738.7, "neto": 6676.02}, "2026-01": {"label": "Ene 2026", "prod_cost": 3061.1375, "insumos": 3796.59, "neto": 6857.7275}, "2026-02": {"label": "Feb 2026", "prod_cost": 3061.1375, "insumos": 3739.795, "neto": 6800.9325}, "2026-03": {"label": "Mar 2026", "prod_cost": 3061.1375, "insumos": 3876.105, "neto": 6937.2425}, "2026-04": {"label": "Abr 2026", "prod_cost": 3214.17, "insumos": 3860.28, "neto": 7074.45}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": null, "insumos": null, "neto": null}, "2025-01": {"label": "Ene 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-02": {"label": "Feb 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-03": {"label": "Mar 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-04": {"label": "Abr 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-05": {"label": "May 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-06": {"label": "Jun 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-07": {"label": "Jul 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-08": {"label": "Ago 2025", "prod_cost": 2094.15, "insumos": 4520.97, "neto": 6615.12}, "2025-09": {"label": "Sep 2025", "prod_cost": 2094.15, "insumos": 4742.34, "neto": 6836.49}, "2025-10": {"label": "Oct 2025", "prod_cost": 2165.91375, "insumos": 4922.725, "neto": 7088.63875}, "2025-11": {"label": "Nov 2025", "prod_cost": 2165.91375, "insumos": 4922.725, "neto": 7088.63875}, "2025-12": {"label": "Dic 2025", "prod_cost": 2165.91, "insumos": 4903.58, "neto": 7069.49}, "2026-01": {"label": "Ene 2026", "prod_cost": 2242.5, "insumos": 4931.06, "neto": 7173.56}, "2026-02": {"label": "Feb 2026", "prod_cost": 2242.5, "insumos": 4799.875, "neto": 7042.375}, "2026-03": {"label": "Mar 2026", "prod_cost": 2242.5, "insumos": 4781.525, "neto": 7024.025}, "2026-04": {"label": "Abr 2026", "prod_cost": 2354.64, "insumos": 4748.63, "neto": 7103.27}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM 750 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": null, "insumos": null, "neto": null}, "2025-01": {"label": "Ene 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-02": {"label": "Feb 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-03": {"label": "Mar 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-04": {"label": "Abr 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-05": {"label": "May 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-06": {"label": "Jun 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-07": {"label": "Jul 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-08": {"label": "Ago 2025", "prod_cost": 2203.55, "insumos": 4819.65, "neto": 7023.2}, "2025-09": {"label": "Sep 2025", "prod_cost": 2203.55, "insumos": 5031.55, "neto": 7235.1}, "2025-10": {"label": "Oct 2025", "prod_cost": 2282.12875, "insumos": 5219.055, "neto": 7501.18375}, "2025-11": {"label": "Nov 2025", "prod_cost": 2282.12875, "insumos": 5219.055, "neto": 7501.18375}, "2025-12": {"label": "Dic 2025", "prod_cost": 2282.13, "insumos": 5213.54, "neto": 7495.67}, "2026-01": {"label": "Ene 2026", "prod_cost": 2361.1625, "insumos": 5241.03, "neto": 7602.1925}, "2026-02": {"label": "Feb 2026", "prod_cost": 2361.1625, "insumos": 5113.145, "neto": 7474.3075}, "2026-03": {"label": "Mar 2026", "prod_cost": 2361.1625, "insumos": 5094.725, "neto": 7455.8875}, "2026-04": {"label": "Abr 2026", "prod_cost": 2479.24, "insumos": 5062.66, "neto": 7541.9}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "REFUGIOS 750 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": null, "insumos": null, "neto": null}, "2025-01": {"label": "Ene 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-02": {"label": "Feb 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-03": {"label": "Mar 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-04": {"label": "Abr 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-05": {"label": "May 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-06": {"label": "Jun 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-07": {"label": "Jul 2025", "prod_cost": null, "insumos": null, "neto": null}, "2025-08": {"label": "Ago 2025", "prod_cost": 3837.87, "insumos": 6548.63, "neto": 10386.5}, "2025-09": {"label": "Sep 2025", "prod_cost": 3837.87, "insumos": 6833.23, "neto": 10671.1}, "2025-10": {"label": "Oct 2025", "prod_cost": 3925.94125, "insumos": 6968.611667, "neto": 10894.55292}, "2025-11": {"label": "Nov 2025", "prod_cost": 3925.94125, "insumos": 6968.611667, "neto": 10894.55292}, "2025-12": {"label": "Dic 2025", "prod_cost": 3925.94, "insumos": 6909.58, "neto": 10835.52}, "2026-01": {"label": "Ene 2026", "prod_cost": 4088.2875, "insumos": 6943.856667, "neto": 11032.14417}, "2026-02": {"label": "Feb 2026", "prod_cost": 4088.2875, "insumos": 6737.87167, "neto": 10826.15917}, "2026-03": {"label": "Mar 2026", "prod_cost": 4088.2875, "insumos": 6705.921667, "neto": 10794.20917}, "2026-04": {"label": "Abr 2026", "prod_cost": 4292.71, "insumos": 6652.63, "neto": 10945.34}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "NATIVO MINIATURA 50 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 796.51, "insumos": 383.6, "neto": 1180.1100000000001}, "2025-01": {"label": "Ene 2025", "prod_cost": 797.23875, "insumos": 398.54, "neto": 1195.77875}, "2025-02": {"label": "Feb 2025", "prod_cost": 798.01, "insumos": 402.08, "neto": 1200.09}, "2025-03": {"label": "Mar 2025", "prod_cost": 844.32, "insumos": 404.37, "neto": 1248.69}, "2025-04": {"label": "Abr 2025", "prod_cost": 894.55, "insumos": 426.26, "neto": 1320.81}, "2025-05": {"label": "May 2025", "prod_cost": 896.68, "insumos": 427.51, "neto": 1324.19}, "2025-06": {"label": "Jun 2025", "prod_cost": 914.11, "insumos": 427.97, "neto": 1342.08}, "2025-07": {"label": "Jul 2025", "prod_cost": 914.11, "insumos": 427.97, "neto": 1342.08}, "2025-08": {"label": "Ago 2025", "prod_cost": 914.11, "insumos": 429.89, "neto": 1344.0}, "2025-09": {"label": "Sep 2025", "prod_cost": 914.11, "insumos": 455.43, "neto": 1369.54}, "2025-10": {"label": "Oct 2025", "prod_cost": 926.51625, "insumos": 1466.72, "neto": 2393.23625}, "2025-11": {"label": "Nov 2025", "prod_cost": 926.51625, "insumos": 1466.72, "neto": 2393.23625}, "2025-12": {"label": "Dic 2025", "prod_cost": 926.52, "insumos": 1449.59, "neto": 2376.11}, "2026-01": {"label": "Ene 2026", "prod_cost": 945.65, "insumos": 1525.946667, "neto": 2471.596667}, "2026-02": {"label": "Feb 2026", "prod_cost": 945.65, "insumos": 1487.44667, "neto": 2433.09667}, "2026-03": {"label": "Mar 2026", "prod_cost": 945.65, "insumos": 1480.836667, "neto": 2426.486667}, "2026-04": {"label": "Abr 2026", "prod_cost": 992.96, "insumos": 1488.34, "neto": 2481.3}}}, {"destileria": "POLDITOS", "linea": "BOSQUE", "producto": "AM MINIATURA 50 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 806.01, "insumos": 402.37, "neto": 1208.38}, "2025-01": {"label": "Ene 2025", "prod_cost": 806.86375, "insumos": 418.04, "neto": 1224.90375}, "2025-02": {"label": "Feb 2025", "prod_cost": 807.76, "insumos": 422.54, "neto": 1230.3}, "2025-03": {"label": "Mar 2025", "prod_cost": 854.37, "insumos": 425.04, "neto": 1279.41}, "2025-04": {"label": "Abr 2025", "prod_cost": 905.62, "insumos": 446.2, "neto": 1351.82}, "2025-05": {"label": "May 2025", "prod_cost": 908.12, "insumos": 447.79, "neto": 1355.91}, "2025-06": {"label": "Jun 2025", "prod_cost": 925.69, "insumos": 448.38, "neto": 1374.07}, "2025-07": {"label": "Jul 2025", "prod_cost": 925.69, "insumos": 448.38, "neto": 1374.07}, "2025-08": {"label": "Ago 2025", "prod_cost": 925.69, "insumos": 451.77, "neto": 1377.46}, "2025-09": {"label": "Sep 2025", "prod_cost": 925.69, "insumos": 477.34, "neto": 1403.03}, "2025-10": {"label": "Oct 2025", "prod_cost": 938.8225, "insumos": 1483.6, "neto": 2422.4225}, "2025-11": {"label": "Nov 2025", "prod_cost": 938.8225, "insumos": 1483.6, "neto": 2422.4225}, "2025-12": {"label": "Dic 2025", "prod_cost": 938.82, "insumos": 1469.24, "neto": 2408.06}, "2026-01": {"label": "Ene 2026", "prod_cost": 958.2375, "insumos": 1545.836667, "neto": 2504.074167}, "2026-02": {"label": "Feb 2026", "prod_cost": 958.2375, "insumos": 1507.33667, "neto": 2465.57417}, "2026-03": {"label": "Mar 2026", "prod_cost": 958.2375, "insumos": 1500.716667, "neto": 2458.954167}, "2026-04": {"label": "Abr 2026", "prod_cost": 1006.14, "insumos": 1508.22, "neto": 2514.36}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROJO GRANEL", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 1214.26, "insumos": 1003.81, "neto": 2218.07}, "2025-01": {"label": "Ene 2025", "prod_cost": 1228.7, "insumos": 1005.33, "neto": 2234.03}, "2025-02": {"label": "Feb 2025", "prod_cost": 1243.85, "insumos": 1020.21, "neto": 2264.06}, "2025-03": {"label": "Mar 2025", "prod_cost": 1294.89, "insumos": 1035.98, "neto": 2330.87}, "2025-04": {"label": "Abr 2025", "prod_cost": 1405.53, "insumos": 1150.25, "neto": 2555.78}, "2025-05": {"label": "May 2025", "prod_cost": 1442.18, "insumos": 1155.34, "neto": 2597.52}, "2025-06": {"label": "Jun 2025", "prod_cost": 1463.8, "insumos": 1156.25, "neto": 2620.05}, "2025-07": {"label": "Jul 2025", "prod_cost": 1463.8, "insumos": 1156.25, "neto": 2620.05}, "2025-08": {"label": "Ago 2025", "prod_cost": 1463.8, "insumos": 1257.44, "neto": 2721.24}, "2025-09": {"label": "Sep 2025", "prod_cost": 1463.8, "insumos": 1259.22, "neto": 2723.02}, "2025-10": {"label": "Oct 2025", "prod_cost": 1535.4625, "insumos": 1266.44, "neto": 2801.9025}, "2025-11": {"label": "Nov 2025", "prod_cost": 1535.4625, "insumos": 1266.44, "neto": 2801.9025}, "2025-12": {"label": "Dic 2025", "prod_cost": 1535.46, "insumos": 1279.0, "neto": 2814.46}, "2026-01": {"label": "Ene 2026", "prod_cost": 1578.1, "insumos": 1250.338, "neto": 2828.438}, "2026-02": {"label": "Feb 2026", "prod_cost": 1578.1, "insumos": 1394.98723, "neto": 2973.08723}, "2026-03": {"label": "Mar 2026", "prod_cost": 1578.1, "insumos": 1422.15, "neto": 3000.25}, "2026-04": {"label": "Abr 2026", "prod_cost": 1657.03, "insumos": 1425.88, "neto": 3082.91}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROJO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 1468.21, "insumos": 1825.23, "neto": 3293.44}, "2025-01": {"label": "Ene 2025", "prod_cost": 1484.56, "insumos": 1827.9775, "neto": 3312.5375}, "2025-02": {"label": "Feb 2025", "prod_cost": 1501.68, "insumos": 1852.98, "neto": 3354.66}, "2025-03": {"label": "Mar 2025", "prod_cost": 1570.28, "insumos": 1877.9, "neto": 3448.18}, "2025-04": {"label": "Abr 2025", "prod_cost": 1693.64, "insumos": 1964.44, "neto": 3658.08}, "2025-05": {"label": "May 2025", "prod_cost": 1731.4, "insumos": 2015.67, "neto": 3747.07}, "2025-06": {"label": "Jun 2025", "prod_cost": 1759.7, "insumos": 2021.24, "neto": 3780.94}, "2025-07": {"label": "Jul 2025", "prod_cost": 1759.7, "insumos": 2021.24, "neto": 3780.94}, "2025-08": {"label": "Ago 2025", "prod_cost": 1759.7, "insumos": 2113.0, "neto": 3872.7}, "2025-09": {"label": "Sep 2025", "prod_cost": 1759.7, "insumos": 2120.71, "neto": 3880.41}, "2025-10": {"label": "Oct 2025", "prod_cost": 1834.12625, "insumos": 2135.375, "neto": 3969.50125}, "2025-11": {"label": "Nov 2025", "prod_cost": 1834.12625, "insumos": 2135.375, "neto": 3969.50125}, "2025-12": {"label": "Dic 2025", "prod_cost": 1834.13, "insumos": 2580.88, "neto": 4415.01}, "2026-01": {"label": "Ene 2026", "prod_cost": 1891.325, "insumos": 2146.176667, "neto": 4037.501667}, "2026-02": {"label": "Feb 2026", "prod_cost": 1891.325, "insumos": 2204.86515, "neto": 4096.19015}, "2026-03": {"label": "Mar 2026", "prod_cost": 1891.325, "insumos": 2401.547185, "neto": 4292.872185}, "2026-04": {"label": "Abr 2026", "prod_cost": 1985.9, "insumos": 2400.0, "neto": 4385.9}}}, {"destileria": "POLDITOS", "linea": "FERIADO", "producto": "FERIADO ROSADO 750 ML", "data": {"2024-12": {"label": "Dic 2024", "prod_cost": 1468.21, "insumos": 1825.23, "neto": 3293.44}, "2025-01": {"label": "Ene 2025", "prod_cost": 1484.56, "insumos": 1827.9775, "neto": 3312.5375}, "2025-02": {"label": "Feb 2025", "prod_cost": 1501.68, "insumos": 1852.98, "neto": 3354.66}, "2025-03": {"label": "Mar 2025", "prod_cost": 1570.28, "insumos": 1877.9, "neto": 3448.18}, "2025-04": {"label": "Abr 2025", "prod_cost": 1693.64, "insumos": 1964.44, "neto": 3658.08}, "2025-05": {"label": "May 2025", "prod_cost": 1731.4, "insumos": 2015.67, "neto": 3747.07}, "2025-06": {"label": "Jun 2025", "prod_cost": 1759.7, "insumos": 2021.24, "neto": 3780.94}, "2025-07": {"label": "Jul 2025", "prod_cost": 1759.7, "insumos": 2021.24, "neto": 3780.94}, "2025-08": {"label": "Ago 2025", "prod_cost": 1759.7, "insumos": 2113.0, "neto": 3872.7}, "2025-09": {"label": "Sep 2025", "prod_cost": 1759.7, "insumos": 2120.71, "neto": 3880.41}, "2025-10": {"label": "Oct 2025", "prod_cost": 1834.12625, "insumos": 2135.375, "neto": 3969.50125}, "2025-11": {"label": "Nov 2025", "prod_cost": 1834.12625, "insumos": 2135.375, "neto": 3969.50125}, "2025-12": {"label": "Dic 2025", "prod_cost": 1834.13, "insumos": 2580.88, "neto": 4415.01}, "2026-01": {"label": "Ene 2026", "prod_cost": 1891.325, "insumos": 2146.176667, "neto": 4037.501667}, "2026-02": {"label": "Feb 2026", "prod_cost": 1891.325, "insumos": 2204.86515, "neto": 4096.19015}, "2026-03": {"label": "Mar 2026", "prod_cost": 1891.325, "insumos": 2401.547185, "neto": 4292.872185}, "2026-04": {"label": "Abr 2026", "prod_cost": 1985.9, "insumos": 2400.0, "neto": 4385.9}}}]};
+
+const COLORS = [
+  '#4299e1', '#48bb78', '#ed8936', '#9f7aea',
+  '#f56565', '#38b2ac', '#ecc94b', '#667eea',
+  '#fc8181', '#4fd1c5', '#d69e2e'
+];
+
+const COST_LABELS = {
+  prod_cost: 'Total Costo Producción y Financiero',
+  insumos: 'Total Costos Insumos',
+  neto: 'Costo Neto'
+};
+
+// State
+const state = {
+  selectedMonth: DATA.months[DATA.months.length - 1].key,
+  costType: 'neto',
+  lineaFilter: 'all',
+  selectedYear: '2026',
+  enabledProducts: new Set(DATA.products.map(p => p.producto))
+};
+
+// Helpers
+const fmt = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const fmt2 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+const fmtPct = (v) => (v == null || isNaN(v)) ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+
+function getYears() {
+  const yrs = new Set(DATA.months.map(m => m.key.split('-')[0]));
+  return [...yrs].sort();
+}
+
+function monthsInYear(year) {
+  return DATA.months.filter(m => m.key.startsWith(year));
+}
+
+function getValue(product, monthKey, costType) {
+  return product.data[monthKey]?.[costType] ?? null;
+}
+
+function getFilteredProducts() {
+  return DATA.products.filter(p =>
+    (state.lineaFilter === 'all' || p.linea === state.lineaFilter) &&
+    state.enabledProducts.has(p.producto)
+  );
+}
+
+function colorFor(productName) {
+  const idx = DATA.products.findIndex(p => p.producto === productName);
+  return COLORS[idx % COLORS.length];
+}
+
+// Build dropdowns and pills
+function initControls() {
+  const monthSel = document.getElementById('month-select');
+  DATA.months.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.key;
+    opt.textContent = m.label;
+    monthSel.appendChild(opt);
+  });
+  monthSel.value = state.selectedMonth;
+  monthSel.addEventListener('change', e => { state.selectedMonth = e.target.value; render(); });
+
+  const yearSel = document.getElementById('year-select');
+  getYears().forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y; opt.textContent = y;
+    yearSel.appendChild(opt);
+  });
+  yearSel.value = state.selectedYear;
+  yearSel.addEventListener('change', e => { state.selectedYear = e.target.value; render(); });
+
+  document.getElementById('cost-type').addEventListener('change', e => {
+    state.costType = e.target.value; render();
+  });
+  document.getElementById('linea-filter').addEventListener('change', e => {
+    state.lineaFilter = e.target.value; render();
+  });
+
+  const pillsContainer = document.getElementById('product-pills');
+  DATA.products.forEach(p => {
+    const pill = document.createElement('span');
+    pill.className = 'pill active';
+    pill.dataset.product = p.producto;
+    pill.style.background = colorFor(p.producto);
+    pill.style.borderColor = colorFor(p.producto);
+    pill.innerHTML = `<span class="legend-dot" style="background:#fff"></span>${p.linea} · ${p.producto}`;
+    pill.addEventListener('click', () => {
+      if (state.enabledProducts.has(p.producto)) {
+        state.enabledProducts.delete(p.producto);
+        pill.classList.remove('active');
+        pill.style.background = '#edf2f7';
+        pill.style.borderColor = '#cbd5e0';
+        pill.style.color = '#4a5568';
+        pill.querySelector('.legend-dot').style.background = '#cbd5e0';
+      } else {
+        state.enabledProducts.add(p.producto);
+        pill.classList.add('active');
+        pill.style.background = colorFor(p.producto);
+        pill.style.borderColor = colorFor(p.producto);
+        pill.style.color = '#fff';
+        pill.querySelector('.legend-dot').style.background = '#fff';
+      }
+      render();
+    });
+    pillsContainer.appendChild(pill);
+  });
+}
+
+// KPIs
+function renderKPIs() {
+  const grid = document.getElementById('kpi-grid');
+  grid.innerHTML = '';
+  const products = getFilteredProducts();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const prevIdx = monthIdx > 0 ? monthIdx - 1 : -1;
+
+  const sumMonth = products.reduce((s, p) => s + (getValue(p, state.selectedMonth, state.costType) || 0), 0);
+  const cntMonth = products.filter(p => getValue(p, state.selectedMonth, state.costType) != null).length;
+  const avgMonth = cntMonth ? sumMonth / cntMonth : 0;
+
+  let varMM = null;
+  if (prevIdx >= 0) {
+    const prevKey = DATA.months[prevIdx].key;
+    const sumPrev = products.reduce((s, p) => s + (getValue(p, prevKey, state.costType) || 0), 0);
+    if (sumPrev > 0) varMM = (sumMonth - sumPrev) / sumPrev;
+  }
+
+  // YTD for selected year up to selected month (or last month of year)
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+  const ytdSum = products.reduce((s, p) => {
+    return s + ytdMonths.reduce((ss, m) => ss + (getValue(p, m.key, state.costType) || 0), 0);
+  }, 0);
+  const ytdAvg = ytdMonths.length ? ytdSum / ytdMonths.length : 0;
+
+  // YoY: same period previous year
+  const prevYear = String(parseInt(state.selectedYear) - 1);
+  const prevYearMonths = monthsInYear(prevYear).slice(0, ytdMonths.length);
+  const ytdPrev = products.reduce((s, p) => {
+    return s + prevYearMonths.reduce((ss, m) => ss + (getValue(p, m.key, state.costType) || 0), 0);
+  }, 0);
+  let yoyVar = null;
+  if (ytdPrev > 0 && prevYearMonths.length > 0) yoyVar = (ytdSum - ytdPrev) / ytdPrev;
+
+  const monthLabel = DATA.months.find(m => m.key === state.selectedMonth)?.label || '';
+
+  const kpis = [
+    {
+      label: `Costo total · ${monthLabel}`,
+      value: '$' + fmt.format(sumMonth),
+      sub: `${cntMonth} producto${cntMonth !== 1 ? 's' : ''} · prom. $${fmt.format(avgMonth)}`,
+      trend: varMM,
+      cls: ''
+    },
+    {
+      label: `Variación vs mes anterior`,
+      value: fmtPct(varMM),
+      sub: prevIdx >= 0 ? `vs ${DATA.months[prevIdx].label}` : 'sin mes previo',
+      trend: varMM,
+      cls: 'orange',
+      isVar: true
+    },
+    {
+      label: `YTD ${state.selectedYear}`,
+      value: '$' + fmt.format(ytdSum),
+      sub: `${ytdMonths.length} mes${ytdMonths.length !== 1 ? 'es' : ''} · prom. $${fmt.format(ytdAvg)}/mes`,
+      cls: 'green'
+    },
+    {
+      label: `YoY · vs ${prevYear}`,
+      value: yoyVar != null ? fmtPct(yoyVar) : 'n/d',
+      sub: prevYearMonths.length ? `mismos ${prevYearMonths.length} mes${prevYearMonths.length !== 1 ? 'es' : ''}` : 'sin datos comparables',
+      trend: yoyVar,
+      cls: 'purple',
+      isVar: true
+    }
+  ];
+
+  kpis.forEach(k => {
+    const card = document.createElement('div');
+    card.className = 'kpi-card ' + k.cls;
+    let trendHtml = '';
+    if (k.trend != null && !k.isVar) {
+      const tcls = k.trend > 0.001 ? 'trend-up' : (k.trend < -0.001 ? 'trend-down' : 'trend-flat');
+      const arr = k.trend > 0.001 ? '↑' : (k.trend < -0.001 ? '↓' : '→');
+      trendHtml = `<div class="kpi-trend ${tcls}">${arr} ${fmtPct(k.trend)}</div>`;
+    }
+    let valueClass = '';
+    if (k.isVar && k.trend != null) {
+      valueClass = k.trend > 0.001 ? 'style="color:#c53030"' : (k.trend < -0.001 ? 'style="color:#2f855a"' : '');
+    }
+    card.innerHTML = `
+      <div class="kpi-label">${k.label}</div>
+      <div class="kpi-value" ${valueClass}>${k.value}</div>
+      <div class="kpi-sub">${k.sub}</div>
+      ${trendHtml}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+// Charts
+let chMonthly, chYtd, chVar;
+
+function renderMonthlyChart() {
+  const products = getFilteredProducts();
+  const labels = DATA.months.map(m => m.label);
+  const datasets = products.map(p => ({
+    label: p.producto,
+    data: DATA.months.map(m => getValue(p, m.key, state.costType)),
+    borderColor: colorFor(p.producto),
+    backgroundColor: colorFor(p.producto) + '22',
+    tension: 0.25,
+    spanGaps: true,
+    pointRadius: 3,
+    pointHoverRadius: 6,
+    borderWidth: 2
+  }));
+
+  // Vertical line marker for selected month
+  const selectedIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+
+  document.getElementById('evol-subtitle').textContent =
+    `${COST_LABELS[state.costType]} · marca vertical en ${DATA.months[selectedIdx].label}`;
+
+  if (chMonthly) chMonthly.destroy();
+  const ctx = document.getElementById('chart-monthly').getContext('2d');
+  chMonthly = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (c) => `${c.dataset.label}: $${fmt2.format(c.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => '$' + fmt.format(v) }, grid: { color: '#edf2f7' } },
+        x: { grid: { display: false } }
+      }
+    },
+    plugins: [{
+      id: 'verticalLine',
+      afterDraw(chart) {
+        const x = chart.scales.x.getPixelForValue(selectedIdx);
+        const ctx = chart.ctx;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(237, 137, 54, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.moveTo(x, chart.chartArea.top);
+        ctx.lineTo(x, chart.chartArea.bottom);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+function renderYtdChart() {
+  const products = getFilteredProducts();
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+
+  document.getElementById('ytd-subtitle').textContent =
+    `${COST_LABELS[state.costType]} acumulado en ${state.selectedYear} (${ytdMonths.length} mes${ytdMonths.length !== 1 ? 'es' : ''})`;
+
+  const labels = products.map(p => p.producto);
+  const ytdValues = products.map(p => ytdMonths.reduce((s, m) => s + (getValue(p, m.key, state.costType) || 0), 0));
+  const colors = products.map(p => colorFor(p.producto));
+
+  if (chYtd) chYtd.destroy();
+  const ctx = document.getElementById('chart-ytd').getContext('2d');
+  chYtd = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: `YTD ${state.selectedYear}`,
+        data: ytdValues,
+        backgroundColor: colors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => '$' + fmt2.format(c.parsed.x) } }
+      },
+      scales: {
+        x: { ticks: { callback: v => '$' + fmt.format(v) }, grid: { color: '#edf2f7' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderVarChart() {
+  const products = getFilteredProducts();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const prevIdx = monthIdx > 0 ? monthIdx - 1 : -1;
+  const monthLabel = DATA.months[monthIdx].label;
+  const prevLabel = prevIdx >= 0 ? DATA.months[prevIdx].label : '–';
+
+  document.getElementById('var-subtitle').textContent =
+    `${COST_LABELS[state.costType]} · ${monthLabel} vs ${prevLabel}`;
+
+  const labels = products.map(p => p.producto);
+  const vars = products.map(p => {
+    const cur = getValue(p, state.selectedMonth, state.costType);
+    const prev = prevIdx >= 0 ? getValue(p, DATA.months[prevIdx].key, state.costType) : null;
+    if (cur == null || prev == null || prev === 0) return 0;
+    return ((cur - prev) / prev) * 100;
+  });
+  const colors = vars.map(v => v > 0 ? '#fc8181' : (v < 0 ? '#68d391' : '#cbd5e0'));
+
+  if (chVar) chVar.destroy();
+  const ctx = document.getElementById('chart-var').getContext('2d');
+  chVar = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Var %',
+        data: vars,
+        backgroundColor: colors,
+        borderRadius: 6
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (c) => c.parsed.x.toFixed(2) + '%' } }
+      },
+      scales: {
+        x: { ticks: { callback: v => v.toFixed(1) + '%' }, grid: { color: '#edf2f7' } },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+}
+
+function renderTable() {
+  const products = getFilteredProducts();
+  const monthIdx = DATA.months.findIndex(m => m.key === state.selectedMonth);
+  const tbl = document.getElementById('data-table');
+
+  // Header: Producto | mes seleccionado | mes anterior | Var % | YTD | Promedio mensual YTD
+  const yearMonths = monthsInYear(state.selectedYear);
+  const lastIdxInYear = state.selectedMonth.startsWith(state.selectedYear)
+    ? yearMonths.findIndex(m => m.key === state.selectedMonth)
+    : yearMonths.length - 1;
+  const ytdMonths = yearMonths.slice(0, lastIdxInYear + 1);
+  const monthLabel = DATA.months[monthIdx].label;
+  const prevLabel = monthIdx > 0 ? DATA.months[monthIdx - 1].label : '–';
+
+  let html = `<thead><tr>
+    <th>Producto</th>
+    <th>Línea</th>
+    <th>${monthLabel}</th>
+    <th>${prevLabel}</th>
+    <th>Var %</th>
+    <th>YTD ${state.selectedYear}</th>
+    <th>Prom./mes ${state.selectedYear}</th>
+  </tr></thead><tbody>`;
+
+  products.forEach(p => {
+    const cur = getValue(p, state.selectedMonth, state.costType);
+    const prev = monthIdx > 0 ? getValue(p, DATA.months[monthIdx - 1].key, state.costType) : null;
+    const v = (cur != null && prev != null && prev !== 0) ? (cur - prev) / prev : null;
+    const ytdVals = ytdMonths.map(m => getValue(p, m.key, state.costType)).filter(x => x != null);
+    const ytd = ytdVals.reduce((s, x) => s + x, 0);
+    const avg = ytdVals.length ? ytd / ytdVals.length : 0;
+    const vCls = v == null ? 'var-flat' : (v > 0.001 ? 'var-pos' : (v < -0.001 ? 'var-neg' : 'var-flat'));
+
+    html += `<tr>
+      <td><span class="legend-dot" style="background:${colorFor(p.producto)}"></span>${p.producto}</td>
+      <td style="text-align:left;color:#718096;font-size:.82rem">${p.linea}</td>
+      <td>${cur != null ? '$' + fmt2.format(cur) : '–'}</td>
+      <td>${prev != null ? '$' + fmt2.format(prev) : '–'}</td>
+      <td class="${vCls}">${fmtPct(v)}</td>
+      <td>${ytd > 0 ? '$' + fmt2.format(ytd) : '–'}</td>
+      <td>${avg > 0 ? '$' + fmt2.format(avg) : '–'}</td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+function render() {
+  renderKPIs();
+  renderMonthlyChart();
+  renderYtdChart();
+  renderVarChart();
+  renderTable();
+}
+
+initControls();
+render();
+</script>
+</body>
+</html>
