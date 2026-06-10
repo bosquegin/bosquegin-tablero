@@ -3041,8 +3041,11 @@ function renderRotRub() {
   // ── helpers ──────────────────────────────────────────────────────────────
   const BL = 'border-left:1px solid var(--border);padding-left:12px';
 
-  // Stock y demanda consolidados (Klozer + KlozerMKT + Oficina)
-  function stkTot(it) { return (it.klozer||0) + (it.klozer_mkt||0) + (it.ofi||0); }
+  // Stock: Bebidas → solo Klozer depósito; resto → Klozer + KlozerMKT + Oficina
+  function stkTot(it) {
+    if ((it.rub||'').toUpperCase().trim() === 'BEBIDAS') return it.klozer || 0;
+    return (it.klozer||0) + (it.klozer_mkt||0) + (it.ofi||0);
+  }
   function demTot(it) { return (it.min_k||0)  + (it.min_km||0)     + (it.min_o||0); }
 
   function mes(stk, dem) { return dem > 0 ? stk / dem : (stk > 0 ? 999 : 0); }
