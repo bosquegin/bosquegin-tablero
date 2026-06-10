@@ -3218,6 +3218,128 @@ function renderRotRub() {
 }
 
 // ── Rotación mensual por rubro ─────────────────────────────────────────────────
+var _rotSort = { col: 'rub', asc: true };
+var _rotData = null; // cache de datos para re-ordenar sin recalcular
+
+function rotMensualSetSort(col) {
+  if (_rotSort.col === col) _rotSort.asc = !_rotSort.asc;
+  else { _rotSort.col = col; _rotSort.asc = col === 'rub'; }
+  _rotRenderRows();
+}
+
+function _rotRenderRows() {
+  if (!_rotData) return;
+  const { rubros, ncols, meses, isCurrentMonth, cellSt, mCol, ventasByRub, ventasByProd, stockByRub, stockItems, RUBROS_LABEL } = _rotData;
+  const { col, asc } = _rotSort;
+
+  // Ordenar
+  const sorted = [...rubros].sort((a, b) => {
+    let va, vb;
+    if (col === 'rub') {
+      va = (RUBROS_LABEL[a] || a); vb = (RUBROS_LABEL[b] || b);
+      return asc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es');
+    }
+    // col = month key 'yr_m'
+    const sa = stockByRub[a] || 0, sb = stockByRub[b] || 0;
+    const va2 = (ventasByRub[a] || {})[col] || 0;
+    const vb2 = (ventasByRub[b] || {})[col] || 0;
+    va = va2 > 0 ? sa / va2 : 9999; vb = vb2 > 0 ? sb / vb2 : 9999;
+    return asc ? va - vb : vb - va;
+  });
+
+  // Actualizar iconos de encabezado
+  const now = new Date();
+  document.querySelectorAll('#rot-mensual-thead th[data-col]').forEach(th => {
+    const c = th.dataset.col;
+    const ico = th.querySelector('.rot-sort-ico');
+    if (ico) ico.textContent = c === col ? (asc ? '▲' : '▼') : '⇅';
+    th.style.color = c === col ? 'var(--text)' : '';
+  });
+
+  const P = 'padding:4px 8px;font-size:9px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.05)';
+  let rows = '';
+  for (const rub of sorted) {
+    const stock = stockByRub[rub] || 0;
+    if (stock === 0) continue;
+    const label = RUBROS_LABEL[rub] || rub;
+    const isBeb = rub === 'BEBIDAS';
+
+    const cells = meses.map(mo => {
+      const key = mo.yr + '_' + mo.m;
+      const v = (ventasByRub[rub] || {})[key] || 0;
+      const cur = isCurrentMonth(mo);
+      if (v === 0) return `<td style="${cellSt(null,cur)}">—</td>`;
+      const m = stock / v;
+      return `<td style="${cellSt(m,cur)}" title="${stock.toLocaleString('es-AR')} ÷ ${v.toLocaleString('es-AR')} = ${m.toFixed(2)} meses">${m>=99?'>99':m.toFixed(1)}</td>`;
+    }).join('');
+
+    rows += `<tr style="cursor:pointer" onclick="rotMensualToggle('${rub}')">
+      <td style="padding:5px 8px;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border)">
+        <span id="rot-arr-${rub}" style="font-size:9px;color:var(--muted);margin-right:4px">▶</span>${label}
+      </td>${cells}
+    </tr>`;
+
+    // Fila de detalle (se conserva oculta)
+    const sItems = (stockItems[rub] || []).slice().sort((a,b) => b.stk - a.stk);
+    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
+    const moCols = meses.map(mo => `<th style="${P};text-align:right;color:var(--muted);font-weight:700">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('');
+    const artRows = sItems.map(it => {
+      const codStr = String(it.cod);
+      const vCells = meses.map(mo => {
+        const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
+        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+      }).join('');
+      return `<tr><td style="${P};color:var(--muted)"><code>${it.cod}</code></td><td style="${P}">${it.art}</td><td style="${P};text-align:right;font-weight:600">${it.stk.toLocaleString('es-AR')}</td>${vCells}</tr>`;
+    }).join('');
+    const totVentCells = meses.map(mo => {
+      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
+      return `<td style="${P};text-align:right;font-weight:700;border-top:2px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+    }).join('');
+    const stkCells = meses.map(() => `<td style="${P};text-align:right;color:var(--accent2);font-weight:700">${stock.toLocaleString('es-AR')}</td>`).join('');
+    const mesCells = meses.map(mo => {
+      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
+      const m = v > 0 ? stock / v : null;
+      const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
+      return `<td style="${P};text-align:right;font-weight:700;${mCol(m)}">${txt}</td>`;
+    }).join('');
+    rows += `<tr id="rot-det-${rub}" style="display:none">
+      <td colspan="${ncols}" style="padding:0;border-bottom:2px solid var(--border)">
+        <div style="padding:10px 16px;background:rgba(15,23,42,.7);overflow-x:auto">
+          <table style="border-collapse:collapse;width:100%">
+            <thead><tr>
+              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Cód</th>
+              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Artículo</th>
+              <th style="${P};text-align:right;color:var(--muted);font-weight:700">${stkLabel}</th>
+              ${moCols}
+            </tr></thead>
+            <tbody>
+              ${artRows}
+              <tr style="background:rgba(255,255,255,.03)">
+                <td colspan="2" style="${P};font-weight:700;border-top:2px solid var(--border)">Total ventas del mes</td>
+                <td style="${P};text-align:right;color:var(--muted);border-top:2px solid var(--border)">—</td>
+                ${totVentCells}
+              </tr>
+              <tr style="background:rgba(255,255,255,.03)">
+                <td colspan="2" style="${P};font-weight:700;color:var(--accent2)">${stkLabel} actual</td>
+                <td style="${P};text-align:right;font-weight:700;color:var(--accent2)">${stock.toLocaleString('es-AR')}</td>
+                ${stkCells}
+              </tr>
+              <tr style="background:rgba(99,102,241,.08)">
+                <td colspan="2" style="${P};font-weight:700;color:var(--accent)">= Meses de cobertura</td>
+                <td style="${P};color:var(--muted)">—</td>
+                ${mesCells}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  document.getElementById('rot-mensual-tbody').innerHTML =
+    rows || `<tr><td colspan="${ncols}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`;
+}
+
 function renderRotacionMensual() {
   const thEl = document.getElementById('rot-mensual-thead');
   const tbEl = document.getElementById('rot-mensual-tbody');
@@ -3273,9 +3395,7 @@ function renderRotacionMensual() {
     }
   }
 
-  const TH = 'padding:6px 8px;text-align:right;font-size:9px;font-weight:700;color:var(--muted);white-space:nowrap;border-bottom:2px solid var(--border)';
   const isCurrentMonth = mo => mo.yr === String(now.getFullYear()) && mo.m === String(now.getMonth() + 1);
-
   function mCol(m) {
     if (m === null) return 'color:var(--muted)';
     if (m < 1)      return 'color:var(--red);font-weight:700';
@@ -3287,113 +3407,28 @@ function renderRotacionMensual() {
     return `padding:5px 8px;text-align:right;font-size:11px;white-space:nowrap;border-bottom:1px solid var(--border);${isCur?'background:rgba(255,255,255,.04)':''};${mCol(m)}`;
   }
 
-  // Header
+  // Guardar datos en caché para re-ordenar sin recalcular
+  _rotData = { rubros: RUBROS_ORDER, ncols, meses, isCurrentMonth, cellSt, mCol, ventasByRub, ventasByProd, stockByRub, stockItems, RUBROS_LABEL };
+
+  // Encabezados clickeables con icono de orden
+  const TH_BASE = 'padding:6px 8px;font-size:9px;font-weight:700;white-space:nowrap;border-bottom:2px solid var(--border);cursor:pointer;user-select:none';
+  const rubIco = _rotSort.col === 'rub' ? (_rotSort.asc ? '▲' : '▼') : '⇅';
   thEl.innerHTML = `<tr>
-    <th style="padding:6px 8px;text-align:left;font-size:9px;font-weight:700;color:var(--muted);border-bottom:2px solid var(--border);min-width:150px">Rubro</th>
-    ${meses.map(mo => `<th style="${TH}${isCurrentMonth(mo)?';color:var(--text);border-bottom:2px solid var(--accent)':''}">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('')}
+    <th data-col="rub" onclick="rotMensualSetSort('rub')" style="${TH_BASE};text-align:left;color:${_rotSort.col==='rub'?'var(--text)':'var(--muted)'};min-width:150px">
+      Rubro <span class="rot-sort-ico">${rubIco}</span>
+    </th>
+    ${meses.map(mo => {
+      const key = mo.yr + '_' + mo.m;
+      const cur = isCurrentMonth(mo);
+      const active = _rotSort.col === key;
+      const ico = active ? (_rotSort.asc ? '▲' : '▼') : '⇅';
+      return `<th data-col="${key}" onclick="rotMensualSetSort('${key}')" style="${TH_BASE};text-align:right;color:${active?'var(--text)':cur?'var(--text)':'var(--muted)'};${cur?'border-bottom:2px solid var(--accent)':''}">
+        ${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span> <span class="rot-sort-ico" style="font-size:8px">${ico}</span>
+      </th>`;
+    }).join('')}
   </tr>`;
 
-  // Filas de rubro + fila detalle oculta
-  let rows = '';
-  for (const rub of RUBROS_ORDER) {
-    const stock = stockByRub[rub] || 0;
-    if (stock === 0) continue;
-    const label = RUBROS_LABEL[rub] || rub;
-    const isBeb = rub === 'BEBIDAS';
-
-    // Celdas de meses de cobertura
-    const cells = meses.map(mo => {
-      const key = mo.yr + '_' + mo.m;
-      const v = (ventasByRub[rub] || {})[key] || 0;
-      const cur = isCurrentMonth(mo);
-      if (v === 0) return `<td style="${cellSt(null,cur)}">—</td>`;
-      const m = stock / v;
-      return `<td style="${cellSt(m,cur)}" title="${stock.toLocaleString('es-AR')} un ÷ ${v.toLocaleString('es-AR')} un = ${m.toFixed(2)} meses">${m>=99?'>99':m.toFixed(1)}</td>`;
-    }).join('');
-
-    rows += `<tr style="cursor:pointer" onclick="rotMensualToggle('${rub}')">
-      <td style="padding:5px 8px;font-size:11px;font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border)">
-        <span id="rot-arr-${rub}" style="font-size:9px;color:var(--muted);margin-right:4px">▶</span>${label}
-      </td>
-      ${cells}
-    </tr>`;
-
-    // ── Fila de detalle (oculta por defecto) ─────────────────────────────────
-    const sItems = (stockItems[rub] || []).slice().sort((a,b) => b.stk - a.stk);
-    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
-    const P = 'padding:4px 8px;font-size:9px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.05)';
-
-    const moCols = meses.map(mo => `<th style="${P};text-align:right;color:var(--muted);font-weight:700">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('');
-
-    // Filas de artículos: ventas por mes
-    const artRows = sItems.map(it => {
-      const codStr = String(it.cod);
-      const vCells = meses.map(mo => {
-        const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
-        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
-      }).join('');
-      return `<tr>
-        <td style="${P};color:var(--muted)"><code>${it.cod}</code></td>
-        <td style="${P}">${it.art}</td>
-        <td style="${P};text-align:right;font-weight:600">${it.stk.toLocaleString('es-AR')}</td>
-        ${vCells}
-      </tr>`;
-    }).join('');
-
-    // Fila total ventas
-    const totVentCells = meses.map(mo => {
-      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-      return `<td style="${P};text-align:right;font-weight:700;border-top:2px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
-    }).join('');
-
-    // Fila stock (mismo valor en todas las columnas)
-    const stkCells = meses.map(() =>
-      `<td style="${P};text-align:right;color:var(--accent2);font-weight:700;border-top:1px solid rgba(255,255,255,.05)">${stock.toLocaleString('es-AR')}</td>`
-    ).join('');
-
-    // Fila meses = stock / ventas
-    const mesCells = meses.map(mo => {
-      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-      const m = v > 0 ? stock / v : null;
-      const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
-      return `<td style="${P};text-align:right;font-weight:700;${mCol(m)}">${txt}</td>`;
-    }).join('');
-
-    rows += `<tr id="rot-det-${rub}" style="display:none">
-      <td colspan="${ncols}" style="padding:0;border-bottom:2px solid var(--border)">
-        <div style="padding:10px 16px;background:rgba(15,23,42,.7);overflow-x:auto">
-          <table style="border-collapse:collapse;width:100%">
-            <thead><tr>
-              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Cód</th>
-              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Artículo</th>
-              <th style="${P};text-align:right;color:var(--muted);font-weight:700">${stkLabel}</th>
-              ${moCols}
-            </tr></thead>
-            <tbody>
-              ${artRows}
-              <tr style="background:rgba(255,255,255,.03)">
-                <td colspan="2" style="${P};font-weight:700;border-top:2px solid var(--border)">Total ventas del mes</td>
-                <td style="${P};text-align:right;color:var(--muted);border-top:2px solid var(--border)">—</td>
-                ${totVentCells}
-              </tr>
-              <tr style="background:rgba(255,255,255,.03)">
-                <td colspan="2" style="${P};font-weight:700;color:var(--accent2)">${stkLabel} actual</td>
-                <td style="${P};text-align:right;font-weight:700;color:var(--accent2)">${stock.toLocaleString('es-AR')}</td>
-                ${stkCells}
-              </tr>
-              <tr style="background:rgba(99,102,241,.08)">
-                <td colspan="2" style="${P};font-weight:700;color:var(--accent)">= Meses de cobertura</td>
-                <td style="${P};color:var(--muted)">—</td>
-                ${mesCells}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </td>
-    </tr>`;
-  }
-
-  tbEl.innerHTML = rows || `<tr><td colspan="${ncols}" style="text-align:center;color:var(--muted);padding:20px">Sin datos de ventas</td></tr>`;
+  _rotRenderRows();
 }
 
 function rotMensualToggle(rub) {
