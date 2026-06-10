@@ -3004,25 +3004,35 @@ function renderRotRub() {
 
   const GRUPO_MAP = {
     'BEBIDAS':      '🍾 Bebidas',
-    'CRISTALERIA':  '🥃 Vasos, indumentaria y combo',
-    'INDUMENTARIA': '🥃 Vasos, indumentaria y combo',
-    'COMBO':        '🥃 Vasos, indumentaria y combo',
-    'ESTUCHE':      '🥃 Vasos, indumentaria y combo',
-    'BOTELLAS':     '🥃 Vasos, indumentaria y combo',
-    'BOTÁNICOS':    '🥃 Vasos, indumentaria y combo',
+    'CRISTALERIA':  '🥃 Cristalería',
+    'INDUMENTARIA': '👕 Indumentaria',
+    'COMBO':        '📦 Combo',
+    'ESTUCHE':      '🎁 Estuche',
+    'BOTELLAS':     '🍶 Botellas',
+    'BOTÁNICOS':    '🌿 Botánicos',
     'MOBILIARIO':   '🪑 Mobiliario',
     'OTROS':        '🪑 Mobiliario',
   };
-  const GRUPO_ORDER  = ['🍾 Bebidas', '🥃 Vasos, indumentaria y combo', '🪑 Mobiliario'];
+  const GRUPO_ORDER  = ['🍾 Bebidas', '🥃 Cristalería', '👕 Indumentaria', '📦 Combo', '🎁 Estuche', '🍶 Botellas', '🌿 Botánicos', '🪑 Mobiliario'];
   const GRUPO_COLOR  = {
-    '🍾 Bebidas':                    'rgba(74,222,128,.08)',
-    '🥃 Vasos, indumentaria y combo': 'rgba(56,189,248,.08)',
-    '🪑 Mobiliario':                  'rgba(245,158,11,.08)',
+    '🍾 Bebidas':      'rgba(74,222,128,.08)',
+    '🥃 Cristalería':  'rgba(56,189,248,.08)',
+    '👕 Indumentaria': 'rgba(167,139,250,.08)',
+    '📦 Combo':        'rgba(251,191,36,.08)',
+    '🎁 Estuche':      'rgba(251,113,133,.08)',
+    '🍶 Botellas':     'rgba(52,211,153,.08)',
+    '🌿 Botánicos':    'rgba(134,239,172,.08)',
+    '🪑 Mobiliario':   'rgba(245,158,11,.08)',
   };
   const GRUPO_ACCENT = {
-    '🍾 Bebidas':                    '#4ade80',
-    '🥃 Vasos, indumentaria y combo': '#38bdf8',
-    '🪑 Mobiliario':                  '#f59e0b',
+    '🍾 Bebidas':      '#4ade80',
+    '🥃 Cristalería':  '#38bdf8',
+    '👕 Indumentaria': '#a78bfa',
+    '📦 Combo':        '#fbbf24',
+    '🎁 Estuche':      '#fb7185',
+    '🍶 Botellas':     '#34d399',
+    '🌿 Botánicos':    '#86efac',
+    '🪑 Mobiliario':   '#f59e0b',
   };
 
   // Construir árbol: grupo → subrubro → [artículos]  (excluyendo los EXCLUIDOS)
