@@ -3138,9 +3138,21 @@ function renderRotRub() {
     const accent = GRUPO_ACCENT[grupo];
     const bgGrp  = GRUPO_COLOR[grupo];
 
-    // ── Encabezado de columnas (se repite por grupo) ────────────────────
     const TH = 'font-size:9px;font-weight:700;color:var(--muted);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap';
-    rows += `<tr class="rot-grp-start" data-grupo="${grupo}" style="background:var(--card);border-top:2px solid ${accent}">
+
+    // ── Fila total del grupo ────────────────────────────────────────────
+    rows += `<tr class="rot-grp-start" data-grupo="${grupo}" style="background:${bgGrp};border-top:2px solid ${accent}">
+      <td colspan="${conSub ? 4 : 3}" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
+        ${grupo} <span style="font-weight:400;font-size:9px;color:var(--muted)">${gArts} artículos</span>
+      </td>
+      <td style="text-align:right;font-weight:700;${BL}">${gStk.toLocaleString('es-AR')}</td>
+      <td style="text-align:right;font-weight:700;color:var(--accent2)">${fmtVal(gValor)}</td>
+      <td style="text-align:right;font-weight:700">${gDem > 0 ? gDem.toFixed(1) : '—'}</td>
+      <td style="text-align:right;font-weight:700;${mesStyle(gM)}">${mesTxt(gM)}</td>
+      <td>${estBadge(gM)}</td>
+    </tr>`;
+    // ── Encabezado de columnas (debajo del total del grupo) ─────────────
+    rows += `<tr style="background:var(--card)">
       <td style="${TH}">Rubro</td>
       ${conSub ? `<td style="${TH}">Subrubro</td>` : ''}
       <td style="${TH}">Código</td>
@@ -3150,17 +3162,6 @@ function renderRotRub() {
       <td style="${TH};text-align:right">Dem./mes (un)</td>
       <td style="${TH};text-align:right">Meses</td>
       <td style="${TH}">Estado</td>
-    </tr>`;
-    // ── Fila total del grupo ────────────────────────────────────────────
-    rows += `<tr style="background:${bgGrp}">
-      <td colspan="${conSub ? 4 : 3}" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
-        ${grupo} <span style="font-weight:400;font-size:9px;color:var(--muted)">${gArts} artículos</span>
-      </td>
-      <td style="text-align:right;font-weight:700;${BL}">${gStk.toLocaleString('es-AR')}</td>
-      <td style="text-align:right;font-weight:700;color:var(--accent2)">${fmtVal(gValor)}</td>
-      <td style="text-align:right;font-weight:700">${gDem > 0 ? gDem.toFixed(1) : '—'}</td>
-      <td style="text-align:right;font-weight:700;${mesStyle(gM)}">${mesTxt(gM)}</td>
-      <td>${estBadge(gM)}</td>
     </tr>`;
 
     // ── Subrubros ordenados por stock desc ──────────────────────────────
