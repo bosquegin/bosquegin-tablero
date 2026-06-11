@@ -3217,22 +3217,20 @@ function renderRotRub() {
         </tr>`;
       }
     }
-  }
 
-  // ── Fila de encabezados al pie (debajo de Mobiliario) ──────────────────
-  const TH = 'font-size:9px;font-weight:700;color:var(--muted);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap';
-  const BL = 'border-left:1px solid var(--border);padding-left:12px';
-  rows += `<tr style="background:var(--card);border-top:2px solid var(--border)">
-    <td style="${TH}">Rubro</td>
-    <td style="${TH}">Subrubro</td>
-    <td style="${TH}">Código</td>
-    <td style="${TH}">Descripción</td>
-    <td style="${TH};text-align:right;${BL}">Stock (un)</td>
-    <td style="${TH};text-align:right">Monto (ARS)</td>
-    <td style="${TH};text-align:right">Dem./mes (un)</td>
-    <td style="${TH};text-align:right">Meses</td>
-    <td style="${TH}">Estado</td>
-  </tr>`;
+    // ── Fila de encabezados al pie de cada grupo ────────────────────────
+    rows += `<tr style="background:var(--card);border-top:1px solid var(--border)">
+      <td style="${TH}">Rubro</td>
+      ${conSub ? `<td style="${TH}">Subrubro</td>` : ''}
+      <td style="${TH}">Código</td>
+      <td style="${TH}">Descripción</td>
+      <td style="${TH};text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)</td>
+      <td style="${TH};text-align:right">Monto (ARS)</td>
+      <td style="${TH};text-align:right">Dem./mes (un)</td>
+      <td style="${TH};text-align:right">Meses</td>
+      <td style="${TH}">Estado</td>
+    </tr>`;
+  }
 
   const el = document.getElementById('rot-rub-tbody');
   if (el) el.innerHTML = rows;
