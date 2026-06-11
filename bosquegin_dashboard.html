@@ -3219,18 +3219,6 @@ function renderRotRub() {
       }
     }
 
-    // ── Fila de encabezados al pie de cada grupo ────────────────────────
-    rows += `<tr style="background:var(--card);border-top:1px solid var(--border)">
-      <td style="${TH}">Rubro</td>
-      ${conSub ? `<td style="${TH}">Subrubro</td>` : ''}
-      <td style="${TH}">Código</td>
-      <td style="${TH}">Descripción</td>
-      <td style="${TH};text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)</td>
-      <td style="${TH};text-align:right">Monto (ARS)</td>
-      <td style="${TH};text-align:right">Dem./mes (un)</td>
-      <td style="${TH};text-align:right">Meses</td>
-      <td style="${TH}">Estado</td>
-    </tr>`;
   }
 
   const el = document.getElementById('rot-rub-tbody');
