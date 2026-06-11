@@ -3115,9 +3115,13 @@ function renderRotRub() {
 
   let rows = '';
 
+  const CON_SUBRUBRO = new Set(['🥃 Cristalería','📦 Combo','🪑 Mobiliario']);
+
   for (const grupo of GRUPO_ORDER) {
     const subs = tree[grupo];
     if (!Object.keys(subs).length) continue;
+
+    const conSub = CON_SUBRUBRO.has(grupo);
 
     // Totales del grupo
     let gStk=0, gDem=0, gArts=0, gValor=0;
@@ -3138,6 +3142,7 @@ function renderRotRub() {
     const TH = 'font-size:9px;font-weight:700;color:var(--muted);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap';
     rows += `<tr class="rot-grp-start" data-grupo="${grupo}" style="background:var(--card);border-top:2px solid ${accent}">
       <td style="${TH}">Rubro</td>
+      ${conSub ? `<td style="${TH}">Subrubro</td>` : ''}
       <td style="${TH}">Código</td>
       <td style="${TH}">Descripción</td>
       <td style="${TH};text-align:right;border-left:1px solid var(--border);padding-left:12px">Stock (un)</td>
@@ -3148,7 +3153,7 @@ function renderRotRub() {
     </tr>`;
     // ── Fila total del grupo ────────────────────────────────────────────
     rows += `<tr style="background:${bgGrp}">
-      <td colspan="3" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
+      <td colspan="${conSub ? 4 : 3}" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
         ${grupo} <span style="font-weight:400;font-size:9px;color:var(--muted)">${gArts} artículos</span>
       </td>
       <td style="text-align:right;font-weight:700;${BL}">${gStk.toLocaleString('es-AR')}</td>
@@ -3165,25 +3170,25 @@ function renderRotRub() {
       );
 
     for (const [sub, arts] of subList) {
-      // Totales del subrubro
-      let sSt=0, sDm=0, sVal=0;
-      for (const it of arts) {
-        const s = stkTot(it);
-        sSt  += s; sDm += demTot(it); sVal += s * costUnit(it.cod);
+      // Fila de subrubro resumen — solo para grupos sin columna inline
+      if (!conSub) {
+        let sSt=0, sDm=0, sVal=0;
+        for (const it of arts) {
+          const s = stkTot(it);
+          sSt += s; sDm += demTot(it); sVal += s * costUnit(it.cod);
+        }
+        const sM = mes(sSt, sDm);
+        rows += `<tr style="background:rgba(255,255,255,.025)">
+            <td colspan="3" style="padding-left:20px;font-size:9px;font-weight:600;color:var(--muted)">
+              ↳ ${sub} <span style="font-weight:400">(${arts.length})</span>
+            </td>
+            <td style="text-align:right;font-size:9px;${BL}">${sSt > 0 ? sSt.toLocaleString('es-AR') : '—'}</td>
+            <td style="text-align:right;font-size:9px;color:var(--accent2)">${fmtVal(sVal)}</td>
+            <td style="text-align:right;font-size:9px">${sDm > 0 ? sDm.toFixed(1) : '—'}</td>
+            <td style="text-align:right;font-size:9px;${mesStyle(sM)}">${mesTxt(sM)}</td>
+            <td>${estBadge(sM)}</td>
+          </tr>`;
       }
-      const sM = mes(sSt, sDm);
-
-      // Fila de subrubro (siempre visible, sin columna subrubro)
-      rows += `<tr style="background:rgba(255,255,255,.025)">
-          <td colspan="3" style="padding-left:20px;font-size:9px;font-weight:600;color:var(--muted)">
-            ↳ ${sub} <span style="font-weight:400">(${arts.length})</span>
-          </td>
-          <td style="text-align:right;font-size:9px;${BL}">${sSt > 0 ? sSt.toLocaleString('es-AR') : '—'}</td>
-          <td style="text-align:right;font-size:9px;color:var(--accent2)">${fmtVal(sVal)}</td>
-          <td style="text-align:right;font-size:9px">${sDm > 0 ? sDm.toFixed(1) : '—'}</td>
-          <td style="text-align:right;font-size:9px;${mesStyle(sM)}">${mesTxt(sM)}</td>
-          <td>${estBadge(sM)}</td>
-        </tr>`;
 
       // ── Artículos del subrubro ──────────────────────────────────────
       const artsSorted = [...arts].sort((a, b) => {
@@ -3197,9 +3202,9 @@ function renderRotRub() {
         const m     = mes(stk, dem);
         const valor = stk * costUnit(it.cod);
         const nombre = artName(it.cod, it.art);
-        const nomTxt = nombre;
         rows += `<tr style="border-bottom:1px solid rgba(45,55,72,.4)">
-          <td style="padding-left:36px;font-size:9px;color:var(--muted);white-space:nowrap">${it.rub||'—'}</td>
+          <td style="padding-left:${conSub?'12':'36'}px;font-size:9px;color:var(--muted);white-space:nowrap">${it.rub||'—'}</td>
+          ${conSub ? `<td style="font-size:9px;color:var(--muted);white-space:nowrap">${sub}</td>` : ''}
           <td style="font-size:9px;white-space:nowrap"><code>${it.cod}</code></td>
           <td style="font-size:9px;white-space:nowrap" title="${nombre}">${nombre}</td>
           <td style="text-align:right;font-size:9px;font-weight:${stk>0?'700':'400'};${BL};${stk===0?'color:var(--muted)':''}">
