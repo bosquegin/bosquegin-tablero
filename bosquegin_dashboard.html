@@ -756,6 +756,7 @@
       <tbody id="rot-rub-tbody"></tbody>
     </table>
     </div>
+    <div id="rot-rub-nota" style="margin-top:8px;font-size:9px;color:var(--muted);border-top:1px solid var(--border);padding-top:6px"></div>
   </div>
 
   <!-- ── ROTACIÓN MENSUAL POR RUBRO ───────────────────────── -->
@@ -3215,6 +3216,11 @@ function renderRotRub() {
 
   const el = document.getElementById('rot-rub-tbody');
   if (el) el.innerHTML = rows;
+
+  const nota = document.getElementById('rot-rub-nota');
+  if (nota) nota.innerHTML =
+    '🍾 <strong>Bebidas:</strong> stock Klozer únicamente &nbsp;·&nbsp; ' +
+    '🥃🧴📦🎁🍶🌿🪑 <strong>Resto de rubros:</strong> sumatoria Klozer + Klozer MKT + Oficina';
 }
 
 // ── Rotación mensual por rubro ─────────────────────────────────────────────────
