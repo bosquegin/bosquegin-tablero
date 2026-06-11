@@ -3268,17 +3268,40 @@ var STOCK_MOV_2025 = {
   "110037": {"klozer":{4:1998,5:-162,6:-16,7:-1068,8:0,9:-194,10:48,11:-131,12:-469},"ofi":{9:36}}
 };
 
-// Stock al cierre de cada mes: usa movimientos reales 2025, estimación por ventas para otros meses
+// Movimientos netos de stock por producto/depósito/mes — fuente: Klozer 2026 (meses 1–5)
+var STOCK_MOV_2026 = {
+  "100001": {"klozer":{1:831,2:-2385,3:3388,4:-1522,5:19},"ofi":{1:-5,2:10,4:-3,5:7}},
+  "100002": {"klozer":{1:594,2:-347,3:536,4:-341,5:504},"ofi":{1:-9,2:14,3:9,4:-11,5:2}},
+  "100003": {"klozer":{1:-89,2:185,3:-126,4:-65,5:216},"ofi":{1:13,2:-4,3:-12,5:19}},
+  "100004": {"klozer":{1:-1536,2:2012,3:1147,4:-872,5:-552},"ofi":{1:16,2:9,3:-18,4:-12,5:-5}},
+  "100009": {"klozer":{3:-6},"ofi":{3:6,4:-6}},
+  "100010": {"klozer":{1:-12,2:-96,3:-498,4:432,5:48},"ofi":{3:-26,4:36,5:-4}},
+  "100011": {"klozer":{1:-12,2:-120,3:-192,4:84,5:288},"ofi":{3:-18,4:28,5:-4}},
+  "100012": {"klozer":{1:-291,2:1655,3:-169,4:-191,5:-168},"ofi":{1:-15,2:11,3:-5,4:-3,5:4}},
+  "100014": {"klozer":{2:232,3:-238},"ofi":{3:-1,5:-3}},
+  "100015": {"klozer":{1:-4,2:328,3:-152},"ofi":{1:-5}},
+  "100016": {"klozer":{1:-6,2:156,3:-63,4:-24},"ofi":{1:-5,2:12,3:-12}},
+  "110007": {"klozer":{1:-180,2:6,4:-6}},
+  "110012": {"klozer":{2:4746,3:-2130,4:5214,5:-378},"ofi":{5:21}},
+  "110025": {"klozer":{2:7164,3:-2646,4:6228,5:-606},"ofi":{3:18,4:19,5:-14}},
+  "110027": {"klozer":{1:-810,2:1422,3:-1020,4:2147,5:-1026},"ofi":{1:-96,5:41}},
+  "110030": {"klozer":{1:-4146,2:-276,3:204,4:815,5:564},"ofi":{1:-72,4:52,5:2}},
+  "110037": {"klozer":{3:3},"ofi":{3:-36}}
+};
+
+// Stock al cierre de cada mes: usa movimientos reales 2025 y 2026, estimación por ventas para otros
 function _stockEstProd(codStr, currentStk, meses, ventasByProd, isBeb) {
   const est = {};
   let s = currentStk;
-  const movs = STOCK_MOV_2025[codStr];
+  const movs25 = STOCK_MOV_2025[codStr];
+  const movs26 = STOCK_MOV_2026[codStr];
   for (let i = meses.length - 1; i >= 0; i--) {
     const mo = meses[i];
     const key = mo.yr + '_' + mo.m;
     est[key] = Math.max(0, s);
     let net;
-    if (mo.yr === 2025 && movs) {
+    const movs = mo.yr === 2025 ? movs25 : mo.yr === 2026 ? movs26 : null;
+    if (movs) {
       net = isBeb
         ? ((movs.klozer || {})[mo.m] || 0)
         : ((movs.klozer || {})[mo.m] || 0) + ((movs.klozer_mkt || {})[mo.m] || 0) + ((movs.ofi || {})[mo.m] || 0);
