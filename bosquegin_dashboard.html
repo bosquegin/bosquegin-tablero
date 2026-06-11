@@ -3218,8 +3218,9 @@ function renderRotRub() {
 }
 
 // ── Rotación mensual por rubro ─────────────────────────────────────────────────
-var _rotSort = { col: 'rub', asc: true };
-var _rotData = null; // cache de datos para re-ordenar sin recalcular
+var _rotSort    = { col: 'rub', asc: true };
+var _rotDetSort = {}; // rub → { col: 'cod'|'art', asc: true }
+var _rotData    = null;
 
 function rotMensualSetSort(col) {
   if (_rotSort.col === col) _rotSort.asc = !_rotSort.asc;
@@ -3227,31 +3228,194 @@ function rotMensualSetSort(col) {
   _rotRenderRows();
 }
 
-function _rotRenderRows() {
-  if (!_rotData) return;
-  const { rubros, ncols, meses, isCurrentMonth, cellSt, mCol, ventasByRub, ventasByProd, stockByRub, stockItems, RUBROS_LABEL } = _rotData;
-  const { col, asc } = _rotSort;
+function rotDetSortFn(rub, col) {
+  if (!_rotDetSort[rub]) _rotDetSort[rub] = { col: 'cod', asc: true };
+  if (_rotDetSort[rub].col === col) _rotDetSort[rub].asc = !_rotDetSort[rub].asc;
+  else { _rotDetSort[rub].col = col; _rotDetSort[rub].asc = true; }
+  // Actualizar iconos del thead interno
+  document.querySelectorAll(`#rot-det-${rub} th[data-det-col]`).forEach(th => {
+    const ico = th.querySelector('.rdi');
+    if (ico) ico.textContent = th.dataset.detCol === col ? (_rotDetSort[rub].asc ? '▲' : '▼') : '⇅';
+    th.style.color = th.dataset.detCol === col ? 'var(--text)' : 'var(--muted)';
+  });
+  const tb = document.getElementById('rot-det-body-' + rub);
+  if (tb) tb.innerHTML = _buildDetTbody(rub);
+}
 
-  // Ordenar
-  const sorted = [...rubros].sort((a, b) => {
-    let va, vb;
-    if (col === 'rub') {
-      va = (RUBROS_LABEL[a] || a); vb = (RUBROS_LABEL[b] || b);
-      return asc ? va.localeCompare(vb, 'es') : vb.localeCompare(va, 'es');
+// Movimientos netos de stock por producto/depósito/mes — fuente: Klozer 2025
+var STOCK_MOV_2025 = {
+  "100001": {"avolta":{2:162,3:139,5:-68,6:-51,7:-33,8:-32},"klozer":{2:1335,3:127,4:-1044,5:888,6:522,7:-455,8:-1144,9:825,10:-2,11:-944,12:1884},"klozer_mkt":{9:680,11:-120,12:-96},"ofi":{1:32,2:10,3:-18,4:26,5:-25,6:18,7:6,8:-2,9:-2,10:-43,11:35,12:-12},"shop_gallery":{2:62,3:39,4:39,5:-18,6:-15,7:-24,8:-6}},
+  "100002": {"avolta":{2:148,3:152,5:-96,6:-44,7:-28,8:-31},"klozer":{2:876,3:-232,4:-414,5:47,6:-150,7:-14,8:246,9:-45,10:41,11:625,12:-506},"klozer_mkt":{9:680,12:-24},"ofi":{1:19,2:21,3:-5,4:28,5:-18,6:14,7:15,8:-10,9:-16,10:-30,11:12,12:-4},"shop_gallery":{2:93,3:38,4:30,5:-17,6:-13,7:-10,8:-9}},
+  "100003": {"avolta":{2:127,3:55,5:-46,6:-11,7:-11,8:-8},"klozer":{2:43,3:72,4:-94,5:40,6:-17,7:12,8:-8,9:115,10:202,11:-13,12:-114},"ofi":{1:4,2:9,3:-4,4:3,5:-12,6:6,7:3,8:-6,9:10,10:-7,11:8,12:0},"shop_gallery":{2:46,3:16,4:29,5:-16,6:-5,7:-4,8:-3}},
+  "100004": {"klozer":{2:408,3:141,4:139,5:293,6:-231,7:185,8:-234,9:862,10:-638,11:-480,12:1251},"ofi":{1:58,2:-2,3:-32,4:-22,5:37,6:-22,7:33,8:-23,9:16,10:-43,11:78,12:-41},"shop_gallery":{2:-1}},
+  "100009": {"klozer":{2:6}},
+  "100010": {"avolta":{2:223,3:167,5:-87,6:-24,7:-67,8:-32,11:174,12:180},"klozer":{2:276,3:48,4:-276,5:96,6:-60,7:-12,8:-24,9:468,10:-37,11:331,12:-204},"ofi":{3:24,5:12,6:-12,7:12},"shop_gallery":{2:313,3:8,4:97,5:-188,6:-116,7:-67,8:-19}},
+  "100011": {"avolta":{2:263,3:113,5:11,6:-94,7:-89,8:-67,11:240,12:300},"klozer":{2:156,3:84,4:-168,5:60,6:-60,7:-12,8:-24,9:384,11:240,12:-336},"ofi":{3:24,5:12,6:-12,7:24,11:-12},"shop_gallery":{2:69,3:201,4:192,5:-185,6:-87,7:-97,8:-44}},
+  "100012": {"klozer":{2:84,3:216,4:730,5:-19,6:-75,7:-40,8:-24,9:660,10:63,11:-186,12:-492},"ofi":{1:35,2:18,3:-12,4:22,5:-24,6:9,7:-1,8:-20,9:10,10:-8,12:13},"shop_gallery":{2:-1}},
+  "100014": {"avolta":{11:204,12:126},"klozer":{9:512,10:-36,11:-294,12:-176},"ofi":{9:6,11:-1}},
+  "100015": {"avolta":{11:145,12:79},"klozer":{9:280,10:-12,11:-169,12:-93},"ofi":{9:6,11:-1}},
+  "100016": {"avolta":{11:32,12:26},"klozer":{9:78,10:-12,11:-32,12:-28},"ofi":{9:0,10:6,12:-1}},
+  "100017": {"klozer":{10:0}},
+  "110007": {"klozer":{9:510,10:12,11:-84,12:-252}},
+  "110012": {"klozer":{2:240,3:36,4:-18,5:-186,6:-60,7:24,10:-36},"klozer_mkt":{2:720,3:924,4:454,5:-1432,6:-12,7:-462,8:-192,9:312,10:-192,11:-24,12:-96},"shop_gallery":{4:60,5:-2,6:-34,7:-19,8:-4}},
+  "110025": {"klozer":{2:240,3:150,4:-54,5:-138,6:-42,7:-30,9:0,10:-36,11:-6},"klozer_mkt":{2:1104,3:-6,4:98,5:358,6:-24,7:-570,8:-834,9:738,10:-192},"ofi":{9:24},"shop_gallery":{4:24,6:-18,7:-4,8:-2}},
+  "110027": {"klozer":{3:198,4:48,5:-156,6:-90,7:216,9:462,10:774,11:-948,12:402},"ofi":{6:17,7:-6,8:0,10:-11,11:96},"shop_gallery":{4:36,6:-5,7:-1,8:-9}},
+  "110030": {"klozer":{2:240,3:-6,4:378,5:-312,6:-114,7:-180,8:204,9:786,10:1938,11:1134,12:354},"klozer_mkt":{2:1926,3:1140,4:-936,5:-1606,6:-60,7:-92,8:-216,9:60,10:-168,11:-48},"ofi":{6:12,8:-12,12:72},"shop_gallery":{4:60,6:-34,7:-26}},
+  "110033": {"klozer":{11:32,12:-5}},
+  "110034": {"klozer":{9:606,10:-12,11:-48}},
+  "110035": {"klozer":{9:192,10:-24,11:-12}},
+  "110036": {"klozer":{9:6}},
+  "110037": {"klozer":{4:1998,5:-162,6:-16,7:-1068,8:0,9:-194,10:48,11:-131,12:-469},"ofi":{9:36}}
+};
+
+// Stock al cierre de cada mes: usa movimientos reales 2025, estimación por ventas para otros meses
+function _stockEstProd(codStr, currentStk, meses, ventasByProd, isBeb) {
+  const est = {};
+  let s = currentStk;
+  const movs = STOCK_MOV_2025[codStr];
+  for (let i = meses.length - 1; i >= 0; i--) {
+    const mo = meses[i];
+    const key = mo.yr + '_' + mo.m;
+    est[key] = Math.max(0, s);
+    let net;
+    if (mo.yr === 2025 && movs) {
+      net = isBeb
+        ? ((movs.klozer || {})[mo.m] || 0)
+        : ((movs.klozer || {})[mo.m] || 0) + ((movs.klozer_mkt || {})[mo.m] || 0) + ((movs.ofi || {})[mo.m] || 0);
+    } else {
+      net = -((ventasByProd[codStr] || {})[key] || 0);
     }
-    // col = month key 'yr_m'
-    const sa = stockByRub[a] || 0, sb = stockByRub[b] || 0;
-    const va2 = (ventasByRub[a] || {})[col] || 0;
-    const vb2 = (ventasByRub[b] || {})[col] || 0;
-    va = va2 > 0 ? sa / va2 : 9999; vb = vb2 > 0 ? sb / vb2 : 9999;
-    return asc ? va - vb : vb - va;
+    s = s - net;
+  }
+  return est;
+}
+
+function _buildDetTbody(rub) {
+  if (!_rotData) return '';
+  const { meses, ventasByRub, ventasByProd, stockByRub, stockItems, RUBROS_LABEL } = _rotData;
+  const isBeb = rub === 'BEBIDAS';
+  const srtState = _rotDetSort[rub] || { col: 'cod', asc: true };
+  const P = 'padding:4px 8px;font-size:9px;white-space:nowrap;border-bottom:1px solid rgba(255,255,255,.05)';
+  const BD  = 'border-bottom:1px solid rgba(255,255,255,.05)';
+  const BDS = 'border-bottom:2px solid rgba(255,255,255,.12)';
+
+  // Ordenar artículos
+  const sItems = (stockItems[rub] || []).slice().sort((a, b) => {
+    if (srtState.col === 'art') return srtState.asc ? a.art.localeCompare(b.art,'es') : b.art.localeCompare(a.art,'es');
+    const ca = String(a.cod), cb = String(b.cod);
+    return srtState.asc ? ca.localeCompare(cb,'es',{numeric:true}) : cb.localeCompare(ca,'es',{numeric:true});
   });
 
-  // Actualizar iconos de encabezado
-  const now = new Date();
+  function mColD(m) {
+    if (m === null || m <= 0) return 'color:var(--muted)';
+    if (m < 1)   return 'color:var(--red);font-weight:700';
+    if (m < 1.5) return 'color:var(--yellow);font-weight:700';
+    if (m >= 99) return 'color:var(--muted)';
+    return 'color:var(--green)';
+  }
+
+  // Filas de artículos: 3 filas (Stock estimado / Venta / Rotación)
+  const artRows = sItems.map(it => {
+    const codStr = String(it.cod);
+    const stkEst = _stockEstProd(codStr, it.stk, meses, ventasByProd, isBeb);
+
+    const stkCells = meses.map(mo => {
+      const key = mo.yr + '_' + mo.m;
+      const s = stkEst[key] !== undefined ? stkEst[key] : it.stk;
+      return `<td style="${P};text-align:right;color:var(--accent2);font-weight:600;${BD}">${s > 0 ? s.toLocaleString('es-AR') : '—'}</td>`;
+    }).join('');
+
+    const ventCells = meses.map(mo => {
+      const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
+      return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''};${BD}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+    }).join('');
+
+    const rotCells = meses.map(mo => {
+      const key = mo.yr + '_' + mo.m;
+      const s = stkEst[key] !== undefined ? stkEst[key] : it.stk;
+      const v = (ventasByProd[codStr] || {})[key] || 0;
+      const m = v > 0 && s > 0 ? s / v : null;
+      const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
+      return `<td style="${P};text-align:right;font-weight:700;${mColD(m)};${BDS}">${txt}</td>`;
+    }).join('');
+
+    return `
+      <tr>
+        <td rowspan="3" style="${P};color:var(--muted);vertical-align:middle;${BDS}"><code>${it.cod}</code></td>
+        <td rowspan="3" style="${P};vertical-align:middle;font-size:9px;${BDS}">${it.art}</td>
+        <td style="${P};font-size:8px;color:var(--accent2);font-weight:700;${BD}">Stock</td>${stkCells}
+      </tr>
+      <tr>
+        <td style="${P};font-size:8px;color:var(--muted);font-weight:700;${BD}">Venta</td>${ventCells}
+      </tr>
+      <tr>
+        <td style="${P};font-size:8px;color:var(--green);font-weight:700;${BDS}">Rot.</td>${rotCells}
+      </tr>`;
+  }).join('');
+
+  // Filas resumen del rubro
+  const rubStock = stockByRub[rub] || 0;
+  const totVentCells = meses.map(mo => {
+    const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
+    return `<td style="${P};text-align:right;font-weight:700;border-top:2px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
+  }).join('');
+
+  // Stock estimado del rubro por mes = suma de estimados de cada artículo
+  const rubStkEstCells = meses.map(mo => {
+    const key = mo.yr + '_' + mo.m;
+    const total = sItems.reduce((s, it) => {
+      const est = _stockEstProd(String(it.cod), it.stk, meses, ventasByProd, isBeb);
+      return s + (est[key] !== undefined ? est[key] : it.stk);
+    }, 0);
+    return `<td style="${P};text-align:right;color:var(--accent2);font-weight:700;border-top:2px solid var(--border)">${total > 0 ? total.toLocaleString('es-AR') : '—'}</td>`;
+  }).join('');
+
+  const mesCells = meses.map(mo => {
+    const key = mo.yr + '_' + mo.m;
+    const v = (ventasByRub[rub] || {})[key] || 0;
+    const s = sItems.reduce((acc, it) => {
+      const est = _stockEstProd(String(it.cod), it.stk, meses, ventasByProd, isBeb);
+      return acc + (est[key] !== undefined ? est[key] : it.stk);
+    }, 0);
+    const m = v > 0 && s > 0 ? s / v : null;
+    const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
+    return `<td style="${P};text-align:right;font-weight:700;${mColD(m)}">${txt}</td>`;
+  }).join('');
+
+  return `
+    ${artRows}
+    <tr style="background:rgba(255,255,255,.03)">
+      <td colspan="2" style="${P};font-weight:700;border-top:2px solid var(--border)">Total ventas del mes</td>
+      <td style="${P};border-top:2px solid var(--border)"></td>${totVentCells}
+    </tr>
+    <tr style="background:rgba(255,255,255,.03)">
+      <td colspan="2" style="${P};font-weight:700;color:var(--accent2)">Stock del mes</td>
+      <td style="${P}"></td>${rubStkEstCells}
+    </tr>
+    <tr style="background:rgba(99,102,241,.08)">
+      <td colspan="2" style="${P};font-weight:700;color:var(--accent)">= Meses de cobertura</td>
+      <td style="${P}"></td>${mesCells}
+    </tr>`;
+}
+
+function _rotRenderRows() {
+  if (!_rotData) return;
+  const { rubros, ncols, meses, isCurrentMonth, cellSt, mCol, ventasByRub, stockByRub, RUBROS_LABEL } = _rotData;
+  const { col, asc } = _rotSort;
+
+  const sorted = [...rubros].sort((a, b) => {
+    if (col === 'rub') {
+      const va = RUBROS_LABEL[a]||a, vb = RUBROS_LABEL[b]||b;
+      return asc ? va.localeCompare(vb,'es') : vb.localeCompare(va,'es');
+    }
+    const sa = stockByRub[a]||0, sb = stockByRub[b]||0;
+    const va = (ventasByRub[a]||{})[col]||0, vb2 = (ventasByRub[b]||{})[col]||0;
+    const ma = va > 0 ? sa/va : 9999, mb = vb2 > 0 ? sb/vb2 : 9999;
+    return asc ? ma - mb : mb - ma;
+  });
+
   document.querySelectorAll('#rot-mensual-thead th[data-col]').forEach(th => {
-    const c = th.dataset.col;
-    const ico = th.querySelector('.rot-sort-ico');
+    const c = th.dataset.col, ico = th.querySelector('.rot-sort-ico');
     if (ico) ico.textContent = c === col ? (asc ? '▲' : '▼') : '⇅';
     th.style.color = c === col ? 'var(--text)' : '';
   });
@@ -3263,10 +3427,12 @@ function _rotRenderRows() {
     if (stock === 0) continue;
     const label = RUBROS_LABEL[rub] || rub;
     const isBeb = rub === 'BEBIDAS';
+    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
+    const srtState = _rotDetSort[rub] || { col: 'cod', asc: true };
 
     const cells = meses.map(mo => {
       const key = mo.yr + '_' + mo.m;
-      const v = (ventasByRub[rub] || {})[key] || 0;
+      const v = (ventasByRub[rub]||{})[key]||0;
       const cur = isCurrentMonth(mo);
       if (v === 0) return `<td style="${cellSt(null,cur)}">—</td>`;
       const m = stock / v;
@@ -3279,74 +3445,21 @@ function _rotRenderRows() {
       </td>${cells}
     </tr>`;
 
-    // Fila de detalle (se conserva oculta)
-    const sItems = (stockItems[rub] || []).slice().sort((a,b) => b.stk - a.stk);
-    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
     const moCols = meses.map(mo => `<th style="${P};text-align:right;color:var(--muted);font-weight:700">${mo.lbl}<br><span style="font-weight:400">${mo.yr2}</span></th>`).join('');
-    const artRows = sItems.map(it => {
-      const codStr = String(it.cod);
-      const BD = 'border-bottom:1px solid rgba(255,255,255,.05)';
-      const BDstrong = 'border-bottom:2px solid rgba(255,255,255,.1)';
-      // Fila Stock: código + nombre en rowspan 2, luego stock por mes (mismo valor)
-      const stkCellsArt = meses.map(mo =>
-        `<td style="${P};text-align:right;color:var(--accent2);font-weight:600;${BD}">${it.stk.toLocaleString('es-AR')}</td>`
-      ).join('');
-      // Fila Venta: ventas del mes
-      const ventCellsArt = meses.map(mo => {
-        const v = (ventasByProd[codStr] || {})[mo.yr + '_' + mo.m] || 0;
-        return `<td style="${P};text-align:right;${v===0?'color:var(--muted)':''};${BDstrong}">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
-      }).join('');
-      return `
-        <tr>
-          <td rowspan="2" style="${P};color:var(--muted);vertical-align:middle;${BDstrong}"><code>${it.cod}</code></td>
-          <td rowspan="2" style="${P};vertical-align:middle;${BDstrong}">${it.art}</td>
-          <td style="${P};font-size:8px;color:var(--accent2);font-weight:700;${BD}">Stock</td>
-          ${stkCellsArt}
-        </tr>
-        <tr>
-          <td style="${P};font-size:8px;color:var(--muted);font-weight:700;${BDstrong}">Venta</td>
-          ${ventCellsArt}
-        </tr>`;
-    }).join('');
-    const totVentCells = meses.map(mo => {
-      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-      return `<td style="${P};text-align:right;font-weight:700;border-top:2px solid var(--border)">${v > 0 ? v.toLocaleString('es-AR') : '—'}</td>`;
-    }).join('');
-    const stkCells = meses.map(() => `<td style="${P};text-align:right;color:var(--accent2);font-weight:700">${stock.toLocaleString('es-AR')}</td>`).join('');
-    const mesCells = meses.map(mo => {
-      const v = (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0;
-      const m = v > 0 ? stock / v : null;
-      const txt = m === null ? '—' : m >= 99 ? '>99' : m.toFixed(1);
-      return `<td style="${P};text-align:right;font-weight:700;${mCol(m)}">${txt}</td>`;
-    }).join('');
+    const icoC = srtState.col==='cod'?(srtState.asc?'▲':'▼'):'⇅';
+    const icoA = srtState.col==='art'?(srtState.asc?'▲':'▼'):'⇅';
+
     rows += `<tr id="rot-det-${rub}" style="display:none">
       <td colspan="${ncols}" style="padding:0;border-bottom:2px solid var(--border)">
         <div style="padding:10px 16px;background:rgba(15,23,42,.7);overflow-x:auto">
           <table style="border-collapse:collapse;width:100%">
             <thead><tr>
-              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Cód</th>
-              <th style="${P};text-align:left;color:var(--muted);font-weight:700">Artículo</th>
-              <th style="${P};text-align:right;color:var(--muted);font-weight:700">${stkLabel}</th>
+              <th data-det-col="cod" onclick="rotDetSortFn('${rub}','cod')" style="${P};text-align:left;color:${srtState.col==='cod'?'var(--text)':'var(--muted)'};font-weight:700;cursor:pointer;user-select:none">Cód <span class="rdi">${icoC}</span></th>
+              <th data-det-col="art" onclick="rotDetSortFn('${rub}','art')" style="${P};text-align:left;color:${srtState.col==='art'?'var(--text)':'var(--muted)'};font-weight:700;cursor:pointer;user-select:none">Artículo <span class="rdi">${icoA}</span></th>
+              <th style="${P};color:var(--muted);font-weight:700"> </th>
               ${moCols}
             </tr></thead>
-            <tbody>
-              ${artRows}
-              <tr style="background:rgba(255,255,255,.03)">
-                <td colspan="2" style="${P};font-weight:700;border-top:2px solid var(--border)">Total ventas del mes</td>
-                <td style="${P};text-align:right;color:var(--muted);border-top:2px solid var(--border)">—</td>
-                ${totVentCells}
-              </tr>
-              <tr style="background:rgba(255,255,255,.03)">
-                <td colspan="2" style="${P};font-weight:700;color:var(--accent2)">${stkLabel} actual</td>
-                <td style="${P};text-align:right;font-weight:700;color:var(--accent2)">${stock.toLocaleString('es-AR')}</td>
-                ${stkCells}
-              </tr>
-              <tr style="background:rgba(99,102,241,.08)">
-                <td colspan="2" style="${P};font-weight:700;color:var(--accent)">= Meses de cobertura</td>
-                <td style="${P};color:var(--muted)">—</td>
-                ${mesCells}
-              </tr>
-            </tbody>
+            <tbody id="rot-det-body-${rub}">${_buildDetTbody(rub)}</tbody>
           </table>
         </div>
       </td>
