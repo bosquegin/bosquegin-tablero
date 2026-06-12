@@ -3323,9 +3323,7 @@ function _stockEstProd(codStr, currentStk, meses, ventasByProd, isBeb) {
       (mo.yr === 2026 && mo.m <= STOCK_MOV_2026_MAX_MES && movs26);
     if (tieneMovs) {
       const movs = mo.yr === 2025 ? movs25 : movs26;
-      net = isBeb
-        ? ((movs.klozer || {})[mo.m] || 0)
-        : ((movs.klozer || {})[mo.m] || 0) + ((movs.klozer_mkt || {})[mo.m] || 0) + ((movs.ofi || {})[mo.m] || 0);
+      net = ((movs.klozer || {})[mo.m] || 0) + ((movs.ofi || {})[mo.m] || 0);
     } else {
       // Meses sin archivo de movimientos: usar ventas como proxy de egresos
       net = -((ventasByProd[codStr] || {})[key] || 0);
@@ -3472,7 +3470,7 @@ function _rotRenderRows() {
     if (stock === 0) continue;
     const label = RUBROS_LABEL[rub] || rub;
     const isBeb = rub === 'BEBIDAS';
-    const stkLabel = isBeb ? 'Stock Klozer' : 'Stock total';
+    const stkLabel = 'Stock Klozer + Ofi';
     const srtState = _rotDetSort[rub] || { col: 'cod', asc: true };
 
     const cells = meses.map(mo => {
@@ -3547,7 +3545,7 @@ function renderRotacionMensual() {
   for (const it of INV_DATA) {
     if (EXCLUIDOS.has(String(it.cod))) continue;
     const rub = (it.rub || 'OTROS').toUpperCase().trim();
-    const stk = rub === 'BEBIDAS' ? (it.klozer || 0) : (it.klozer||0) + (it.klozer_mkt||0) + (it.ofi||0);
+    const stk = (it.klozer||0) + (it.ofi||0);
     if (stk === 0) continue;
     stockByRub[rub] = (stockByRub[rub] || 0) + stk;
     if (!stockItems[rub]) stockItems[rub] = [];
