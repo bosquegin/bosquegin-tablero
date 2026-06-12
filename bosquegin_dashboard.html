@@ -3302,7 +3302,12 @@ var STOCK_MOV_2026 = {
   "110037": {"klozer":{3:3},"ofi":{3:-36}}
 };
 
-// Stock al cierre de cada mes: usa movimientos reales 2025 y 2026, estimación por ventas para otros
+// Último mes con datos reales en cada archivo de movimientos
+var STOCK_MOV_2025_MAX_MES = 12;
+var STOCK_MOV_2026_MAX_MES = 5;
+
+// Stock al cierre de cada mes: retrocede desde el stock actual restando movimientos reales.
+// Para meses sin datos de movimientos usa ventas como proxy de egresos.
 function _stockEstProd(codStr, currentStk, meses, ventasByProd, isBeb) {
   const est = {};
   let s = currentStk;
@@ -3313,12 +3318,16 @@ function _stockEstProd(codStr, currentStk, meses, ventasByProd, isBeb) {
     const key = mo.yr + '_' + mo.m;
     est[key] = Math.max(0, s);
     let net;
-    const movs = mo.yr === 2025 ? movs25 : mo.yr === 2026 ? movs26 : null;
-    if (movs) {
+    const tieneMovs =
+      (mo.yr === 2025 && mo.m <= STOCK_MOV_2025_MAX_MES && movs25) ||
+      (mo.yr === 2026 && mo.m <= STOCK_MOV_2026_MAX_MES && movs26);
+    if (tieneMovs) {
+      const movs = mo.yr === 2025 ? movs25 : movs26;
       net = isBeb
         ? ((movs.klozer || {})[mo.m] || 0)
         : ((movs.klozer || {})[mo.m] || 0) + ((movs.klozer_mkt || {})[mo.m] || 0) + ((movs.ofi || {})[mo.m] || 0);
     } else {
+      // Meses sin archivo de movimientos: usar ventas como proxy de egresos
       net = -((ventasByProd[codStr] || {})[key] || 0);
     }
     s = s - net;
