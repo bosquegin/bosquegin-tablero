@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.19</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.20</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
@@ -516,7 +516,7 @@
     <div class="logo-icon">🌲</div>
     <div>
       <h1>Bosque · Feriado · Temple</h1>
-      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.19</span></span>
+      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.20</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -782,6 +782,28 @@
     </div>
     <div style="margin-top:8px;font-size:9px;color:var(--muted)">
       ⓘ Refleja cuántos meses duraría el <strong>stock actual</strong> al ritmo de ventas de cada mes histórico. Útil para detectar estacionalidad y picos de demanda.
+    </div>
+  </div>
+
+  <!-- ── GRÁFICOS DE ROTACIÓN ─────────────────────────────── -->
+  <div class="table-card" style="margin-top:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="table-title">📊 Tendencias — Rotación · Ventas · Stock</div>
+      <div id="rot-chart-legend" style="display:flex;flex-wrap:wrap;gap:8px;font-size:9px"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:20px">
+      <div>
+        <div class="chart-subtitle" style="margin-bottom:8px">Meses de cobertura por rubro</div>
+        <div style="position:relative;height:210px"><canvas id="rot-chart-rot"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-subtitle" style="margin-bottom:8px">Ventas mensuales por rubro (uds)</div>
+        <div style="position:relative;height:210px"><canvas id="rot-chart-ven"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-subtitle" style="margin-bottom:8px">Stock de cierre KLOZER+OFI (uds)</div>
+        <div style="position:relative;height:210px"><canvas id="rot-chart-stk"></canvas></div>
+      </div>
     </div>
   </div>
 
@@ -4119,6 +4141,146 @@ function _rotRenderRows() {
     rows || `<tr><td colspan="${ncols}" style="text-align:center;color:var(--muted);padding:20px">Sin datos</td></tr>`;
 }
 
+// ── Gráficos de tendencias (rot / ventas / stock) ─────────────────────────────
+let _rotChartRot = null, _rotChartVen = null, _rotChartStk = null;
+
+function _buildRotCharts() {
+  if (!_rotData) return;
+  const { meses, ventasByRub, stockItems, RUBROS_LABEL } = _rotData;
+
+  const RUB_COLORS = {
+    'BEBIDAS':'#4ade80','CRISTALERIA':'#38bdf8','INDUMENTARIA':'#f472b6',
+    'COMBO':'#fb923c','ESTUCHE':'#a78bfa','BOTELLAS':'#fbbf24',
+    'BOTÁNICOS':'#34d399','MOBILIARIO':'#94a3b8'
+  };
+  const labels  = meses.map(mo => mo.lbl + ' \'' + mo.yr2);
+  const rubros  = Object.keys(stockItems);
+
+  const rotDs = [], venDs = [], stkDs = [];
+
+  for (const rub of rubros) {
+    const color    = RUB_COLORS[rub] || '#64748b';
+    const rubProds = (stockItems[rub] || []).map(it => String(it.cod));
+    const label    = (RUBROS_LABEL[rub] || rub).replace(/^.\s/,'');
+
+    rotDs.push({
+      label, borderColor: color, backgroundColor: color + '18',
+      borderWidth: 2, tension: .35, pointRadius: 2.5, pointHoverRadius: 5,
+      spanGaps: true, fill: false,
+      data: meses.map(mo => {
+        const key  = mo.yr + '_' + mo.m;
+        const snap = STOCK_CIERRE_MES[key];
+        if (!snap) return null;
+        const s = rubProds.reduce((a, c) => a + (snap[c] || 0), 0);
+        const v = (ventasByRub[rub] || {})[key] || 0;
+        return (s > 0 && v > 0) ? Math.min(15, Math.round(s / v * 10) / 10) : null;
+      })
+    });
+
+    venDs.push({
+      label, backgroundColor: color + 'cc', borderColor: 'transparent',
+      borderWidth: 0, borderRadius: 2,
+      data: meses.map(mo => (ventasByRub[rub] || {})[mo.yr + '_' + mo.m] || 0)
+    });
+
+    stkDs.push({
+      label, borderColor: color, backgroundColor: color + '44',
+      borderWidth: 1.5, tension: .3, pointRadius: 0, fill: true, spanGaps: true,
+      data: meses.map(mo => {
+        const snap = STOCK_CIERRE_MES[mo.yr + '_' + mo.m];
+        return snap ? rubProds.reduce((a, c) => a + (snap[c] || 0), 0) : null;
+      })
+    });
+  }
+
+  // Líneas de referencia en el gráfico de rotación (1 y 2 meses)
+  [[1,'rgba(239,68,68,.35)'],[2,'rgba(234,179,8,.35)'],[3,'rgba(74,222,128,.25)']].forEach(([y, c]) => {
+    rotDs.push({
+      label:'_ref', data: Array(labels.length).fill(y),
+      borderColor: c, borderDash:[4,4], borderWidth:1,
+      pointRadius:0, fill:false, spanGaps:true, tension:0
+    });
+  });
+
+  const GR  = 'rgba(255,255,255,.06)';
+  const TC  = '#64748b';
+  const FT  = { size: 9 };
+  const TT  = { backgroundColor:'#1c2230', borderColor:'#2d3748', borderWidth:1,
+                titleColor:'#e2e8f0', bodyColor:'#94a3b8',
+                titleFont:{ size:10 }, bodyFont:{ size:9 },
+                filter: item => !item.dataset.label.startsWith('_ref') };
+
+  const xScale = {
+    grid:{ color:GR }, border:{ color:'transparent' },
+    ticks:{ color:TC, font:FT, maxRotation:45, minRotation:45 }
+  };
+
+  if (_rotChartRot) _rotChartRot.destroy();
+  _rotChartRot = new Chart(document.getElementById('rot-chart-rot'), {
+    type: 'line',
+    data: { labels, datasets: rotDs },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
+      plugins: { legend:{ display:false }, tooltip:{ ...TT,
+        callbacks:{ label: ctx => ctx.dataset.label.startsWith('_ref') ? null
+          : ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + ' meses' : '—'}` }
+      }},
+      scales: {
+        x: xScale,
+        y: { min:0, suggestedMax:6, grid:{ color:GR }, border:{ color:'transparent' },
+             ticks:{ color:TC, font:FT, callback: v => v + 'm' } }
+      }
+    }
+  });
+
+  if (_rotChartVen) _rotChartVen.destroy();
+  _rotChartVen = new Chart(document.getElementById('rot-chart-ven'), {
+    type: 'bar',
+    data: { labels, datasets: venDs },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
+      plugins: { legend:{ display:false }, tooltip:{ ...TT,
+        callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('es-AR')} uds` }
+      }},
+      scales: {
+        x: { ...xScale, stacked:true },
+        y: { stacked:true, grid:{ color:GR }, border:{ color:'transparent' },
+             ticks:{ color:TC, font:FT, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v } }
+      }
+    }
+  });
+
+  if (_rotChartStk) _rotChartStk.destroy();
+  _rotChartStk = new Chart(document.getElementById('rot-chart-stk'), {
+    type: 'line',
+    data: { labels, datasets: stkDs },
+    options: {
+      responsive:true, maintainAspectRatio:false, animation:{ duration:400 },
+      plugins: { legend:{ display:false }, tooltip:{ ...TT,
+        callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toLocaleString('es-AR') + ' uds' : '—'}` }
+      }},
+      scales: {
+        x: xScale,
+        y: { stacked:true, grid:{ color:GR }, border:{ color:'transparent' },
+             ticks:{ color:TC, font:FT, callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v } }
+      }
+    }
+  });
+
+  // Leyenda compartida
+  const leg = document.getElementById('rot-chart-legend');
+  if (leg) {
+    leg.innerHTML = rubros.map(rub => {
+      const c = RUB_COLORS[rub] || '#64748b';
+      const lbl = (RUBROS_LABEL[rub] || rub);
+      return `<span style="display:flex;align-items:center;gap:4px;white-space:nowrap">
+        <span style="width:10px;height:10px;border-radius:2px;background:${c};display:inline-block;flex-shrink:0"></span>
+        <span style="color:var(--muted)">${lbl}</span>
+      </span>`;
+    }).join('');
+  }
+}
+
 function renderRotacionMensual() {
   const thEl = document.getElementById('rot-mensual-thead');
   const tbEl = document.getElementById('rot-mensual-tbody');
@@ -4208,6 +4370,7 @@ function renderRotacionMensual() {
   </tr>`;
 
   _rotRenderRows();
+  _buildRotCharts();
 }
 
 function rotMensualToggle(rub) {
