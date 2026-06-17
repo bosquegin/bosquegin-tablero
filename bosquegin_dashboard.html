@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.16</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.17</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
   <script src="cloud_config.js" onerror="if(!window.BG_CLOUD_URL)window.BG_CLOUD_URL='';"></script>
@@ -507,7 +507,7 @@
     <div class="logo-icon">🌲</div>
     <div>
       <h1>Bosque · Feriado · Temple</h1>
-      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.16</span></span>
+      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.17</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -3301,7 +3301,7 @@ var REMITOS_SAL_2026 = {
 
 // Stock real al cierre de cada mes — depósitos Klozer + Ofi
 // Fuentes: 'Stock Productos Comp.' (complementarios) + 'Stock productos' (envases/bebidas)
-// Cobertura: Feb 2025 – Abr 2026 (sin 2025_1, 2026_5, 2026_6)
+// Cobertura: Feb 2025 – Jun 2026 (sin 2025_1). May/Jun 2026 solo complementarios (sin bebidas)
 // Generado: 2026-06-16
 var STOCK_CIERRE_MES = {
   "2025_2": {
@@ -3934,6 +3934,109 @@ var STOCK_CIERRE_MES = {
     "900007": 3,
     "900008": 3
   },
+  "2026_5": {
+    "200003": 5,
+    "200004": 7,
+    "200005": 1,
+    "200007": 113,
+    "200008": 60,
+    "400000": 19,
+    "400001": 756,
+    "400002": 483,
+    "400003": 167,
+    "400012": 71,
+    "400013": 1241,
+    "400014": 297,
+    "500012": 6,
+    "500019": 6,
+    "500021": 19,
+    "600001": 27,
+    "600002": 1652,
+    "600004": 32,
+    "600007": 14530,
+    "600008": 618,
+    "600009": 108,
+    "600010": 10000,
+    "600011": 49,
+    "600012": 10000,
+    "700001": 4,
+    "700002": 12,
+    "700003": 4,
+    "700005": 7,
+    "700006": 41,
+    "700008": 1,
+    "700009": 20,
+    "700010": 3,
+    "700011": 2,
+    "700012": 10,
+    "700013": 2,
+    "700014": 9,
+    "700015": 10,
+    "700017": 8,
+    "700018": 9,
+    "700019": 30,
+    "700020": 3,
+    "700022": 7,
+    "700023": 2,
+    "700024": 1,
+    "900000": 9,
+    "900001": 18,
+    "900002": 152,
+    "900003": 44,
+    "900007": 5,
+    "900008": 6,
+    "900009": 10
+  },
+  "2026_6": {
+    "200007": 82,
+    "200008": 22,
+    "400000": 19,
+    "400001": 756,
+    "400002": 483,
+    "400003": 166,
+    "400012": 71,
+    "400013": 1241,
+    "400014": 297,
+    "500012": 6,
+    "500019": 6,
+    "500021": 11,
+    "600001": 27,
+    "600002": 1560,
+    "600004": 32,
+    "600007": 14530,
+    "600008": 618,
+    "600009": 108,
+    "600010": 10000,
+    "600011": 49,
+    "600012": 10000,
+    "700001": 4,
+    "700002": 12,
+    "700003": 4,
+    "700005": 7,
+    "700006": 41,
+    "700008": 1,
+    "700009": 20,
+    "700010": 3,
+    "700011": 2,
+    "700012": 10,
+    "700013": 2,
+    "700014": 9,
+    "700015": 10,
+    "700017": 8,
+    "700018": 9,
+    "700019": 30,
+    "700020": 3,
+    "700022": 7,
+    "700023": 2,
+    "700024": 1,
+    "900000": 9,
+    "900001": 18,
+    "900002": 152,
+    "900003": 44,
+    "900007": 4,
+    "900008": 5,
+    "900009": 10
+  }
 };
 
 function _snapStk(codStr, key) {
