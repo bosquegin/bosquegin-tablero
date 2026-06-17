@@ -36,8 +36,9 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.18</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.19</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
   <script src="cloud_config.js" onerror="if(!window.BG_CLOUD_URL)window.BG_CLOUD_URL='';"></script>
 <script>document.write('<script src="bosquegin_data.js?v='+Date.now()+'"><\/script>')</script>
@@ -369,6 +370,14 @@
     .badge-blue { background: rgba(56,189,248,.15); color: #38bdf8; }
     .badge-gray { background: rgba(148,163,184,.1); color: #94a3b8; }
 
+    /* RETRO 80s ANIMATIONS */
+    @keyframes retro-blink   { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+    @keyframes retro-glow    { 0%,100%{text-shadow:0 0 12px #39ff14,0 0 24px rgba(57,255,20,.3)} 50%{text-shadow:0 0 5px #39ff14,0 0 10px rgba(57,255,20,.15)} }
+    @keyframes retro-glow-y  { 0%,100%{text-shadow:0 0 10px #ff0,0 0 20px rgba(255,255,0,.3)} 50%{text-shadow:0 0 4px #ff0,0 0 8px rgba(255,255,0,.15)} }
+    @keyframes retro-flicker { 0%,89%,91%,93%,95%,100%{opacity:1} 90%{opacity:.94} 92%{opacity:.97} 94%{opacity:.93} }
+    @keyframes retro-march   { 0%{transform:translateX(-2px)} 100%{transform:translateX(2px)} }
+    @keyframes retro-blocks  { 0%,100%{color:#39ff14;text-shadow:0 0 8px #39ff14} 50%{color:#2bcc10;text-shadow:0 0 4px #2bcc10} }
+
     /* PROGRESS BAR */
     .progress-wrap { background: var(--border); border-radius: 4px; height: 6px; flex: 1; min-width: 80px; }
     .progress-bar { height: 6px; border-radius: 4px; transition: width .3s; }
@@ -507,7 +516,7 @@
     <div class="logo-icon">🌲</div>
     <div>
       <h1>Bosque · Feriado · Temple</h1>
-      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.18</span></span>
+      <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.19</span></span>
     </div>
   </div>
   <div class="header-right">
@@ -5209,45 +5218,125 @@ document.getElementById('current-date').textContent =
 </script>
 
 
-<!-- UPDATE MODAL -->
+<!-- UPDATE MODAL (RETRO 80s) -->
 <div id="update-modal" style="display:none;position:fixed;inset:0;z-index:9999;
-     background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center">
-  <div style="background:var(--card);border:1px solid var(--border);border-radius:14px;
-              padding:22px 26px;width:340px;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+     background:rgba(0,0,0,.80);align-items:center;justify-content:center">
+  <div style="background:#000811;border:2px solid #0d3d1a;border-radius:6px;
+              box-shadow:0 0 0 4px #050c08,0 0 60px rgba(0,255,80,.14),inset 0 0 80px rgba(0,0,0,.5);
+              width:400px;padding:28px 24px 22px;position:relative;overflow:hidden;
+              font-family:'Press Start 2P',monospace;animation:retro-flicker 9s infinite">
 
-    <!-- Icono + título -->
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <span id="upd-icon" style="font-size:22px;line-height:1">⏳</span>
-      <div style="flex:1;min-width:0">
-        <div id="upd-title" style="font-weight:700;font-size:14px;color:var(--text)">Actualizando datos</div>
-        <div id="upd-step"  style="font-size:9px;color:var(--muted);margin-top:2px">Iniciando…</div>
-      </div>
+    <!-- Scanlines -->
+    <div style="position:absolute;inset:0;pointer-events:none;z-index:20;
+      background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,
+      rgba(0,0,0,.22) 3px,rgba(0,0,0,.22) 4px)"></div>
+    <!-- Vignette -->
+    <div style="position:absolute;inset:0;pointer-events:none;z-index:19;
+      background:radial-gradient(ellipse at 50% 40%,transparent 55%,rgba(0,0,0,.5) 100%)"></div>
+
+    <!-- Header deco -->
+    <div style="color:#0d3d1a;font-size:8px;text-align:center;margin-bottom:4px;
+                font-family:monospace;letter-spacing:1px">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</div>
+    <div style="color:#39ff14;font-size:11px;text-align:center;letter-spacing:4px;
+                margin-bottom:3px;animation:retro-glow 2.5s ease-in-out infinite">
+      BOSQUE &nbsp; GIN</div>
+    <div style="color:#0af;font-size:6px;text-align:center;letter-spacing:3px;margin-bottom:4px">
+      SUPPLY CHAIN SYS</div>
+    <div style="color:#0d3d1a;font-size:8px;text-align:center;margin-bottom:20px;
+                font-family:monospace;letter-spacing:1px">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</div>
+
+    <!-- Sprite / icon -->
+    <div id="upd-icon" style="text-align:center;font-size:32px;line-height:1;
+         margin-bottom:14px;animation:retro-march .45s ease-in-out alternate infinite">⏳</div>
+
+    <!-- Title + step -->
+    <div id="upd-title" style="color:#ff0;font-size:7px;text-align:center;letter-spacing:2px;
+         margin-bottom:6px;animation:retro-glow-y 2s ease-in-out infinite">ACTUALIZANDO</div>
+    <div id="upd-step"  style="color:#0af;font-size:6px;text-align:center;
+         min-height:14px;margin-bottom:18px;letter-spacing:1px">INICIANDO...</div>
+
+    <!-- Block progress bar (visual) -->
+    <div style="text-align:center;font-family:monospace;margin-bottom:4px">
+      <span style="color:#0d3d1a;font-size:13px">[</span><span id="upd-blocks"
+        style="font-size:13px;animation:retro-blocks 1.8s ease-in-out infinite">░░░░░░░░░░░░░░░░░░░░</span><span
+        style="color:#0d3d1a;font-size:13px">]</span>
+      <span id="upd-pct" style="color:#ff0;font-size:7px;margin-left:8px;
+            animation:retro-glow-y 2s ease-in-out infinite">0%</span>
+    </div>
+    <div style="color:#0d3d1a;font-size:7px;text-align:center;margin-bottom:18px;font-family:monospace">
+      INSERT COIN TO CONTINUE</div>
+
+    <!-- Hidden real bar (keeps existing JS working) -->
+    <div id="upd-bar" style="position:absolute;opacity:0;width:0%;height:0;pointer-events:none"></div>
+
+    <!-- Terminal log line -->
+    <div style="background:#000;border:1px solid #0d3d1a;padding:8px 10px;
+         border-radius:2px;min-height:36px;margin-bottom:12px">
+      <span style="color:#0d3d1a;font-size:7px;font-family:monospace">&gt;&gt; </span><span
+        id="upd-detail" style="color:#39ff14;font-size:7px;font-family:monospace"></span><span
+        style="color:#39ff14;font-size:8px;animation:retro-blink 1s step-end infinite">█</span>
     </div>
 
-    <!-- Barra de progreso -->
-    <div style="background:var(--bg);border-radius:6px;height:6px;overflow:hidden;margin-bottom:10px">
-      <div id="upd-bar" style="height:100%;width:0%;background:var(--accent);
-           border-radius:6px;transition:width .35s ease"></div>
-    </div>
+    <!-- Error box -->
+    <div id="upd-error" style="display:none;background:#1a0000;border:1px solid #550000;
+         padding:8px;border-radius:2px;font-size:7px;color:#ff4444;margin-bottom:12px;
+         max-height:80px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></div>
 
-    <!-- Detalle actual -->
-    <div id="upd-detail" style="font-size:9px;color:var(--muted);text-align:center;min-height:14px"></div>
-
-    <!-- Error (oculto por defecto) -->
-    <div id="upd-error" style="display:none;margin-top:14px;padding:10px;background:rgba(239,68,68,.1);
-         border:1px solid rgba(239,68,68,.3);border-radius:8px;font-size:9px;color:#f87171;
-         white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto"></div>
-
-    <!-- Botón cerrar (solo en error) -->
-    <button id="upd-close-btn" onclick="closeUpdateModal()"
-      style="display:none;margin-top:14px;width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);
-             background:var(--surface);color:var(--text);font-size:9px;cursor:pointer">
-      Cerrar
+    <!-- Close button (error only) -->
+    <button id="upd-close-btn" onclick="closeUpdateModal()" style="display:none;
+      width:100%;padding:10px 8px;background:#000;border:2px solid #39ff14;color:#39ff14;
+      font-family:'Press Start 2P',monospace;font-size:7px;cursor:pointer;
+      letter-spacing:2px;text-shadow:0 0 8px #39ff14;transition:all .1s">
+      ▶ &nbsp; CERRAR &nbsp; ◀
     </button>
   </div>
 </div>
 
 <script>
+// ── Retro block bar sync ──────────────────────────────────────────────────────
+(function() {
+  function _syncBlocks() {
+    var barEl    = document.getElementById('upd-bar');
+    var blocks   = document.getElementById('upd-blocks');
+    var pctEl    = document.getElementById('upd-pct');
+    if (!barEl || !blocks) return;
+    var pct    = parseFloat(barEl.style.width) || 0;
+    var isErr  = (barEl.style.background || '').indexOf('red') !== -1;
+    var filled = Math.min(20, Math.round(pct / 5));
+    var bar    = '█'.repeat(filled) + '░'.repeat(20 - filled);
+    blocks.textContent = bar;
+    blocks.style.color       = isErr ? '#ff4444' : '#39ff14';
+    blocks.style.textShadow  = isErr ? '0 0 6px #ff4444' : '';
+    blocks.style.animation   = isErr ? 'none' : 'retro-blocks 1.8s ease-in-out infinite';
+    if (pctEl) {
+      pctEl.textContent      = Math.round(pct) + '%';
+      pctEl.style.color      = isErr ? '#ff4444' : '#ff0';
+      pctEl.style.animation  = isErr ? 'none' : 'retro-glow-y 2s ease-in-out infinite';
+    }
+  }
+  // Sprite cycling during update
+  var _spriteIdx = 0;
+  var _spriteFrames = ['⏳','🚀','👾','🛸'];
+  var _spriteTimer  = null;
+  window._retroStartSprite = function() {
+    _spriteIdx = 0;
+    var el = document.getElementById('upd-icon');
+    _spriteTimer = setInterval(function() {
+      _spriteIdx = (_spriteIdx + 1) % _spriteFrames.length;
+      if (el) el.textContent = _spriteFrames[_spriteIdx];
+    }, 500);
+  };
+  window._retroStopSprite = function() {
+    if (_spriteTimer) { clearInterval(_spriteTimer); _spriteTimer = null; }
+  };
+  // Observe upd-bar style changes
+  document.addEventListener('DOMContentLoaded', function() {
+    var barEl = document.getElementById('upd-bar');
+    if (!barEl) return;
+    new MutationObserver(_syncBlocks).observe(barEl, {attributes: true, attributeFilter: ['style']});
+  });
+})();
+
 // ── Update modal ──────────────────────────────────────────────────────────────
 const UPDATE_URL     = '/actualizar';
 const TUNNEL_URL_RAW = 'https://raw.githubusercontent.com/bosquegin/bosquegin-tablero/main/tunnel_url.txt';
@@ -5334,8 +5423,9 @@ async function _runCloudUpdate() {
   bar.style.width        = '4%';
   bar.style.background   = '';
   icon.textContent       = '⏳';
-  title.textContent      = 'Actualizando datos';
-  step.textContent       = 'Verificando servidor…';
+  title.textContent      = 'ACTUALIZANDO';
+  step.textContent       = 'VERIFICANDO SERVIDOR..';
+  if (window._retroStartSprite) _retroStartSprite();
   detail.textContent     = '';
   errBox.style.display   = 'none';
   closeBtn.style.display = 'none';
@@ -5346,9 +5436,10 @@ async function _runCloudUpdate() {
   dot.style.boxShadow    = '0 0 8px #eab308';
 
   function _fail(msg) {
+    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background   = 'var(--red)';
-    icon.textContent       = '⚠️';
-    title.textContent      = 'Servidor no disponible';
+    icon.textContent       = '💀';
+    title.textContent      = 'GAME OVER';
     step.textContent       = msg;
     errBox.style.display   = 'none';
     closeBtn.style.display = 'block';
@@ -5445,7 +5536,7 @@ async function _runCloudUpdate() {
         // Filtrar keep-alives ("." sueltos) del detail
         var lines = fullLog.split('\n')
           .map(function(l){ return l.trim(); })
-          .filter(function(l){ return l && l !== '.'; });
+          .filter(function(l){ return l && l !== '.' && !/^[=\-\*]{3,}$/.test(l); });
         if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 80);
         return read();
       });
@@ -5453,10 +5544,11 @@ async function _runCloudUpdate() {
     await read();
 
     // Éxito
+    if (window._retroStopSprite) _retroStopSprite();
     bar.style.width      = '100%';
-    icon.textContent     = '✅';
-    title.textContent    = 'Listo';
-    step.textContent     = 'Datos actualizados';
+    icon.textContent     = '🏆';
+    title.textContent    = 'LISTO';
+    step.textContent     = 'DATOS ACTUALIZADOS';
     detail.textContent   = '';
     btnIcon.textContent  = '✅';
     btnLbl.textContent   = 'Actualizar';
@@ -5466,9 +5558,10 @@ async function _runCloudUpdate() {
     setTimeout(function(){ modal.style.display = 'none'; location.reload(); }, 1200);
 
   } catch(err) {
+    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background   = 'var(--red)';
-    icon.textContent       = '⚠️';
-    title.textContent      = 'Error de conexión';
+    icon.textContent       = '💀';
+    title.textContent      = 'GAME OVER';
     step.textContent       = String(err.message || err);
     errBox.style.display   = 'none';
     closeBtn.style.display = 'block';
@@ -5506,9 +5599,10 @@ async function runUpdate() {
 
   // Reset
   bar.style.width      = '4%';
+  bar.style.background = '';
   icon.textContent     = '⏳';
-  title.textContent    = 'Actualizando datos';
-  step.textContent     = 'Iniciando…';
+  title.textContent    = 'ACTUALIZANDO';
+  step.textContent     = 'INICIANDO...';
   detail.textContent   = '';
   errBox.style.display = 'none';
   errBox.textContent   = '';
@@ -5516,6 +5610,7 @@ async function runUpdate() {
   modal.style.display  = 'flex';
   btnIcon.textContent  = '⏳';
   btnLbl.textContent   = 'Actualizando…';
+  if (window._retroStartSprite) _retroStartSprite();
   dot.style.background = '#eab308';
   dot.style.boxShadow  = '0 0 8px #eab308';
 
@@ -5531,7 +5626,7 @@ async function runUpdate() {
       }
     }
     // Última línea no vacía como detalle
-    const lines = fullLog.split('\n').map(l => l.trim()).filter(Boolean);
+    const lines = fullLog.split('\n').map(l => l.trim()).filter(l => l && !/^[=\-\*]{3,}$/.test(l));
     if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 60);
   }
 
@@ -5549,10 +5644,11 @@ async function runUpdate() {
     await read();
 
     // Éxito
+    if (window._retroStopSprite) _retroStopSprite();
     bar.style.width   = '100%';
-    icon.textContent  = '✅';
-    title.textContent = 'Listo';
-    step.textContent  = 'Datos actualizados';
+    icon.textContent  = '🏆';
+    title.textContent = 'LISTO';
+    step.textContent  = 'DATOS ACTUALIZADOS';
     detail.textContent = '';
     btnIcon.textContent = '✅';
     btnLbl.textContent  = 'Actualizar';
@@ -5562,10 +5658,11 @@ async function runUpdate() {
     setTimeout(() => { modal.style.display = 'none'; location.reload(); }, 1200);
 
   } catch(err) {
+    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background = 'var(--red)';
-    icon.textContent     = '⚠️';
-    title.textContent    = 'Error de conexión';
-    step.textContent     = 'El servidor no responde';
+    icon.textContent     = '💀';
+    title.textContent    = 'GAME OVER';
+    step.textContent     = 'EL SERVIDOR NO RESPONDE';
     errBox.textContent   = String(err.message || err);
     errBox.style.display = 'block';
     closeBtn.style.display = 'block';
