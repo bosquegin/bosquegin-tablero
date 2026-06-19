@@ -559,7 +559,7 @@
   </div>
   <div class="tab" data-section="destileria" onclick="showSection('destileria', this)">
     <span class="tab-icon">🏭</span>
-    <span style="line-height:1.25">Costo<br><span style="font-size:9px">Dest./Cerv.</span></span>
+    <span style="line-height:1.25">Costo Dest.<br><span style="font-size:9px">y Cervezas</span></span>
   </div>
   <div class="tab" data-section="supply" onclick="showSection('supply', this)">
     <span class="tab-icon">🛒</span> Compras
@@ -4768,6 +4768,7 @@ function initDestileria() {
   const prodSel = document.getElementById('dest-prod-sel');
   const metSel  = document.getElementById('dest-metric-sel');
   if (!prodSel || prodSel.options.length > 0) return;
+  if (!D || !D.products || !D.products.length) return;
 
   D.products.forEach((p, i) => {
     const opt = document.createElement('option');
@@ -4776,125 +4777,149 @@ function initDestileria() {
     prodSel.appendChild(opt);
   });
 
-  const METRIC_LABELS = {
-    'COSTO PRODUCCIÓN Y FINANCIERO': 'Costo Producción',
-    'COSTO DE INSUMOS': 'Costo Insumos',
-    'COSTO NETO': 'Costo Neto',
-    'IVA': 'IVA',
-    'IMP INT': 'Imp. Internos',
-    'COSTO DESTILERIA': 'Costo Destilería',
-    'COSTO SIN IVA': 'Costo sin IVA',
-    'COSTO (FINAL)': 'Costo Final',
-    'PVP': 'PVP',
-    'CMV': 'CMV %'
-  };
-  Object.entries(METRIC_LABELS).forEach(([key, label]) => {
+  [['total','Costo Total'],['dest','Costo Destilería'],['cerv','Costo Cervecería']].forEach(([v,t]) => {
     const opt = document.createElement('option');
-    opt.value = key;
-    opt.textContent = label;
+    opt.value = v; opt.textContent = t;
     metSel.appendChild(opt);
   });
-  metSel.value = 'COSTO (FINAL)';
+  metSel.value = 'total';
 }
 
 function renderDestileria() {
-  initDestileria();
   const D = BOSQUE_DATA.destileria;
-  const prodIdx  = parseInt(document.getElementById('dest-prod-sel').value) || 0;
-  const metric   = document.getElementById('dest-metric-sel').value || 'COSTO (FINAL)';
-  const prod     = D.products[prodIdx];
-  const months   = D.months;
-  const isPct    = metric === 'CMV';
+  if (!D || !D.products || !D.products.length) {
+    document.getElementById('dest-kpis').innerHTML =
+      '<div class="kpi-card" style="grid-column:1/-1;text-align:center;color:var(--muted)">Sin datos — actualizar el tablero para cargar la hoja Resumen Destilería/Cervezas.</div>';
+    return;
+  }
+  initDestileria();
+
+  const prodIdx = parseInt(document.getElementById('dest-prod-sel').value) || 0;
+  const metric  = document.getElementById('dest-metric-sel').value || 'total';
+  const prod    = D.products[prodIdx];
+  const periods = D.periods;
+
+  // Últimos 18 períodos para el gráfico (evitar superpoblación del eje X)
+  const MAX_P = 18;
+  const visPeriods = periods.slice(-MAX_P);
 
   document.getElementById('dest-chart-title').textContent =
-    prod.linea + ' · ' + prod.producto + ' — ' +
-    document.getElementById('dest-metric-sel').selectedOptions[0]?.text;
+    prod.linea + ' · ' + prod.producto;
 
-  const labels = months.map(m => m.label);
-  const values = months.map(m => {
-    const v = prod.data[m.key]?.[metric];
-    return v == null ? null : (isPct ? Math.round(v*10000)/100 : Math.round(v));
-  });
-
-  // KPIs
-  const validVals = values.filter(v => v != null);
-  const lastVal   = validVals[validVals.length-1];
-  const prevVal   = validVals[validVals.length-2];
-  const maxVal    = Math.max(...validVals);
-  const minVal    = Math.min(...validVals);
-  const fmt = v => isPct ? v.toFixed(1)+'%' : '$'+Math.round(v).toLocaleString('es-AR');
+  // KPIs: último y penúltimo período con datos
+  const periodsWithData = periods.filter(p => prod.data[p.key] != null);
+  const lastP  = periodsWithData[periodsWithData.length - 1];
+  const prevP  = periodsWithData[periodsWithData.length - 2];
+  const lastD  = prod.data[lastP?.key] || {};
+  const prevD  = prod.data[prevP?.key] || {};
+  const fmtARS = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '—';
+  const fmtVar = v => v == null ? '' : (v > 0 ? '▲ ' : '▼ ') + Math.abs(v * 100).toFixed(1) + '%';
+  const clsVar = v => v == null ? '' : v > 0.02 ? 'color:#f87171' : v < -0.02 ? 'color:#4ade80' : 'color:var(--muted)';
 
   document.getElementById('dest-kpis').innerHTML = `
-    <div class="kpi-card green"><div class="kpi-icon">📌</div>
-      <div class="kpi-label">Último mes</div>
-      <div class="kpi-value">${lastVal!=null?fmt(lastVal):'—'}</div>
-      <div class="kpi-change">${prevVal!=null&&lastVal!=null ? (lastVal>prevVal?'▲':'▼')+' vs mes anterior' : ''}</div>
+    <div class="kpi-card blue">
+      <div class="kpi-icon">🏭</div>
+      <div class="kpi-label">Costo Destilería</div>
+      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.dest)}</div>
+      <div class="kpi-change" style="${clsVar(lastD.dest_var)}">${fmtVar(lastD.dest_var)}</div>
     </div>
-    <div class="kpi-card blue"><div class="kpi-icon">📈</div>
-      <div class="kpi-label">Máximo histórico</div>
-      <div class="kpi-value">${fmt(maxVal)}</div>
-      <div class="kpi-sub">${months[values.indexOf(isPct?maxVal:maxVal)]?.label||''}</div>
+    <div class="kpi-card yellow">
+      <div class="kpi-icon">🍺</div>
+      <div class="kpi-label">Costo Cervecería</div>
+      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.cerv)}</div>
+      <div class="kpi-change" style="${clsVar(lastD.cerv_var)}">${fmtVar(lastD.cerv_var)}</div>
     </div>
-    <div class="kpi-card yellow"><div class="kpi-icon">📉</div>
-      <div class="kpi-label">Mínimo histórico</div>
-      <div class="kpi-value">${fmt(minVal)}</div>
-      <div class="kpi-sub">${months[values.indexOf(isPct?minVal:minVal)]?.label||''}</div>
+    <div class="kpi-card green">
+      <div class="kpi-icon">💰</div>
+      <div class="kpi-label">Total</div>
+      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.total)}</div>
+      <div class="kpi-change" style="${clsVar(lastD.total_var)}">${fmtVar(lastD.total_var)}</div>
     </div>
-    <div class="kpi-card green"><div class="kpi-icon">🏭</div>
-      <div class="kpi-label">Destilería</div>
-      <div class="kpi-value" style="font-size:1rem">${prod.destileria}</div>
-      <div class="kpi-sub">${prod.linea}</div>
+    <div class="kpi-card">
+      <div class="kpi-icon">📅</div>
+      <div class="kpi-label">Período</div>
+      <div class="kpi-value" style="font-size:1rem">${lastP?.label || '—'}</div>
+      <div class="kpi-sub">${prod.destileria}</div>
     </div>`;
 
-  // Chart
+  // Gráfico: barras agrupadas Dest + Cerv + línea Total
   if (chartDest) chartDest.destroy();
+  const TC = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#94a3b8';
+  const GR = 'rgba(255,255,255,0.06)';
+  const FT = { size: 9 };
   chartDest = new Chart(document.getElementById('chartDestileria'), {
     type: 'bar',
     data: {
-      labels,
-      datasets: [{
-        label: document.getElementById('dest-metric-sel').selectedOptions[0]?.text,
-        data: values,
-        backgroundColor: 'rgba(99,102,241,0.7)',
-        borderColor: 'rgba(99,102,241,1)',
-        borderWidth: 1,
-        borderRadius: 4
-      }]
+      labels: visPeriods.map(p => p.label),
+      datasets: [
+        {
+          label: 'Destilería',
+          data: visPeriods.map(p => prod.data[p.key]?.dest ?? null),
+          backgroundColor: 'rgba(99,102,241,0.75)',
+          borderColor: 'rgba(99,102,241,1)',
+          borderWidth: 1, borderRadius: 3, order: 2
+        },
+        {
+          label: 'Cervecería',
+          data: visPeriods.map(p => prod.data[p.key]?.cerv ?? null),
+          backgroundColor: 'rgba(251,191,36,0.75)',
+          borderColor: 'rgba(251,191,36,1)',
+          borderWidth: 1, borderRadius: 3, order: 2
+        },
+        {
+          label: 'Total',
+          data: visPeriods.map(p => prod.data[p.key]?.total ?? null),
+          type: 'line',
+          borderColor: '#22d3ee',
+          backgroundColor: 'transparent',
+          borderWidth: 2, pointRadius: 3, order: 1
+        }
+      ]
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: {
-        callbacks: { label: ctx => fmt(ctx.raw) }
-      }},
+      responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+      plugins: {
+        legend: { display: true, labels: { color: TC, boxWidth: 12, font: FT } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ctx.raw != null
+              ? ` ${ctx.dataset.label}: $${Math.round(ctx.raw).toLocaleString('es-AR')}` : null
+          }
+        }
+      },
       scales: {
-        x: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim(), maxRotation: 45 } },
-        y: { ticks: { color: getComputedStyle(document.documentElement).getPropertyValue('--muted').trim(),
-          callback: v => isPct ? v+'%' : '$'+Math.round(v/1000)+'k' } }
+        x: { ticks: { color: TC, font: FT, maxRotation: 45 }, grid: { color: GR } },
+        y: { ticks: { color: TC, font: FT,
+          callback: v => '$' + Math.round(v / 1000) + 'k' }, grid: { color: GR } }
       }
     }
   });
 
-  // Table — all metrics for selected product
-  const METRICS_TABLE = ['COSTO PRODUCCIÓN Y FINANCIERO','COSTO DE INSUMOS','COSTO NETO',
-    'IVA','IMP INT','COSTO DESTILERIA','MONTO FLETE','CAJA PRESENTACION (COSTO)',
-    'COSTO SIN IVA','COSTO (FINAL)','PVP','CMV'];
-  const METRIC_NAMES  = ['Costo Producción','Costo Insumos','Costo Neto',
-    'IVA','Imp. Internos','Costo Destilería','Flete','Caja Presentación',
-    'Costo sin IVA','Costo Final','PVP','CMV %'];
-
+  // Tabla: períodos como filas (más reciente primero), columnas = Dest | Var | Cerv | Var | Total | Var
   const thead = document.getElementById('dest-thead');
-  thead.innerHTML = '<th>Métrica</th>' + months.map(m=>`<th style="text-align:right">${m.label}<br><span style="font-size:9px;font-weight:400;color:var(--muted)">ARS</span></th>`).join('');
+  thead.innerHTML = `
+    <th>Período</th>
+    <th style="text-align:right">Dest.</th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
+    <th style="text-align:right">Cerv.</th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
+    <th style="text-align:right;font-weight:700">Total</th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>`;
 
+  const fmtV = v => v != null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
   const tbody = document.getElementById('dest-tbody');
-  tbody.innerHTML = METRICS_TABLE.map((mk, ri) => {
-    const isPctRow = mk === 'CMV';
-    const fmtCell = v => v==null ? '—' : isPctRow ? (v*100).toFixed(1)+'%' : '$'+Math.round(v).toLocaleString('es-AR');
-    const cells = months.map(m => {
-      const v = prod.data[m.key]?.[mk];
-      return `<td style="text-align:right;font-size:9px">${fmtCell(v)}</td>`;
-    }).join('');
-    const bold = mk==='COSTO (FINAL)'||mk==='PVP' ? 'font-weight:700;border-top:1px solid var(--border)' : '';
-    return `<tr style="${bold}"><td style="white-space:nowrap;font-size:9px">${METRIC_NAMES[ri]}</td>${cells}</tr>`;
+  tbody.innerHTML = [...periods].reverse().map(p => {
+    const d = prod.data[p.key];
+    if (!d) return '';
+    return `<tr>
+      <td style="white-space:nowrap;font-size:9px">${p.label}</td>
+      <td style="text-align:right;font-size:9px">${fmtARS(d.dest)}</td>
+      <td style="text-align:right;font-size:9px;${clsVar(d.dest_var)}">${fmtV(d.dest_var)}</td>
+      <td style="text-align:right;font-size:9px">${fmtARS(d.cerv)}</td>
+      <td style="text-align:right;font-size:9px;${clsVar(d.cerv_var)}">${fmtV(d.cerv_var)}</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(d.total)}</td>
+      <td style="text-align:right;font-size:9px;${clsVar(d.total_var)}">${fmtV(d.total_var)}</td>
+    </tr>`;
   }).join('');
 }
 </script>
@@ -5057,6 +5082,11 @@ function renderDestileria() {
 <!-- ═══════════════════════════════════════════════ -->
 <section id="destileria" class="section">
 
+  <div style="margin-bottom:14px">
+    <div class="table-title" style="font-size:15px">🏭 Costo Destilería y Cervezas</div>
+    <div class="chart-subtitle" style="margin-top:2px">Fuente: Hoja "RESUMEN PRODUCTOS X DESTILERIA" · Costo Destilería + Costo Cervecería por producto y período</div>
+  </div>
+
   <div class="filter-bar" style="margin-bottom:16px">
     <span class="filter-label">Producto:</span>
     <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
@@ -5068,7 +5098,7 @@ function renderDestileria() {
 
   <div class="chart-card" style="margin-bottom:16px">
     <div class="chart-title" id="dest-chart-title">Destilería</div>
-    <div class="chart-subtitle">Evolución histórica</div>
+    <div class="chart-subtitle">Últimos 18 períodos · barras = Destilería + Cervecería · línea = Total</div>
     <div class="chart-wrap tall"><canvas id="chartDestileria"></canvas></div>
   </div>
 

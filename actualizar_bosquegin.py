@@ -813,6 +813,8 @@ def fetch_insumos():
 
 COSTOS_SHEET_ID  = "12Ln3lXaWDqpx5hYndJcGH1QDlPaTab3yyEX8j_ahDyY"
 COSTOS_SHEET_GID = "173195948"   # pestaña con costos actualizados (3 filas header)
+DEST_SHEET_GID   = "1954024258"  # pestaña RESUMEN PRODUCTOS X DESTILERIA
+DEST_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_resumen_dest.csv")
 COSTOS_BASE_YEAR = 2024   # mes 1 del sheet = Ene 2024
 COSTOS_FIXED_COLS   = 6   # ESTADO, RUBRO, SUB RUBRO, CODIGO, NOMBRE, LINEA
 COSTOS_COLS_PER_MO  = 9   # columnas por bloque mensual
@@ -1964,6 +1966,110 @@ def generate_proyecciones(inv_data):
     print(f"    Proyecciones: {len(alerta)} productos con < 3 meses de stock KLOZER -> {PROY_FILE}")
 
 
+# ─── 6a. RESUMEN DESTILERÍA / CERVEZAS ────────────────────────────────────────
+def fetch_resumen_destileria():
+    """
+    Descarga la hoja RESUMEN PRODUCTOS X DESTILERIA (gid=1954024258) del mismo
+    spreadsheet de costos via CDP y parsea los datos.
+
+    Estructura de la hoja:
+      Fila 0 : marcadores de año  (col 3 = "2024", col 9 = "2025", ...)
+      Fila 1 : nombre del primer mes de cada año (celdas fusionadas → solo la 1ª visible)
+      Fila 2 : DESTILERIA | LINEA | PRODUCTO (cabeceras base)
+      Filas 3+: datos de productos; última fila = totales (sin nombre de producto)
+      Cada período = 6 cols: [costo_dest, var_dest%, costo_cerv, var_cerv%, total, var_total%]
+      Primer período (col 3-8) = Dic 2024; luego Jan 2025, Feb 2025 … hasta mes actual.
+    """
+    import csv as _csv
+
+    today = date.today()
+
+    # Descargar si no está actualizado hoy
+    if os.path.exists(DEST_CSV) and date.fromtimestamp(os.path.getmtime(DEST_CSV)) >= today:
+        print("  Destilería resumen al día, usando local")
+    else:
+        url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/"
+               f"gviz/tq?tqx=out:csv&gid={DEST_SHEET_GID}")
+        content = _download_costos_via_cdp(url)
+        if content and len(content.splitlines()) >= 4:
+            os.makedirs(os.path.dirname(DEST_CSV), exist_ok=True)
+            with open(DEST_CSV, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(content)
+            print(f"  Destilería resumen descargado ({len(content.splitlines())} filas)")
+        else:
+            print("  Destilería resumen: CDP no disponible, usando local si existe")
+
+    if not os.path.exists(DEST_CSV):
+        print("  Destilería resumen: sin datos")
+        return {"periods": [], "products": [], "error": "Sin datos"}
+
+    with open(DEST_CSV, encoding="utf-8-sig") as f:
+        rows = list(_csv.reader(f))
+
+    if len(rows) < 4:
+        return {"periods": [], "products": [], "error": "CSV incompleto"}
+
+    n_cols = max(len(r) for r in rows)
+    n_periods = (n_cols - 3) // 6
+
+    MONTH_NAMES = ['', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+                   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+    # Reconstruir secuencia de meses: primer período = Dic 2024
+    yr, mo = 2024, 12
+    periods = []
+    for i in range(n_periods):
+        periods.append({"key": f"{yr}_{mo}",
+                        "label": f"{MONTH_NAMES[mo]} '{str(yr)[2:]}",
+                        "yr": yr, "m": mo})
+        mo += 1
+        if mo > 12:
+            mo = 1
+            yr += 1
+
+    def _money(s):
+        if not s or not s.strip(): return None
+        try: return round(float(s.replace("$","").replace(" ","").replace(",","")), 2)
+        except: return None
+
+    def _pct(s):
+        if not s or not s.strip(): return None
+        try: return round(float(s.replace("%","").replace(" ","")) / 100, 6)
+        except: return None
+
+    products = []
+    for row in rows[3:]:
+        if not row: continue
+        dest_name = row[0].strip() if row[0] else ""
+        linea     = row[1].strip() if len(row) > 1 else ""
+        producto  = row[2].strip() if len(row) > 2 else ""
+        if not dest_name or not producto: continue   # fila de totales u otra vacía
+
+        data = {}
+        for i, p in enumerate(periods):
+            c = 3 + i * 6
+            if c + 5 >= len(row): break
+            cd = _money(row[c]);   dv = _pct(row[c+1])
+            cc = _money(row[c+2]); cv = _pct(row[c+3])
+            tt = _money(row[c+4]); tv = _pct(row[c+5])
+            if cd is not None or cc is not None or tt is not None:
+                data[p["key"]] = {"dest": cd, "dest_var": dv,
+                                  "cerv": cc, "cerv_var": cv,
+                                  "total": tt, "total_var": tv}
+        products.append({"destileria": dest_name, "linea": linea,
+                         "producto": producto, "data": data})
+
+    # Quedarse solo con períodos que tengan datos
+    used = set()
+    for p in products:
+        used.update(p["data"].keys())
+    periods = [p for p in periods if p["key"] in used]
+
+    last_lbl = periods[-1]["label"] if periods else "—"
+    print(f"  Destilería resumen: {len(products)} productos, {len(periods)} períodos (hasta {last_lbl})")
+    return {"periods": periods, "products": products, "error": None}
+
+
 # ─── 6b. ACTUALIZAR STOCK_CIERRE_MES EN DASHBOARD HTML ────────────────────────
 def update_stock_cierre_mes():
     """
@@ -2114,17 +2220,22 @@ def main():
         print(f"  Advertencia GC downloader: {e}")
         print("  Continuando con los archivos existentes...")
 
-    # Destileria existente
+    # Destilería desde hoja RESUMEN PRODUCTOS X DESTILERIA (Google Sheets)
+    print("\n[0b/5] Descargando resumen destilería/cervezas...")
     destileria = {}
-    if os.path.exists(OUT_JS):
-        try:
-            raw     = open(OUT_JS, encoding="utf-8").read()
-            js_body = raw.strip()[len("var BOSQUE_DATA="):-1]
-            old     = json.loads(js_body)
-            destileria = old.get("destileria", {})
-            print("  Destileria conservada: %d meses" % len(destileria.get("months", [])))
-        except Exception as e:
-            print("  Advertencia destileria: %s" % e)
+    try:
+        destileria = fetch_resumen_destileria()
+    except Exception as e:
+        print("  Advertencia destilería resumen: %s" % e)
+        # Fallback: conservar datos anteriores si existen
+        if os.path.exists(OUT_JS):
+            try:
+                raw     = open(OUT_JS, encoding="utf-8").read()
+                js_body = raw.strip()[len("var BOSQUE_DATA="):-1]
+                old     = json.loads(js_body)
+                destileria = old.get("destileria", {})
+            except Exception:
+                pass
 
     print("\n[1/5] Actualizando consolidado de inventario...")
     try:
