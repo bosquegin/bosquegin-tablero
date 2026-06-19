@@ -1964,6 +1964,122 @@ def generate_proyecciones(inv_data):
     print(f"    Proyecciones: {len(alerta)} productos con < 3 meses de stock KLOZER -> {PROY_FILE}")
 
 
+# ─── 6b. ACTUALIZAR STOCK_CIERRE_MES EN DASHBOARD HTML ────────────────────────
+def update_stock_cierre_mes():
+    """
+    Lee Stock_consolidado_por_deposito_y_dia.xlsx (KLOZER+OFI), encuentra el
+    último día disponible por mes, suma stock por código y reemplaza el bloque
+    STOCK_CIERRE_MES en bosquegin_dashboard.html.
+    """
+    import re as _re
+    try:
+        import openpyxl
+    except ImportError:
+        import subprocess, sys
+        subprocess.run([sys.executable, "-m", "pip", "install", "openpyxl",
+                        "--break-system-packages", "-q"])
+        import openpyxl
+
+    DASHBOARD = os.path.join(BASE, "bosquegin_dashboard.html")
+    if not os.path.exists(DASHBOARD):
+        print("  Dashboard HTML no encontrado — omitiendo (modo cloud?)")
+        return
+    DEPS_OK   = {"KLOZER", "OFI", "OFICINA"}
+
+    wb = openpyxl.load_workbook(CONS_FILE, read_only=True, data_only=True)
+    ws = wb.active
+
+    raw_rows = []
+    for row in ws.iter_rows(values_only=True):
+        if not row or row[0] == "fecha": continue
+        dep = str(row[1]).strip().upper() if row[1] else ""
+        if dep not in DEPS_OK: continue
+        fecha_raw = row[0]
+        cod_raw   = row[3]
+        qty_raw   = row[5]
+        if cod_raw is None or qty_raw is None: continue
+        try:
+            cod = str(int(float(str(cod_raw))))
+            if not (5 <= len(cod) <= 6): continue
+        except Exception:
+            continue
+        try:
+            qty = float(str(qty_raw).replace(",", "."))
+        except Exception:
+            continue
+        if qty <= 0: continue
+        fecha = str(fecha_raw)[:10] if fecha_raw else ""
+        if not fecha: continue
+        raw_rows.append((fecha, cod, int(qty)))
+
+    wb.close()
+
+    if not raw_rows:
+        print("  update_stock_cierre_mes: sin filas KLOZER+OFI válidas")
+        return
+
+    # Último día disponible por mes
+    last_day = {}
+    for fecha, cod, qty in raw_rows:
+        parts = fecha.split("-")
+        key = "%s_%s" % (int(parts[0]), int(parts[1]))
+        if key not in last_day or fecha > last_day[key]:
+            last_day[key] = fecha
+
+    # Sumar stock por código en el último día de cada mes
+    stock = {}
+    for fecha, cod, qty in raw_rows:
+        parts = fecha.split("-")
+        key = "%s_%s" % (int(parts[0]), int(parts[1]))
+        if fecha != last_day[key]: continue
+        stock.setdefault(key, {})
+        stock[key][cod] = stock[key].get(cod, 0) + qty
+
+    month_keys = sorted(stock.keys(), key=lambda k: (int(k.split("_")[0]), int(k.split("_")[1])))
+
+    # Generar bloque JS
+    js_lines = []
+    for i, key in enumerate(month_keys):
+        day  = last_day[key]
+        data = stock[key]
+        js_lines.append("  // %s: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — %s" % (key, day))
+        sorted_cods = sorted(data.keys())
+        entries = ['"%s": %d' % (c, data[c]) for c in sorted_cods]
+        chunk = 4
+        entry_lines = []
+        for j in range(0, len(entries), chunk):
+            sl = entries[j:j+chunk]
+            comma = "," if j + chunk < len(entries) else ""
+            entry_lines.append("    %s%s" % (", ".join(sl), comma))
+        comma_after = "," if i < len(month_keys) - 1 else ""
+        js_lines.append('  "%s": {\n%s\n  }%s' % (key, "\n".join(entry_lines), comma_after))
+
+    new_block = "\n".join(js_lines)
+
+    # Reemplazar en el dashboard HTML
+    html = open(DASHBOARD, encoding="utf-8").read()
+    year     = month_keys[0].split("_")[0]
+    last_key = month_keys[-1]
+
+    # Patrón: desde el comentario/clave del primer bloque del año hasta cierre del último
+    pattern = r'(?s)(  // %s_[^\n]*\n  "%s_[^"]*": \{.*?"%s": \{.*?\}(?:,)?)' % (year, year, last_key)
+    m = _re.search(pattern, html)
+    if not m:
+        # Fallback sin comentario
+        pattern = r'(?s)("%s_[^"]*": \{.*?"%s": \{.*?\}(?:,)?)' % (year, last_key)
+        m = _re.search(pattern, html)
+
+    if m:
+        html = html[:m.start()] + new_block + html[m.end():]
+        with open(DASHBOARD, "w", encoding="utf-8") as f:
+            f.write(html)
+        print("  STOCK_CIERRE_MES actualizado: %s" % ", ".join(month_keys))
+        print("  Último snapshot: %s -> %s" % (last_key, last_day[last_key]))
+    else:
+        print("  ADVERTENCIA: No se encontró el bloque STOCK_CIERRE_MES en el dashboard.")
+        print("  Ejecutar actualizar_stock.ps1 manualmente si es necesario.")
+
+
 # ─── 7. MAIN ──────────────────────────────────────────────────────────────────
 def main():
     print("=" * 60)
@@ -2015,6 +2131,12 @@ def main():
         update_consolidado()
     except Exception as e:
         print("  Advertencia consolidado: %s" % e)
+
+    print("\n[1b/5] Actualizando STOCK_CIERRE_MES en dashboard...")
+    try:
+        update_stock_cierre_mes()
+    except Exception as e:
+        print("  Advertencia stock cierre mes: %s" % e)
 
     print("\n[2/5] Cargando productos (rubro/subrubro)...")
     try:
@@ -2117,7 +2239,7 @@ def main():
     try:
         import subprocess
         git_cmds = [
-            ["git", "add", "bosquegin_data.js", "auth_static.js"],
+            ["git", "add", "bosquegin_data.js", "auth_static.js", "bosquegin_dashboard.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
             ["git", "pull", "--rebase", "origin", "main"],
             ["git", "push", "origin", "main"],
