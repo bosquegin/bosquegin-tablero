@@ -4777,7 +4777,7 @@ function initDestileria() {
     prodSel.appendChild(opt);
   });
 
-  [['total','Costo Total'],['dest','Costo Destilería'],['cerv','Costo Cervecería']].forEach(([v,t]) => {
+  [['total','Costo Neto'],['dest','Costo Prod. y Fin.'],['cerv','Costo Insumos']].forEach(([v,t]) => {
     const opt = document.createElement('option');
     opt.value = v; opt.textContent = t;
     metSel.appendChild(opt);
@@ -4819,27 +4819,27 @@ function renderDestileria() {
   document.getElementById('dest-kpis').innerHTML = `
     <div class="kpi-card blue">
       <div class="kpi-icon">🏭</div>
-      <div class="kpi-label">Costo Destilería</div>
+      <div class="kpi-label">Costo Prod. y Fin.</div>
       <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.dest)}</div>
       <div class="kpi-change" style="${clsVar(lastD.dest_var)}">${fmtVar(lastD.dest_var)}</div>
     </div>
     <div class="kpi-card yellow">
-      <div class="kpi-icon">🍺</div>
-      <div class="kpi-label">Costo Cervecería</div>
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-label">Costo Insumos</div>
       <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.cerv)}</div>
       <div class="kpi-change" style="${clsVar(lastD.cerv_var)}">${fmtVar(lastD.cerv_var)}</div>
     </div>
     <div class="kpi-card green">
       <div class="kpi-icon">💰</div>
-      <div class="kpi-label">Total</div>
+      <div class="kpi-label">Costo Neto</div>
       <div class="kpi-value" style="font-size:1.05rem">${fmtARS(lastD.total)}</div>
       <div class="kpi-change" style="${clsVar(lastD.total_var)}">${fmtVar(lastD.total_var)}</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon">📅</div>
-      <div class="kpi-label">Período</div>
-      <div class="kpi-value" style="font-size:1rem">${lastP?.label || '—'}</div>
-      <div class="kpi-sub">${prod.destileria}</div>
+      <div class="kpi-label">Período · Anualizado</div>
+      <div class="kpi-value" style="font-size:0.95rem">${lastP?.label || '—'}</div>
+      <div class="kpi-sub" style="color:#22d3ee;font-weight:600">${lastD.total != null ? '$' + Math.round(lastD.total * 12).toLocaleString('es-AR') + '/año' : '—'}</div>
     </div>`;
 
   // Gráfico: barras agrupadas Dest + Cerv + línea Total
@@ -4853,21 +4853,21 @@ function renderDestileria() {
       labels: visPeriods.map(p => p.label),
       datasets: [
         {
-          label: 'Destilería',
+          label: 'Prod. y Fin.',
           data: visPeriods.map(p => prod.data[p.key]?.dest ?? null),
           backgroundColor: 'rgba(99,102,241,0.75)',
           borderColor: 'rgba(99,102,241,1)',
           borderWidth: 1, borderRadius: 3, order: 2
         },
         {
-          label: 'Cervecería',
+          label: 'Insumos',
           data: visPeriods.map(p => prod.data[p.key]?.cerv ?? null),
           backgroundColor: 'rgba(251,191,36,0.75)',
           borderColor: 'rgba(251,191,36,1)',
           borderWidth: 1, borderRadius: 3, order: 2
         },
         {
-          label: 'Total',
+          label: 'Costo Neto',
           data: visPeriods.map(p => prod.data[p.key]?.total ?? null),
           type: 'line',
           borderColor: '#22d3ee',
@@ -4895,30 +4895,34 @@ function renderDestileria() {
     }
   });
 
-  // Tabla: períodos como filas (más reciente primero), columnas = Dest | Var | Cerv | Var | Total | Var
+  // Cuadro Evolutivo: períodos como filas (más reciente primero)
+  const fmtV = v => v != null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
+
   const thead = document.getElementById('dest-thead');
   thead.innerHTML = `
     <th>Período</th>
-    <th style="text-align:right">Dest.</th>
+    <th style="text-align:right">Costo Prod.<br><span style="font-size:8px;font-weight:400">y Financiero</span></th>
     <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
-    <th style="text-align:right">Cerv.</th>
+    <th style="text-align:right">Costo<br><span style="font-size:8px;font-weight:400">Insumos</span></th>
     <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
-    <th style="text-align:right;font-weight:700">Total</th>
-    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>`;
+    <th style="text-align:right;font-weight:700">Costo<br><span style="font-size:8px">Neto</span></th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
+    <th style="text-align:right;color:#22d3ee">Anualizado<br><span style="font-size:8px;font-weight:400">× 12</span></th>`;
 
-  const fmtV = v => v != null ? (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%' : '—';
   const tbody = document.getElementById('dest-tbody');
   tbody.innerHTML = [...periods].reverse().map(p => {
     const d = prod.data[p.key];
     if (!d) return '';
+    const anual = d.total != null ? '$' + Math.round(d.total * 12).toLocaleString('es-AR') : '—';
     return `<tr>
-      <td style="white-space:nowrap;font-size:9px">${p.label}</td>
+      <td style="white-space:nowrap;font-size:9px;font-weight:600">${p.label}</td>
       <td style="text-align:right;font-size:9px">${fmtARS(d.dest)}</td>
       <td style="text-align:right;font-size:9px;${clsVar(d.dest_var)}">${fmtV(d.dest_var)}</td>
       <td style="text-align:right;font-size:9px">${fmtARS(d.cerv)}</td>
       <td style="text-align:right;font-size:9px;${clsVar(d.cerv_var)}">${fmtV(d.cerv_var)}</td>
       <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(d.total)}</td>
       <td style="text-align:right;font-size:9px;${clsVar(d.total_var)}">${fmtV(d.total_var)}</td>
+      <td style="text-align:right;font-size:9px;color:#22d3ee;font-weight:600">${anual}</td>
     </tr>`;
   }).join('');
 }
@@ -5103,7 +5107,8 @@ function renderDestileria() {
   </div>
 
   <div class="table-card">
-    <div class="table-title">📋 Detalle por métrica · período completo</div>
+    <div class="table-title">📊 Cuadro evolutivo de costos · Destilería</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo Prod. y Fin. + Costo Insumos = Costo Neto · variación mes a mes · anualizado = Costo Neto × 12</div>
     <div style="overflow-x:auto">
     <table>
       <thead id="dest-thead"></thead>
