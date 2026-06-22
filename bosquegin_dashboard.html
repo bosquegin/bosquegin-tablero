@@ -5010,7 +5010,7 @@ function renderCervezas() {
     data: {
       labels: periods.map(p => p.label),
       datasets: [{
-        label: 'Costo Neto $/L',
+        label: 'Costo Neto Lata',
         data:  periods.map(p => p.costo ?? null),
         backgroundColor: barColors, borderColor: borderColors,
         borderWidth: 1, borderRadius: 4
@@ -5033,7 +5033,7 @@ function renderCervezas() {
   // Tabla evolutiva (más reciente primero)
   document.getElementById('cerv-thead').innerHTML = `
     <th>PERÍODO</th>
-    <th style="text-align:right">COSTO NETO<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+    <th style="text-align:right">COSTO NETO<br><span style="font-size:8px;font-weight:400">LATA</span></th>
     <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>`;
 
   document.getElementById('cerv-tbody').innerHTML = [...periods].reverse().map(p => `<tr>
