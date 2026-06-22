@@ -2077,8 +2077,7 @@ def fetch_resumen_destileria():
 def fetch_cervezas():
     """
     Descarga y parsea la hoja de costos de cervezas (gid=2130605343).
-    Dos secciones: BARRIL y LATA.
-    Columnas: Producto | Fason | Litros | %Mix | CostoFab | PVP | Margen
+    Detecta dinámicamente todos los períodos de costo disponibles.
     Número AR: punto = miles, coma = decimal. Ej: "$1.772,50" -> 1772.50
     """
     import csv as _csv
@@ -2124,6 +2123,87 @@ def fetch_cervezas():
         try: return int(float(s))
         except: return None
 
+    # Descripción oficial de cada lata (para mostrar en el tablero)
+    _LATA_ARTS = {
+        110027: "CERVEZA TEMPLE WOLF IPA 0% ALCOHOL 473 ML",
+        110038: "CERVEZA TEMPLE COSMICA 473 ML",
+        110005: "CERVEZA TEMPLE BLACK SOUL STOUT 473 ML",
+        110008: "CERVEZA TEMPLE FLOW APA 473 ML",
+        110025: "CERVEZA TEMPLE SCOTISH 473 ML",
+        110040: "CERVEZA TEMPLE GOLDEN LAGER MUNDIAL 473 ML",
+        110012: "CERVEZA TEMPLE INDIE GOLDEN 473 ML",
+        110030: "CERVEZA TEMPLE WOLF IPA 473 ML",
+    }
+    _LATA_CODES = {
+        "wolf ipa 0%": 110027, "cosmica": 110038, "black soul stout": 110005,
+        "flow apa": 110008, "scottish": 110025, "golden lager mundial": 110040,
+        "indie golden": 110012, "wolf ipa": 110030,
+    }
+
+    def _detect_cost_cols(product_rows):
+        """Detecta todas las columnas de costo: a partir de col 4, con gap >= 5."""
+        if not product_rows: return [4]
+        max_col = max(len(r) for r in product_rows)
+        last = -10
+        cols = []
+        for c in range(4, min(max_col, 80)):
+            # ≥50% de filas deben tener un valor monetario en esta columna
+            n = sum(1 for r in product_rows if c < len(r) and _money(r[c]) is not None)
+            if n >= max(1, len(product_rows) * 0.5) and c - last >= 5:
+                cols.append(c)
+                last = c
+        return cols if cols else [4]
+
+    hdr = rows[0] if rows else []
+
+    def _period_label(cost_col, idx):
+        """Intenta leer etiqueta de fila 0; si no, usa ordinal."""
+        if cost_col < len(hdr):
+            t = hdr[cost_col].strip()
+            if t and not t.endswith('%') and not t.startswith('$') and t not in ('0%','0,0%'):
+                return t.upper()
+        return f"PERÍODO {idx + 1}"
+
+    # ── Primer paso: recolectar filas por sección ──────────────────────────────
+    barril_rows_raw, lata_rows_raw = [], []
+    mode = None
+    for row in rows:
+        c0 = row[0].strip() if row else ""
+        c1 = row[1].strip() if len(row) > 1 else ""
+        if "BARRIL" in c0.upper() and "RESUMEN" in c0.upper():
+            mode = "barril"; continue
+        if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
+            if c1 and c1 != "Fason":
+                if lata_rows_raw: break
+            mode = "lata"; continue
+        if mode and c0:
+            (barril_rows_raw if mode == "barril" else lata_rows_raw).append(row)
+
+    barril_cost_cols = _detect_cost_cols(barril_rows_raw[:6])
+    lata_cost_cols   = _detect_cost_cols(lata_rows_raw[:6])
+    print(f"  Cervezas: cols costo barril={barril_cost_cols}  lata={lata_cost_cols}")
+
+    def _parse_periods(row, cost_cols):
+        periods = []
+        for i, cc in enumerate(cost_cols):
+            costo = _money(row[cc]) if cc < len(row) else None
+            if costo is None: continue
+            # Buscar var% en col+1
+            costo_var = None
+            vc = cc + 1
+            if vc < len(row):
+                v = _pct(row[vc])
+                if v is not None and abs(v) < 1.0:  # sanity < 100%
+                    costo_var = v
+            # Si no se encontró, calcular vs período anterior
+            if costo_var is None and periods:
+                prev = periods[-1]["costo"]
+                if prev and prev != 0:
+                    costo_var = round((costo - prev) / prev, 4)
+            periods.append({"label": _period_label(cc, i), "costo": costo, "costo_var": costo_var})
+        return periods
+
+    # ── Segundo paso: parsear items ────────────────────────────────────────────
     barril, lata = [], []
     total_barril = total_lata = None
     mode = None
@@ -2133,22 +2213,20 @@ def fetch_cervezas():
         c0 = row[0].strip() if row[0] else ""
         c1 = row[1].strip() if len(row) > 1 else ""
 
-        # Detectar sección
         if "BARRIL" in c0.upper() and "RESUMEN" in c0.upper():
             mode = "barril"; continue
         if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
-            if c1 and c1 != "Fason":  # segunda tabla LATA = solo referencias, ignorar
-                if lata:              # ya tenemos datos de lata, parar
-                    break
+            if c1 and c1 != "Fason":
+                if lata: break
             mode = "lata"; continue
-
         if mode is None: continue
 
+        cost_cols  = barril_cost_cols if mode == "barril" else lata_cost_cols
+        first_cc   = cost_cols[0] if cost_cols else 4
         litros_raw = row[2].strip() if len(row) > 2 else ""
-        costo_raw  = row[4].strip() if len(row) > 4 else ""
+        costo_raw  = row[first_cc].strip() if first_cc < len(row) else ""
 
         if not c0:
-            # Fila de totales (col 0 vacía, col 2 = litros totales)
             litros = _num(litros_raw)
             if litros and litros > 500:
                 tot = {
@@ -2161,53 +2239,42 @@ def fetch_cervezas():
                 else:                total_lata   = tot
             continue
 
-        # Fila de producto
         litros = _num(litros_raw)
         costo  = _money(costo_raw)
-        if not c0 or litros is None or costo is None:
-            continue
+        if not c0 or litros is None or costo is None: continue
 
-        # Mapa nombre normalizado → código de inventario (solo latas)
-        _LATA_CODES = {
-            "wolf ipa 0%":         110027,
-            "cosmica":             110038,
-            "black soul stout":    110005,
-            "flow apa":            110008,
-            "scottish":            110025,
-            "golden lager mundial": 110040,
-            "indie golden":        110012,
-            "wolf ipa":            110030,
-        }
         cod = None
+        art = None
         if mode == "lata":
             norm = c0.lower().strip()
-            # Orden: claves más largas primero para evitar que "wolf ipa" tape "wolf ipa 0%"
             for key in sorted(_LATA_CODES, key=len, reverse=True):
                 if key in norm:
                     cod = _LATA_CODES[key]
+                    art = _LATA_ARTS.get(cod)
                     break
 
-        # col 4 = costo anterior, col 10 = costo actual, col 11 = var%
-        costo_act = _money(row[10]) if len(row) > 10 else None
-        costo_var = _pct(row[11])   if len(row) > 11 else None
+        periods = _parse_periods(row, cost_cols)
 
         item = {
             "producto":  c0,
             "fason":     c1,
             "litros":    litros,
             "pct_mix":   _pct(row[3])   if len(row) > 3 else None,
-            "costo_ant": costo,
-            "costo_fab": costo_act if costo_act is not None else costo,
-            "costo_var": costo_var,
+            "costo_ant": periods[0]["costo"]     if len(periods) >= 2 else None,
+            "costo_fab": periods[-1]["costo"]    if periods else costo,
+            "costo_var": periods[-1]["costo_var"] if periods else None,
             "pvp":       _money(row[5]) if len(row) > 5 else None,
             "margen":    _pct(row[6])   if len(row) > 6 else None,
+            "periods":   periods,
         }
-        if cod is not None:
-            item["cod"] = cod
+        if cod is not None: item["cod"] = cod
+        if art is not None: item["art"] = art
+
         if mode == "barril": barril.append(item)
         else:                lata.append(item)
 
-    print(f"  Cervezas: {len(barril)} barriles, {len(lata)} latas")
+    n_per = len(lata[0]["periods"]) if lata else 0
+    print(f"  Cervezas: {len(barril)} barriles, {len(lata)} latas, {n_per} períodos por producto")
     return {"barril": barril, "lata": lata,
             "total_barril": total_barril, "total_lata": total_lata,
             "error": None}

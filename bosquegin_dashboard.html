@@ -4937,15 +4937,10 @@ function initCerveza() {
   const sel = document.getElementById('cerv-prod-sel');
   if (!sel || sel.options.length > 0) return;
   if (!C || !C.lata?.length) return;
-
-  const invByCod = {};
-  (INV_DATA || []).forEach(x => { invByCod[x.cod] = x; });
-
   C.lata.forEach((r, i) => {
-    const inv = r.cod != null ? invByCod[r.cod] : null;
     const opt = document.createElement('option');
     opt.value = i;
-    opt.textContent = inv?.art || r.producto;
+    opt.textContent = r.art || r.producto;
     sel.appendChild(opt);
   });
 }
@@ -4959,42 +4954,41 @@ function renderCervezas() {
   }
   initCerveza();
 
-  const invByCod = {};
-  (INV_DATA || []).forEach(x => { invByCod[x.cod] = x; });
-
   const idx  = parseInt(document.getElementById('cerv-prod-sel')?.value) || 0;
   const r    = C.lata[idx];
-  const inv  = r.cod != null ? invByCod[r.cod] : null;
-  const nombre = inv?.art || r.producto;
+  const nombre = r.art || r.producto;
   const elab   = (r.fason || '').toUpperCase();
+  const periods = r.periods || [];
 
-  const fmtARS = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '—';
-  const fmtV   = v => v == null ? '' : (v > 0 ? '▲ ' : '▼ ') + Math.abs(v * 100).toFixed(1) + '%';
-  const clsVar = v => v == null ? '' : v > 0.02 ? 'color:#f87171' : v < -0.02 ? 'color:#4ade80' : 'color:var(--muted)';
+  const fmtARS  = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '—';
+  const fmtV    = v => v == null ? '' : (v > 0 ? '▲ ' : '▼ ') + Math.abs(v * 100).toFixed(1) + '%';
   const fmtVtab = v => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const clsVar  = v => v == null ? '' : v > 0.02 ? 'color:#f87171' : v < -0.02 ? 'color:#4ade80' : 'color:var(--muted)';
 
   document.getElementById('cerv-chart-title').textContent = nombre;
 
-  // KPIs: misma estructura que destilería
-  const costoLataAct = r.costo_fab != null ? r.costo_fab * 0.473 : null;
-  const costoLataAnt = r.costo_ant != null ? r.costo_ant * 0.473 : null;
+  const first  = periods[0]  || {};
+  const last   = periods[periods.length - 1] || {};
+
+  // KPIs
   document.getElementById('cerv-kpis').innerHTML = `
     <div class="kpi-card blue">
       <div class="kpi-icon">🏭</div>
-      <div class="kpi-label">Costo Fab. Mes Ant.</div>
-      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(r.costo_ant)}<span style="font-size:10px;color:var(--muted)"> /L</span></div>
+      <div class="kpi-label">Costo ${first.label || 'Primer Período'}</div>
+      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(first.costo)}<span style="font-size:10px;color:var(--muted)"> /L</span></div>
     </div>
     <div class="kpi-card green">
       <div class="kpi-icon">💰</div>
-      <div class="kpi-label">Costo Fab. Mes Act.</div>
-      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(r.costo_fab)}<span style="font-size:10px;color:var(--muted)"> /L</span></div>
-      <div class="kpi-change" style="${clsVar(r.costo_var)}">${fmtV(r.costo_var)}</div>
+      <div class="kpi-label">Costo ${last.label || 'Último Período'}</div>
+      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(last.costo)}<span style="font-size:10px;color:var(--muted)"> /L</span></div>
+      <div class="kpi-change" style="${clsVar(last.costo_var)}">${fmtV(last.costo_var)}</div>
     </div>
     <div class="kpi-card yellow">
-      <div class="kpi-icon">🍺</div>
-      <div class="kpi-label">Costo por Lata (473ml)</div>
-      <div class="kpi-value" style="font-size:1.05rem">${fmtARS(costoLataAct)}</div>
-      <div class="kpi-sub" style="color:var(--muted);font-size:9px">anterior: ${fmtARS(costoLataAnt)}</div>
+      <div class="kpi-icon">📊</div>
+      <div class="kpi-label">Var. total (${first.label || '—'} → ${last.label || '—'})</div>
+      <div class="kpi-value" style="font-size:1.05rem;${first.costo && last.costo ? clsVar((last.costo - first.costo) / first.costo) : ''}">
+        ${first.costo && last.costo ? fmtVtab((last.costo - first.costo) / first.costo) : '—'}
+      </div>
     </div>
     <div class="kpi-card">
       <div class="kpi-icon">🏢</div>
@@ -5002,20 +4996,23 @@ function renderCervezas() {
       <div class="kpi-value" style="font-size:0.85rem;word-break:break-word">${elab}</div>
     </div>`;
 
-  // Gráfico: barra mes anterior + barra mes actual
+  // Gráfico: una barra por período
   const TC = getComputedStyle(document.documentElement).getPropertyValue('--muted').trim() || '#94a3b8';
   const GR = 'rgba(255,255,255,0.06)';
   const FT = { size: 10 };
+  const barColors = periods.map((_, i) =>
+    i === periods.length - 1 ? 'rgba(34,211,238,0.75)' : 'rgba(99,102,241,0.65)');
+  const borderColors = periods.map((_, i) =>
+    i === periods.length - 1 ? 'rgba(34,211,238,1)' : 'rgba(99,102,241,1)');
   if (chartCerv) chartCerv.destroy();
   chartCerv = new Chart(document.getElementById('chartCerveza'), {
     type: 'bar',
     data: {
-      labels: ['MES ANT', 'MES ACT'],
+      labels: periods.map(p => p.label),
       datasets: [{
         label: 'Costo Fab. $/L',
-        data: [r.costo_ant ?? null, r.costo_fab ?? null],
-        backgroundColor: ['rgba(99,102,241,0.65)', 'rgba(34,211,238,0.75)'],
-        borderColor:     ['rgba(99,102,241,1)',    'rgba(34,211,238,1)'],
+        data:  periods.map(p => p.costo ?? null),
+        backgroundColor: barColors, borderColor: borderColors,
         borderWidth: 1, borderRadius: 4
       }]
     },
@@ -5026,34 +5023,24 @@ function renderCervezas() {
         tooltip: { callbacks: { label: ctx => ` $${Math.round(ctx.raw).toLocaleString('es-AR')} /L` } }
       },
       scales: {
-        x: { ticks: { color: TC, font: FT }, grid: { color: GR } },
-        y: { ticks: { color: TC, font: FT, callback: v => '$' + Math.round(v / 1000) + 'k' }, grid: { color: GR } }
+        x: { ticks: { color: TC, font: FT, maxRotation: 45 }, grid: { color: GR } },
+        y: { ticks: { color: TC, font: FT, callback: v => '$' + Math.round(v / 1000) + 'k' }, grid: { color: GR },
+             suggestedMin: Math.min(...periods.map(p => p.costo || Infinity)) * 0.95 }
       }
     }
   });
 
-  // Tabla evolutiva: misma estructura que destilería
+  // Tabla evolutiva (más reciente primero)
   document.getElementById('cerv-thead').innerHTML = `
     <th>PERÍODO</th>
     <th style="text-align:right">COSTO FAB.<br><span style="font-size:8px;font-weight:400">$/L</span></th>
-    <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>
-    <th style="text-align:right">COSTO<br><span style="font-size:8px;font-weight:400">POR LATA</span></th>
     <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>`;
 
-  const periods = [
-    { label: 'MES ANT', costo: r.costo_ant, costo_var: null },
-    { label: 'MES ACT', costo: r.costo_fab, costo_var: r.costo_var }
-  ];
-  document.getElementById('cerv-tbody').innerHTML = [...periods].reverse().map(p => {
-    const lata = p.costo != null ? p.costo * 0.473 : null;
-    return `<tr>
-      <td style="white-space:nowrap;font-size:9px;font-weight:600">${p.label}</td>
-      <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(p.costo)}</td>
-      <td style="text-align:right;font-size:9px;${clsVar(p.costo_var)}">${fmtVtab(p.costo_var)}</td>
-      <td style="text-align:right;font-size:9px">${fmtARS(lata)}</td>
-      <td style="text-align:right;font-size:9px;${clsVar(p.costo_var)}">${fmtVtab(p.costo_var)}</td>
-    </tr>`;
-  }).join('');
+  document.getElementById('cerv-tbody').innerHTML = [...periods].reverse().map(p => `<tr>
+    <td style="white-space:nowrap;font-size:9px;font-weight:600">${p.label}</td>
+    <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(p.costo)}</td>
+    <td style="text-align:right;font-size:9px;${clsVar(p.costo_var)}">${fmtVtab(p.costo_var)}</td>
+  </tr>`).join('');
 }
 </script>
 
