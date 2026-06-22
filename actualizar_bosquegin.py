@@ -2110,20 +2110,90 @@ def fetch_cervezas():
         try: return round(float(s), 2)
         except: return None
 
-    def _get_sheet_rows(sheet_name):
-        """Descarga (o usa caché) la hoja 'MM/YY' y retorna filas CSV."""
-        safe  = sheet_name.replace("/", "")   # "0626"
+    def _is_csv(text):
+        """True si el texto parece CSV real (no HTML ni JSON de error)."""
+        if not text: return False
+        s = text.lstrip()[:80]
+        return not (s.startswith('<') or s.startswith('{') or s.startswith('/*'))
+
+    def _get_all_gids():
+        """
+        Pide la API gviz JSON del spreadsheet y extrae title->gid de todas las hojas.
+        El campo 'p.allSheets' contiene la lista completa cuando hay sesión autenticada.
+        """
+        import json as _json, re as _re
+        url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+               f"gviz/tq?tqx=out:json&headers=0")
+        raw = _download_costos_via_cdp(url)
+        if not raw: return {}
+        m = _re.search(r'setResponse\((.+)\)\s*;?\s*$', raw, _re.DOTALL)
+        if not m: return {}
+        try:
+            data = _json.loads(m.group(1))
+        except Exception:
+            return {}
+        gid_map = {}
+        for s in data.get("p", {}).get("allSheets", []):
+            sid   = s.get("sheetId")
+            title = s.get("title", "")
+            if sid and _re.match(r'^\d{2}/\d{2}$', title):
+                gid_map[title] = str(sid)
+        # Fallback: parse HTML if allSheets not available
+        if not gid_map:
+            raw2 = _download_costos_via_cdp(
+                f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/edit")
+            if raw2:
+                for m2 in _re.finditer(r'"(\d{2}(?:/|\\u002F|\\/)(\d{2}))"', raw2):
+                    name = m2.group(0).strip('"').replace('\\u002F','/').replace('\\/', '/')
+                    ctx_s = max(0, m2.start() - 400)
+                    ctx_e = min(len(raw2), m2.end() + 400)
+                    gids  = _re.findall(r'\b(\d{7,10})\b', raw2[ctx_s:ctx_e])
+                    for g in gids:
+                        if not g.startswith('202') and not g.startswith('201') and len(g) >= 7:
+                            gid_map.setdefault(name, g)
+                            break
+        print(f"    GIDs encontrados: {gid_map}")
+        return gid_map
+
+    # Descubrir GIDs de hojas mensuales
+    _gid_map = _get_all_gids()
+
+    def _get_sheet_rows(sheet_name, gid=None):
+        """Descarga (o usa caché) una hoja mensual y retorna filas CSV.
+        Preferencia: GID (más confiable) > sheet=NAME (solo planillas públicas)."""
+        safe  = sheet_name.replace("/", "")
         cache = os.path.join(CERV_DIR, f"cerv_{safe}.csv")
         try:
-            m, y = int(sheet_name[:2]), 2000 + int(sheet_name[3:])
-            is_cur = (m == today.month and y == today.year)
+            m2, y2 = int(sheet_name[:2]), 2000 + int(sheet_name[3:])
+            is_cur = (m2 == today.month and y2 == today.year)
         except:
             is_cur = False
         stale = not os.path.exists(cache) or (is_cur and date.fromtimestamp(os.path.getmtime(cache)) < today)
+        # Invalidar cache con HTML guardado por error
+        if not stale and os.path.exists(cache):
+            with open(cache, encoding="utf-8-sig") as _f:
+                if not _is_csv(_f.read(200)):
+                    stale = True
         if stale:
-            url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
-                   f"gviz/tq?tqx=out:csv&sheet={quote(sheet_name, safe='')}")
-            content = _download_costos_via_cdp(url)
+            content = None
+            # 1) Por GID (el más confiable)
+            if gid:
+                url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+                       f"gviz/tq?tqx=out:csv&gid={gid}")
+                content = _download_costos_via_cdp(url)
+                if not _is_csv(content): content = None
+            # 2) Por nombre sin encodear (fallback)
+            if not content:
+                url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+                       f"gviz/tq?tqx=out:csv&sheet={sheet_name}")
+                content = _download_costos_via_cdp(url)
+                if not _is_csv(content): content = None
+            # 3) Por nombre URL-encodeado (otro fallback)
+            if not content:
+                url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+                       f"gviz/tq?tqx=out:csv&sheet={quote(sheet_name, safe='')}")
+                content = _download_costos_via_cdp(url)
+                if not _is_csv(content): content = None
             if content and len(content.splitlines()) >= 5:
                 with open(cache, "w", encoding="utf-8-sig", newline="") as f:
                     f.write(content)
@@ -2155,15 +2225,24 @@ def fetch_cervezas():
                     break
         return costs, fasons
 
-    # ── Descubrir y descargar hojas mensuales ─────────────────────────────────
-    month_costs = {}   # "MM/YY" -> {key: costo}
-    month_fasons = {}  # última hoja → {key: fason}
+    # ── Descargar hojas mensuales ─────────────────────────────────────────────
+    month_costs  = {}
+    month_fasons = {}
     yr, mo = today.year, today.month
-    fails = 0
+    fails  = 0
 
-    for _ in range(36):          # hasta 3 años atrás
+    # Si encontramos GIDs en el mapa, iteramos solo sobre esas hojas
+    known_sheets = set(_gid_map.keys())
+
+    for _ in range(36):
         sheet = f"{mo:02d}/{str(yr)[2:]}"
-        rows  = _get_sheet_rows(sheet)
+        gid   = _gid_map.get(sheet)
+        # Si tenemos GIDs pero esta hoja no está, la saltamos (no existirá)
+        if known_sheets and not gid:
+            mo -= 1
+            if mo == 0: mo, yr = 12, yr - 1
+            continue
+        rows = _get_sheet_rows(sheet, gid=gid)
         if rows:
             c, f = _extract_lata_col_k(rows)
             if c:
@@ -2173,15 +2252,27 @@ def fetch_cervezas():
                 print(f"    {sheet}: {len(c)} productos")
             else:
                 fails += 1
+                print(f"    {sheet}: hoja descargada pero sin datos lata en col K")
         else:
             fails += 1
-        if fails >= 3: break
+        if not known_sheets and fails >= 3: break
         mo -= 1
         if mo == 0: mo, yr = 12, yr - 1
 
+    # Fallback: si todo falló, usar el CSV del GID conocido (Analisis_costos_cervezas.csv)
+    if not month_costs and os.path.exists(CERV_CSV):
+        print("  Cervezas: fallback → CSV existente (gid conocido)")
+        with open(CERV_CSV, encoding="utf-8-sig") as f:
+            fb_rows = list(_csv.reader(f))
+        c, faz = _extract_lata_col_k(fb_rows)
+        if c:
+            sheet_label = f"{today.month:02d}/{str(today.year)[2:]}"
+            month_costs[sheet_label]  = c
+            month_fasons[sheet_label] = faz
+
     if not month_costs:
-        print("  Cervezas: sin datos en hojas mensuales")
-        return {"barril": [], "lata": [], "error": "Sin datos mensuales"}
+        print("  Cervezas: sin datos")
+        return {"barril": [], "lata": [], "error": "Sin datos"}
 
     # Ordenar cronológicamente (más antiguo primero)
     sorted_sheets = sorted(month_costs, key=lambda s: (2000 + int(s[3:]), int(s[:2])))
