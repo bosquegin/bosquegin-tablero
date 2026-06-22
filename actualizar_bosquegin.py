@@ -2076,54 +2076,17 @@ def fetch_resumen_destileria():
 # ─── 6b. COSTOS CERVEZAS ──────────────────────────────────────────────────────
 def fetch_cervezas():
     """
-    Descarga y parsea la hoja de costos de cervezas (gid=2130605343).
-    Detecta dinámicamente todos los períodos de costo disponibles.
-    Número AR: punto = miles, coma = decimal. Ej: "$1.772,50" -> 1772.50
+    Lee una hoja por mes ("06/26", "05/26", …) del spreadsheet de cervezas.
+    De cada hoja extrae col K (índice 10) = Costo Mes ACT para cada lata.
+    Construye un array de períodos por producto, ordenado cronológicamente.
     """
     import csv as _csv
+    from urllib.parse import quote
 
     today = date.today()
+    CERV_DIR = os.path.join(DATA_DIR, "Costos y PVP", "cervezas_meses")
+    os.makedirs(CERV_DIR, exist_ok=True)
 
-    if os.path.exists(CERV_CSV) and date.fromtimestamp(os.path.getmtime(CERV_CSV)) >= today:
-        print("  Cervezas CSV al día, usando local")
-    else:
-        url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
-               f"gviz/tq?tqx=out:csv&gid={CERV_SHEET_GID}")
-        content = _download_costos_via_cdp(url)
-        if content and len(content.splitlines()) >= 5:
-            os.makedirs(os.path.dirname(CERV_CSV), exist_ok=True)
-            with open(CERV_CSV, "w", encoding="utf-8-sig", newline="") as f:
-                f.write(content)
-            print(f"  Cervezas CSV descargado ({len(content.splitlines())} filas)")
-        else:
-            print("  Cervezas: CDP no disponible, usando local si existe")
-
-    if not os.path.exists(CERV_CSV):
-        print("  Cervezas: sin datos")
-        return {"barril": [], "lata": [], "error": "Sin datos"}
-
-    with open(CERV_CSV, encoding="utf-8-sig") as f:
-        rows = list(_csv.reader(f))
-
-    def _money(s):
-        if not s or not s.strip(): return None
-        s = s.strip().replace("$","").replace(" ","").replace(".","").replace(",",".")
-        try: return round(float(s), 2)
-        except: return None
-
-    def _pct(s):
-        if not s or not s.strip(): return None
-        s = s.strip().replace("%","").replace(" ","").replace(",",".")
-        try: return round(float(s) / 100, 4)
-        except: return None
-
-    def _num(s):
-        if not s or not s.strip(): return None
-        s = s.strip().replace(".","").replace(",","")
-        try: return int(float(s))
-        except: return None
-
-    # Descripción oficial de cada lata (para mostrar en el tablero)
     _LATA_ARTS = {
         110027: "CERVEZA TEMPLE WOLF IPA 0% ALCOHOL 473 ML",
         110038: "CERVEZA TEMPLE COSMICA 473 ML",
@@ -2139,145 +2102,121 @@ def fetch_cervezas():
         "flow apa": 110008, "scottish": 110025, "golden lager mundial": 110040,
         "indie golden": 110012, "wolf ipa": 110030,
     }
+    _MESES_ES = ["ENE","FEB","MAR","ABR","MAY","JUN","JUL","AGO","SEP","OCT","NOV","DIC"]
 
-    def _detect_cost_cols(product_rows):
-        """Detecta todas las columnas de costo: a partir de col 4, con gap >= 5."""
-        if not product_rows: return [4]
-        max_col = max(len(r) for r in product_rows)
-        last = -10
-        cols = []
-        for c in range(4, min(max_col, 80)):
-            # ≥50% de filas deben tener un valor monetario en esta columna
-            n = sum(1 for r in product_rows if c < len(r) and _money(r[c]) is not None)
-            if n >= max(1, len(product_rows) * 0.5) and c - last >= 5:
-                cols.append(c)
-                last = c
-        return cols if cols else [4]
+    def _money(s):
+        if not s or not s.strip(): return None
+        s = s.strip().replace("$","").replace(" ","").replace(".","").replace(",",".")
+        try: return round(float(s), 2)
+        except: return None
 
-    hdr = rows[0] if rows else []
+    def _get_sheet_rows(sheet_name):
+        """Descarga (o usa caché) la hoja 'MM/YY' y retorna filas CSV."""
+        safe  = sheet_name.replace("/", "")   # "0626"
+        cache = os.path.join(CERV_DIR, f"cerv_{safe}.csv")
+        try:
+            m, y = int(sheet_name[:2]), 2000 + int(sheet_name[3:])
+            is_cur = (m == today.month and y == today.year)
+        except:
+            is_cur = False
+        stale = not os.path.exists(cache) or (is_cur and date.fromtimestamp(os.path.getmtime(cache)) < today)
+        if stale:
+            url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+                   f"gviz/tq?tqx=out:csv&sheet={quote(sheet_name, safe='')}")
+            content = _download_costos_via_cdp(url)
+            if content and len(content.splitlines()) >= 5:
+                with open(cache, "w", encoding="utf-8-sig", newline="") as f:
+                    f.write(content)
+            else:
+                return None
+        if not os.path.exists(cache): return None
+        with open(cache, encoding="utf-8-sig") as f:
+            return list(_csv.reader(f))
 
-    def _period_label(cost_col, idx):
-        """Intenta leer etiqueta de fila 0; si no, usa ordinal."""
-        if cost_col < len(hdr):
-            t = hdr[cost_col].strip()
-            if t and not t.endswith('%') and not t.startswith('$') and t not in ('0%','0,0%'):
-                return t.upper()
-        return f"PERÍODO {idx + 1}"
-
-    # ── Primer paso: recolectar filas por sección ──────────────────────────────
-    barril_rows_raw, lata_rows_raw = [], []
-    mode = None
-    for row in rows:
-        c0 = row[0].strip() if row else ""
-        c1 = row[1].strip() if len(row) > 1 else ""
-        if "BARRIL" in c0.upper() and "RESUMEN" in c0.upper():
-            mode = "barril"; continue
-        if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
-            if c1 and c1 != "Fason":
-                if lata_rows_raw: break
-            mode = "lata"; continue
-        if mode and c0:
-            (barril_rows_raw if mode == "barril" else lata_rows_raw).append(row)
-
-    barril_cost_cols = _detect_cost_cols(barril_rows_raw[:6])
-    lata_cost_cols   = _detect_cost_cols(lata_rows_raw[:6])
-    print(f"  Cervezas: cols costo barril={barril_cost_cols}  lata={lata_cost_cols}")
-
-    def _parse_periods(row, cost_cols):
-        periods = []
-        for i, cc in enumerate(cost_cols):
-            costo = _money(row[cc]) if cc < len(row) else None
+    def _extract_lata_col_k(rows):
+        """Extrae {norm_key: costo_neto, ...} y {norm_key: fason} de col K (idx 10)."""
+        costs, fasons = {}, {}
+        in_lata = False
+        for row in rows:
+            c0 = row[0].strip() if row else ""
+            c1 = row[1].strip() if len(row) > 1 else ""
+            if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
+                if c1 and c1 != "Fason":
+                    if costs: break
+                in_lata = True; continue
+            if not in_lata or not c0: continue
+            costo = _money(row[10]) if len(row) > 10 else None
             if costo is None: continue
-            # Buscar var% en col+1
-            costo_var = None
-            vc = cc + 1
-            if vc < len(row):
-                v = _pct(row[vc])
-                if v is not None and abs(v) < 1.0:  # sanity < 100%
-                    costo_var = v
-            # Si no se encontró, calcular vs período anterior
-            if costo_var is None and periods:
-                prev = periods[-1]["costo"]
-                if prev and prev != 0:
-                    costo_var = round((costo - prev) / prev, 4)
-            periods.append({"label": _period_label(cc, i), "costo": costo, "costo_var": costo_var})
-        return periods
-
-    # ── Segundo paso: parsear items ────────────────────────────────────────────
-    barril, lata = [], []
-    total_barril = total_lata = None
-    mode = None
-
-    for row in rows:
-        if not row: continue
-        c0 = row[0].strip() if row[0] else ""
-        c1 = row[1].strip() if len(row) > 1 else ""
-
-        if "BARRIL" in c0.upper() and "RESUMEN" in c0.upper():
-            mode = "barril"; continue
-        if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
-            if c1 and c1 != "Fason":
-                if lata: break
-            mode = "lata"; continue
-        if mode is None: continue
-
-        cost_cols  = barril_cost_cols if mode == "barril" else lata_cost_cols
-        first_cc   = cost_cols[0] if cost_cols else 4
-        litros_raw = row[2].strip() if len(row) > 2 else ""
-        costo_raw  = row[first_cc].strip() if first_cc < len(row) else ""
-
-        if not c0:
-            litros = _num(litros_raw)
-            if litros and litros > 500:
-                tot = {
-                    "litros":    litros,
-                    "costo_fab": _money(costo_raw),
-                    "pvp":       _money(row[5]) if len(row) > 5 else None,
-                    "margen":    _pct(row[6])   if len(row) > 6 else None,
-                }
-                if mode == "barril": total_barril = tot
-                else:                total_lata   = tot
-            continue
-
-        litros = _num(litros_raw)
-        costo  = _money(costo_raw)
-        if not c0 or litros is None or costo is None: continue
-
-        cod = None
-        art = None
-        if mode == "lata":
             norm = c0.lower().strip()
             for key in sorted(_LATA_CODES, key=len, reverse=True):
                 if key in norm:
-                    cod = _LATA_CODES[key]
-                    art = _LATA_ARTS.get(cod)
+                    costs[key]  = costo
+                    fasons[key] = c1.upper()
                     break
+        return costs, fasons
 
-        periods = _parse_periods(row, cost_cols)
+    # ── Descubrir y descargar hojas mensuales ─────────────────────────────────
+    month_costs = {}   # "MM/YY" -> {key: costo}
+    month_fasons = {}  # última hoja → {key: fason}
+    yr, mo = today.year, today.month
+    fails = 0
 
-        item = {
-            "producto":  c0,
-            "fason":     c1,
-            "litros":    litros,
-            "pct_mix":   _pct(row[3])   if len(row) > 3 else None,
-            "costo_ant": periods[0]["costo"]     if len(periods) >= 2 else None,
-            "costo_fab": periods[-1]["costo"]    if periods else costo,
-            "costo_var": periods[-1]["costo_var"] if periods else None,
-            "pvp":       _money(row[5]) if len(row) > 5 else None,
-            "margen":    _pct(row[6])   if len(row) > 6 else None,
+    for _ in range(36):          # hasta 3 años atrás
+        sheet = f"{mo:02d}/{str(yr)[2:]}"
+        rows  = _get_sheet_rows(sheet)
+        if rows:
+            c, f = _extract_lata_col_k(rows)
+            if c:
+                month_costs[sheet]  = c
+                month_fasons[sheet] = f
+                fails = 0
+                print(f"    {sheet}: {len(c)} productos")
+            else:
+                fails += 1
+        else:
+            fails += 1
+        if fails >= 3: break
+        mo -= 1
+        if mo == 0: mo, yr = 12, yr - 1
+
+    if not month_costs:
+        print("  Cervezas: sin datos en hojas mensuales")
+        return {"barril": [], "lata": [], "error": "Sin datos mensuales"}
+
+    # Ordenar cronológicamente (más antiguo primero)
+    sorted_sheets = sorted(month_costs, key=lambda s: (2000 + int(s[3:]), int(s[:2])))
+    last_sheet    = sorted_sheets[-1]
+    fasons        = month_fasons.get(last_sheet, {})
+
+    # ── Construir items de lata ───────────────────────────────────────────────
+    lata = []
+    for key, cod in sorted(_LATA_CODES.items(), key=lambda x: x[1]):
+        periods = []
+        prev    = None
+        for sheet in sorted_sheets:
+            costo = month_costs[sheet].get(key)
+            if costo is None: continue
+            m  = int(sheet[:2])
+            yy = sheet[3:]
+            label    = f"{_MESES_ES[m-1]} {yy}"
+            costo_var = round((costo - prev) / prev, 4) if prev else None
+            periods.append({"label": label, "costo": costo, "costo_var": costo_var})
+            prev = costo
+        if not periods: continue
+        lata.append({
+            "producto":  key,
+            "fason":     fasons.get(key, ""),
+            "art":       _LATA_ARTS[cod],
+            "cod":       cod,
+            "costo_fab": periods[-1]["costo"],
+            "costo_ant": periods[-2]["costo"] if len(periods) >= 2 else None,
+            "costo_var": periods[-1]["costo_var"],
             "periods":   periods,
-        }
-        if cod is not None: item["cod"] = cod
-        if art is not None: item["art"] = art
+        })
 
-        if mode == "barril": barril.append(item)
-        else:                lata.append(item)
-
-    n_per = len(lata[0]["periods"]) if lata else 0
-    print(f"  Cervezas: {len(barril)} barriles, {len(lata)} latas, {n_per} períodos por producto")
-    return {"barril": barril, "lata": lata,
-            "total_barril": total_barril, "total_lata": total_lata,
-            "error": None}
+    n = len(sorted_sheets)
+    print(f"  Cervezas: {len(lata)} latas · {n} períodos ({sorted_sheets[0]} → {sorted_sheets[-1]})")
+    return {"barril": [], "lata": lata, "total_barril": None, "total_lata": None, "error": None}
 
 
 # ─── 6c. ACTUALIZAR STOCK_CIERRE_MES EN DASHBOARD HTML ────────────────────────

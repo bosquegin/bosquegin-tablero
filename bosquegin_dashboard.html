@@ -5010,7 +5010,7 @@ function renderCervezas() {
     data: {
       labels: periods.map(p => p.label),
       datasets: [{
-        label: 'Costo Fab. $/L',
+        label: 'Costo Neto $/L',
         data:  periods.map(p => p.costo ?? null),
         backgroundColor: barColors, borderColor: borderColors,
         borderWidth: 1, borderRadius: 4
@@ -5033,7 +5033,7 @@ function renderCervezas() {
   // Tabla evolutiva (más reciente primero)
   document.getElementById('cerv-thead').innerHTML = `
     <th>PERÍODO</th>
-    <th style="text-align:right">COSTO FAB.<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+    <th style="text-align:right">COSTO NETO<br><span style="font-size:8px;font-weight:400">$/L</span></th>
     <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>`;
 
   document.getElementById('cerv-tbody').innerHTML = [...periods].reverse().map(p => `<tr>
@@ -5235,7 +5235,7 @@ function renderCervezas() {
 
   <div style="margin-top:28px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:18px">
     <div class="table-title" style="font-size:15px">🍺 Costo Cervezas Lata</div>
-    <div class="chart-subtitle" style="margin-top:2px">Fuente: Hoja "Costo Cervezas" · Costo fabricación por producto y período</div>
+    <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
   </div>
 
   <div class="filter-bar" style="margin-bottom:16px">
@@ -5247,13 +5247,13 @@ function renderCervezas() {
 
   <div class="chart-card" style="margin-bottom:16px">
     <div class="chart-title" id="cerv-chart-title">Cervezas</div>
-    <div class="chart-subtitle">Costo mes anterior vs mes actual · $/L</div>
+    <div class="chart-subtitle">Costo neto mensual · $/L · col. K de cada hoja mensual</div>
     <div class="chart-wrap"><canvas id="chartCerveza"></canvas></div>
   </div>
 
   <div class="table-card">
     <div class="table-title">📊 Cuadro evolutivo de costos · Cervezas</div>
-    <div class="chart-subtitle" style="margin-bottom:10px">Costo fabricación $/L · variación mes a mes</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo neto $/L · variación mes a mes</div>
     <div style="overflow-x:auto">
     <table>
       <thead id="cerv-thead"></thead>
