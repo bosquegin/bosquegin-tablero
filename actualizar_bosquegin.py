@@ -2167,6 +2167,26 @@ def fetch_cervezas():
         if not c0 or litros is None or costo is None:
             continue
 
+        # Mapa nombre normalizado → código de inventario (solo latas)
+        _LATA_CODES = {
+            "wolf ipa 0%":         110027,
+            "cosmica":             110038,
+            "black soul stout":    110005,
+            "flow apa":            110008,
+            "scottish":            110025,
+            "golden lager mundial": 110040,
+            "indie golden":        110012,
+            "wolf ipa":            110030,
+        }
+        cod = None
+        if mode == "lata":
+            norm = c0.lower().strip()
+            # Orden: claves más largas primero para evitar que "wolf ipa" tape "wolf ipa 0%"
+            for key in sorted(_LATA_CODES, key=len, reverse=True):
+                if key in norm:
+                    cod = _LATA_CODES[key]
+                    break
+
         item = {
             "producto":  c0,
             "fason":     c1,
@@ -2176,6 +2196,8 @@ def fetch_cervezas():
             "pvp":       _money(row[5]) if len(row) > 5 else None,
             "margen":    _pct(row[6])   if len(row) > 6 else None,
         }
+        if cod is not None:
+            item["cod"] = cod
         if mode == "barril": barril.append(item)
         else:                lata.append(item)
 

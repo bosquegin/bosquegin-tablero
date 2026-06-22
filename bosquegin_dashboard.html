@@ -4934,7 +4934,7 @@ function renderCervezas() {
   const el = document.getElementById('cerv-tables');
   if (!el) return;
 
-  if (!C || (!C.barril?.length && !C.lata?.length)) {
+  if (!C || !C.lata?.length) {
     el.innerHTML = '<div style="color:var(--muted);padding:12px 0;font-size:12px">Sin datos de cervezas — actualizar el tablero.</div>';
     return;
   }
@@ -4943,51 +4943,58 @@ function renderCervezas() {
   const fmtPct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
   const fmtNum = v => v != null ? v.toLocaleString('es-AR') : '—';
 
-  function buildTable(title, rows, total) {
-    const rowsHtml = rows.map(r => `
-      <tr>
-        <td style="font-size:9px;font-weight:600">${r.producto}</td>
-        <td style="font-size:9px;color:var(--muted)">${r.fason}</td>
-        <td style="text-align:right;font-size:9px">${fmtNum(r.litros)}</td>
-        <td style="text-align:right;font-size:9px;color:var(--muted)">${fmtPct(r.pct_mix)}</td>
-        <td style="text-align:right;font-size:9px">${fmtARS(r.costo_fab)}</td>
-        <td style="text-align:right;font-size:9px">${fmtARS(r.pvp)}</td>
-        <td style="text-align:right;font-size:9px;font-weight:600;color:${r.margen != null && r.margen >= 0.45 ? '#4ade80' : r.margen != null && r.margen < 0.30 ? '#f87171' : 'inherit'}">${fmtPct(r.margen)}</td>
-      </tr>`).join('');
+  // Índice rápido de inventario por código
+  const invByCod = {};
+  (INV_DATA || []).forEach(x => { invByCod[x.cod] = x; });
 
-    const totRow = total ? `
-      <tr style="border-top:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04)">
-        <td style="font-size:9px;font-weight:700" colspan="2">TOTAL ${title}</td>
-        <td style="text-align:right;font-size:9px;font-weight:700">${fmtNum(total.litros)}</td>
-        <td style="text-align:right;font-size:9px;color:var(--muted)">100%</td>
-        <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.costo_fab)}</td>
-        <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.pvp)}</td>
-        <td style="text-align:right;font-size:9px;font-weight:700">${fmtPct(total.margen)}</td>
-      </tr>` : '';
+  const rows = C.lata;
+  const total = C.total_lata;
 
-    return `
-      <div style="font-size:11px;font-weight:700;color:var(--muted-text);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.05em">${title}</div>
-      <div style="overflow-x:auto">
-      <table>
-        <thead>
-          <tr>
-            <th>Producto</th>
-            <th>Fason</th>
-            <th style="text-align:right">Litros</th>
-            <th style="text-align:right;font-size:8px;color:var(--muted)">% Mix</th>
-            <th style="text-align:right">Costo Fab<br><span style="font-size:8px;font-weight:400">$/L</span></th>
-            <th style="text-align:right">PVP<br><span style="font-size:8px;font-weight:400">$/L</span></th>
-            <th style="text-align:right">Margen</th>
-          </tr>
-        </thead>
-        <tbody>${rowsHtml}${totRow}</tbody>
-      </table>
-      </div>`;
-  }
+  const rowsHtml = rows.map(r => {
+    const inv = r.cod != null ? invByCod[r.cod] : null;
+    const stockK = inv ? ((inv.klozer || 0) + (inv.klozer_mkt || 0)) : null;
+    const stockO = inv ? (inv.ofi || 0) : null;
+    const mgColor = r.margen >= 0.45 ? '#4ade80' : r.margen < 0.30 ? '#f87171' : 'inherit';
+    return `<tr>
+      <td style="font-size:9px;color:var(--muted);white-space:nowrap">${r.cod != null ? r.cod : '—'}</td>
+      <td style="font-size:9px;font-weight:600;white-space:nowrap">${r.producto}</td>
+      <td style="font-size:9px;color:var(--muted)">${r.fason}</td>
+      <td style="text-align:right;font-size:9px">${fmtNum(r.litros)}</td>
+      <td style="text-align:right;font-size:9px;color:var(--muted)">${fmtPct(r.pct_mix)}</td>
+      <td style="text-align:right;font-size:9px">${fmtARS(r.costo_fab)}</td>
+      <td style="text-align:right;font-size:9px">${fmtARS(r.pvp)}</td>
+      <td style="text-align:right;font-size:9px;font-weight:600;color:${mgColor}">${fmtPct(r.margen)}</td>
+      <td style="text-align:right;font-size:9px">${stockK != null ? fmtNum(stockK) : '—'}</td>
+      <td style="text-align:right;font-size:9px;color:var(--muted)">${stockO != null ? fmtNum(stockO) : '—'}</td>
+    </tr>`;
+  }).join('');
 
-  el.innerHTML =
-    buildTable('Barriles', C.barril || [], C.total_barril) +
-    buildTable('Latas', C.lata || [], C.total_lata);
+  const totRow = total ? `
+    <tr style="border-top:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04)">
+      <td colspan="3" style="font-size:9px;font-weight:700">TOTAL LATAS</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtNum(total.litros)}</td>
+      <td style="text-align:right;font-size:9px;color:var(--muted)">100%</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.costo_fab)}</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.pvp)}</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtPct(total.margen)}</td>
+      <td colspan="2"></td>
+    </tr>` : '';
+
+  el.innerHTML = `<div style="overflow-x:auto"><table>
+    <thead><tr>
+      <th style="font-size:8px;color:var(--muted)">Cód.</th>
+      <th>Producto</th>
+      <th>Fason</th>
+      <th style="text-align:right">Litros</th>
+      <th style="text-align:right;font-size:8px;color:var(--muted)">% Mix</th>
+      <th style="text-align:right">Costo Fab<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+      <th style="text-align:right">PVP<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+      <th style="text-align:right">Margen</th>
+      <th style="text-align:right">Stock<br><span style="font-size:8px;font-weight:400">KLOZER</span></th>
+      <th style="text-align:right;color:var(--muted)">Stock<br><span style="font-size:8px;font-weight:400">OFI</span></th>
+    </tr></thead>
+    <tbody>${rowsHtml}${totRow}</tbody>
+  </table></div>`;
 }
 </script>
 
