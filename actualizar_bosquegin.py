@@ -815,6 +815,9 @@ COSTOS_SHEET_ID  = "12Ln3lXaWDqpx5hYndJcGH1QDlPaTab3yyEX8j_ahDyY"
 COSTOS_SHEET_GID = "173195948"   # pestaña con costos actualizados (3 filas header)
 DEST_SHEET_GID   = "1954024258"  # pestaña RESUMEN PRODUCTOS X DESTILERIA
 DEST_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_resumen_dest.csv")
+CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
+CERV_SHEET_GID   = "2130605343"
+CERV_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_cervezas.csv")
 COSTOS_BASE_YEAR = 2024   # mes 1 del sheet = Ene 2024
 COSTOS_FIXED_COLS   = 6   # ESTADO, RUBRO, SUB RUBRO, CODIGO, NOMBRE, LINEA
 COSTOS_COLS_PER_MO  = 9   # columnas por bloque mensual
@@ -2070,7 +2073,119 @@ def fetch_resumen_destileria():
     return {"periods": periods, "products": products, "error": None}
 
 
-# ─── 6b. ACTUALIZAR STOCK_CIERRE_MES EN DASHBOARD HTML ────────────────────────
+# ─── 6b. COSTOS CERVEZAS ──────────────────────────────────────────────────────
+def fetch_cervezas():
+    """
+    Descarga y parsea la hoja de costos de cervezas (gid=2130605343).
+    Dos secciones: BARRIL y LATA.
+    Columnas: Producto | Fason | Litros | %Mix | CostoFab | PVP | Margen
+    Número AR: punto = miles, coma = decimal. Ej: "$1.772,50" -> 1772.50
+    """
+    import csv as _csv
+
+    today = date.today()
+
+    if os.path.exists(CERV_CSV) and date.fromtimestamp(os.path.getmtime(CERV_CSV)) >= today:
+        print("  Cervezas CSV al día, usando local")
+    else:
+        url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
+               f"gviz/tq?tqx=out:csv&gid={CERV_SHEET_GID}")
+        content = _download_costos_via_cdp(url)
+        if content and len(content.splitlines()) >= 5:
+            os.makedirs(os.path.dirname(CERV_CSV), exist_ok=True)
+            with open(CERV_CSV, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(content)
+            print(f"  Cervezas CSV descargado ({len(content.splitlines())} filas)")
+        else:
+            print("  Cervezas: CDP no disponible, usando local si existe")
+
+    if not os.path.exists(CERV_CSV):
+        print("  Cervezas: sin datos")
+        return {"barril": [], "lata": [], "error": "Sin datos"}
+
+    with open(CERV_CSV, encoding="utf-8-sig") as f:
+        rows = list(_csv.reader(f))
+
+    def _money(s):
+        if not s or not s.strip(): return None
+        s = s.strip().replace("$","").replace(" ","").replace(".","").replace(",",".")
+        try: return round(float(s), 2)
+        except: return None
+
+    def _pct(s):
+        if not s or not s.strip(): return None
+        s = s.strip().replace("%","").replace(" ","").replace(",",".")
+        try: return round(float(s) / 100, 4)
+        except: return None
+
+    def _num(s):
+        if not s or not s.strip(): return None
+        s = s.strip().replace(".","").replace(",","")
+        try: return int(float(s))
+        except: return None
+
+    barril, lata = [], []
+    total_barril = total_lata = None
+    mode = None
+
+    for row in rows:
+        if not row: continue
+        c0 = row[0].strip() if row[0] else ""
+        c1 = row[1].strip() if len(row) > 1 else ""
+
+        # Detectar sección
+        if "BARRIL" in c0.upper() and "RESUMEN" in c0.upper():
+            mode = "barril"; continue
+        if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
+            if c1 and c1 != "Fason":  # segunda tabla LATA = solo referencias, ignorar
+                if lata:              # ya tenemos datos de lata, parar
+                    break
+            mode = "lata"; continue
+
+        if mode is None: continue
+
+        litros_raw = row[2].strip() if len(row) > 2 else ""
+        costo_raw  = row[4].strip() if len(row) > 4 else ""
+
+        if not c0:
+            # Fila de totales (col 0 vacía, col 2 = litros totales)
+            litros = _num(litros_raw)
+            if litros and litros > 500:
+                tot = {
+                    "litros":    litros,
+                    "costo_fab": _money(costo_raw),
+                    "pvp":       _money(row[5]) if len(row) > 5 else None,
+                    "margen":    _pct(row[6])   if len(row) > 6 else None,
+                }
+                if mode == "barril": total_barril = tot
+                else:                total_lata   = tot
+            continue
+
+        # Fila de producto
+        litros = _num(litros_raw)
+        costo  = _money(costo_raw)
+        if not c0 or litros is None or costo is None:
+            continue
+
+        item = {
+            "producto":  c0,
+            "fason":     c1,
+            "litros":    litros,
+            "pct_mix":   _pct(row[3])   if len(row) > 3 else None,
+            "costo_fab": costo,
+            "pvp":       _money(row[5]) if len(row) > 5 else None,
+            "margen":    _pct(row[6])   if len(row) > 6 else None,
+        }
+        if mode == "barril": barril.append(item)
+        else:                lata.append(item)
+
+    print(f"  Cervezas: {len(barril)} barriles, {len(lata)} latas")
+    return {"barril": barril, "lata": lata,
+            "total_barril": total_barril, "total_lata": total_lata,
+            "error": None}
+
+
+# ─── 6c. ACTUALIZAR STOCK_CIERRE_MES EN DASHBOARD HTML ────────────────────────
 def update_stock_cierre_mes():
     """
     Lee Stock_consolidado_por_deposito_y_dia.xlsx (KLOZER+OFI), encuentra el
@@ -2237,6 +2352,22 @@ def main():
             except Exception:
                 pass
 
+    # Cervezas (costos por producto BARRIL y LATA)
+    print("\n[0c/5] Descargando costos cervezas...")
+    cervezas = {}
+    try:
+        cervezas = fetch_cervezas()
+    except Exception as e:
+        print(f"  Advertencia cervezas: {e}")
+        if os.path.exists(OUT_JS):
+            try:
+                raw = open(OUT_JS, encoding="utf-8").read()
+                js_body = raw.strip()[len("var BOSQUE_DATA="):-1]
+                old = json.loads(js_body)
+                cervezas = old.get("cervezas", {})
+            except Exception:
+                pass
+
     print("\n[1/5] Actualizando consolidado de inventario...")
     try:
         update_consolidado()
@@ -2321,6 +2452,7 @@ def main():
         "ventas":    ventas,
         "stock":     {"INV_DATA": inv_data},
         "destileria": destileria,
+        "cervezas":  cervezas,
         "costos":    costos_data,
         "insumos":   insumos_data,
     }

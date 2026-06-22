@@ -4925,6 +4925,69 @@ function renderDestileria() {
       <td style="text-align:right;font-size:9px;color:#22d3ee;font-weight:600">${anual}</td>
     </tr>`;
   }).join('');
+
+  renderCervezas();
+}
+
+function renderCervezas() {
+  const C = BOSQUE_DATA.cervezas;
+  const el = document.getElementById('cerv-tables');
+  if (!el) return;
+
+  if (!C || (!C.barril?.length && !C.lata?.length)) {
+    el.innerHTML = '<div style="color:var(--muted);padding:12px 0;font-size:12px">Sin datos de cervezas — actualizar el tablero.</div>';
+    return;
+  }
+
+  const fmtARS = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '—';
+  const fmtPct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
+  const fmtNum = v => v != null ? v.toLocaleString('es-AR') : '—';
+
+  function buildTable(title, rows, total) {
+    const rowsHtml = rows.map(r => `
+      <tr>
+        <td style="font-size:9px;font-weight:600">${r.producto}</td>
+        <td style="font-size:9px;color:var(--muted)">${r.fason}</td>
+        <td style="text-align:right;font-size:9px">${fmtNum(r.litros)}</td>
+        <td style="text-align:right;font-size:9px;color:var(--muted)">${fmtPct(r.pct_mix)}</td>
+        <td style="text-align:right;font-size:9px">${fmtARS(r.costo_fab)}</td>
+        <td style="text-align:right;font-size:9px">${fmtARS(r.pvp)}</td>
+        <td style="text-align:right;font-size:9px;font-weight:600;color:${r.margen != null && r.margen >= 0.45 ? '#4ade80' : r.margen != null && r.margen < 0.30 ? '#f87171' : 'inherit'}">${fmtPct(r.margen)}</td>
+      </tr>`).join('');
+
+    const totRow = total ? `
+      <tr style="border-top:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04)">
+        <td style="font-size:9px;font-weight:700" colspan="2">TOTAL ${title}</td>
+        <td style="text-align:right;font-size:9px;font-weight:700">${fmtNum(total.litros)}</td>
+        <td style="text-align:right;font-size:9px;color:var(--muted)">100%</td>
+        <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.costo_fab)}</td>
+        <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(total.pvp)}</td>
+        <td style="text-align:right;font-size:9px;font-weight:700">${fmtPct(total.margen)}</td>
+      </tr>` : '';
+
+    return `
+      <div style="font-size:11px;font-weight:700;color:var(--muted-text);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.05em">${title}</div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Fason</th>
+            <th style="text-align:right">Litros</th>
+            <th style="text-align:right;font-size:8px;color:var(--muted)">% Mix</th>
+            <th style="text-align:right">Costo Fab<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+            <th style="text-align:right">PVP<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+            <th style="text-align:right">Margen</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}${totRow}</tbody>
+      </table>
+      </div>`;
+  }
+
+  el.innerHTML =
+    buildTable('Barriles', C.barril || [], C.total_barril) +
+    buildTable('Latas', C.lata || [], C.total_lata);
 }
 </script>
 
@@ -5115,6 +5178,12 @@ function renderDestileria() {
       <tbody id="dest-tbody"></tbody>
     </table>
     </div>
+  </div>
+
+  <div class="table-card" style="margin-top:18px">
+    <div class="table-title">🍺 Costos de Cervezas por Producto</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo fabricación, PVP y margen por producto · Barriles y Latas</div>
+    <div id="cerv-tables"></div>
   </div>
 
 </section>
