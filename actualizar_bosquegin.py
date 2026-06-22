@@ -2203,20 +2203,58 @@ def fetch_cervezas():
         with open(cache, encoding="utf-8-sig") as f:
             return list(_csv.reader(f))
 
+    def _find_cost_col(row):
+        """Retorna el índice de la celda que diga 'Costo Mes ACT' (case-insensitive)."""
+        for i, cell in enumerate(row):
+            if "costo mes act" in str(cell).lower().replace(".", "").strip():
+                return i
+        return None
+
     def _extract_lata_col_k(rows):
-        """Extrae {norm_key: costo_neto, ...} y {norm_key: fason} de col K (idx 10)."""
+        """
+        Busca la columna 'Costo Mes ACT' por nombre de encabezado en la sección LATA.
+        Si no la encuentra por nombre, usa col 10 como fallback (posición conocida).
+        """
         costs, fasons = {}, {}
-        in_lata = False
+        in_lata  = False
+        cost_col = None     # se setea al encontrar el header "Costo Mes ACT"
+
+        # Pre-scan: buscar "Costo Mes ACT" en las primeras 20 filas (headers globales)
+        for row in rows[:20]:
+            col = _find_cost_col(row)
+            if col is not None:
+                cost_col = col
+                break
+
         for row in rows:
             c0 = row[0].strip() if row else ""
             c1 = row[1].strip() if len(row) > 1 else ""
+
             if "LATA" in c0.upper() and "RESUMEN" in c0.upper():
                 if c1 and c1 != "Fason":
                     if costs: break
-                in_lata = True; continue
-            if not in_lata or not c0: continue
-            costo = _money(row[10]) if len(row) > 10 else None
+                in_lata = True
+                # Puede que el header "Costo Mes ACT" esté en esta misma fila
+                col = _find_cost_col(row)
+                if col is not None:
+                    cost_col = col
+                continue
+
+            if not in_lata: continue
+
+            # Si aún no encontramos el header, chequearlo en la siguiente fila
+            if cost_col is None:
+                col = _find_cost_col(row)
+                if col is not None:
+                    cost_col = col
+                    continue   # era fila de encabezado, no de datos
+
+            if not c0: continue
+
+            idx   = cost_col if cost_col is not None else 10
+            costo = _money(row[idx]) if idx < len(row) else None
             if costo is None: continue
+
             norm = c0.lower().strip()
             for key in sorted(_LATA_CODES, key=len, reverse=True):
                 if key in norm:
