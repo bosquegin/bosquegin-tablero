@@ -2187,12 +2187,18 @@ def fetch_cervezas():
                     cod = _LATA_CODES[key]
                     break
 
+        # col 4 = costo anterior, col 10 = costo actual, col 11 = var%
+        costo_act = _money(row[10]) if len(row) > 10 else None
+        costo_var = _pct(row[11])   if len(row) > 11 else None
+
         item = {
             "producto":  c0,
             "fason":     c1,
             "litros":    litros,
             "pct_mix":   _pct(row[3])   if len(row) > 3 else None,
-            "costo_fab": costo,
+            "costo_ant": costo,
+            "costo_fab": costo_act if costo_act is not None else costo,
+            "costo_var": costo_var,
             "pvp":       _money(row[5]) if len(row) > 5 else None,
             "margen":    _pct(row[6])   if len(row) > 6 else None,
         }

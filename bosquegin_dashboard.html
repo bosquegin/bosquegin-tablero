@@ -4900,20 +4900,18 @@ function renderDestileria() {
 
   const thead = document.getElementById('dest-thead');
   thead.innerHTML = `
-    <th>Período</th>
-    <th style="text-align:right">Costo Prod.<br><span style="font-size:8px;font-weight:400">y Financiero</span></th>
-    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
-    <th style="text-align:right">Costo<br><span style="font-size:8px;font-weight:400">Insumos</span></th>
-    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
-    <th style="text-align:right;font-weight:700">Costo<br><span style="font-size:8px">Neto</span></th>
-    <th style="text-align:right;font-size:8px;color:var(--muted)">Var%</th>
-    <th style="text-align:right;color:#22d3ee">Anualizado<br><span style="font-size:8px;font-weight:400">× 12</span></th>`;
+    <th>PERÍODO</th>
+    <th style="text-align:right">COSTO PROD.<br><span style="font-size:8px;font-weight:400">Y FINANCIERO</span></th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>
+    <th style="text-align:right">COSTO<br><span style="font-size:8px;font-weight:400">INSUMOS</span></th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>
+    <th style="text-align:right;font-weight:700">COSTO<br><span style="font-size:8px">NETO</span></th>
+    <th style="text-align:right;font-size:8px;color:var(--muted)">VAR%</th>`;
 
   const tbody = document.getElementById('dest-tbody');
   tbody.innerHTML = [...periods].reverse().map(p => {
     const d = prod.data[p.key];
     if (!d) return '';
-    const anual = d.total != null ? '$' + Math.round(d.total * 12).toLocaleString('es-AR') : '—';
     return `<tr>
       <td style="white-space:nowrap;font-size:9px;font-weight:600">${p.label}</td>
       <td style="text-align:right;font-size:9px">${fmtARS(d.dest)}</td>
@@ -4922,7 +4920,6 @@ function renderDestileria() {
       <td style="text-align:right;font-size:9px;${clsVar(d.cerv_var)}">${fmtV(d.cerv_var)}</td>
       <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(d.total)}</td>
       <td style="text-align:right;font-size:9px;${clsVar(d.total_var)}">${fmtV(d.total_var)}</td>
-      <td style="text-align:right;font-size:9px;color:#22d3ee;font-weight:600">${anual}</td>
     </tr>`;
   }).join('');
 
@@ -4942,6 +4939,8 @@ function renderCervezas() {
   const fmtARS = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '—';
   const fmtPct = v => v != null ? (v * 100).toFixed(1) + '%' : '—';
   const fmtNum = v => v != null ? v.toLocaleString('es-AR') : '—';
+  const fmtVar = v => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  const clsVar = v => v == null ? '' : v > 0.02 ? 'color:#f87171' : v < -0.02 ? 'color:#4ade80' : 'color:var(--muted)';
 
   // Índice rápido de inventario por código
   const invByCod = {};
@@ -4950,14 +4949,16 @@ function renderCervezas() {
   const rows = C.lata;
   const total = C.total_lata;
 
+  // ── Tabla principal ──────────────────────────────────────────────────────────
   const rowsHtml = rows.map(r => {
     const inv = r.cod != null ? invByCod[r.cod] : null;
+    const nombre = inv?.art || r.producto;
     const stockK = inv ? ((inv.klozer || 0) + (inv.klozer_mkt || 0)) : null;
     const stockO = inv ? (inv.ofi || 0) : null;
     const mgColor = r.margen >= 0.45 ? '#4ade80' : r.margen < 0.30 ? '#f87171' : 'inherit';
     return `<tr>
       <td style="font-size:9px;color:var(--muted);white-space:nowrap">${r.cod != null ? r.cod : '—'}</td>
-      <td style="font-size:9px;font-weight:600;white-space:nowrap">${r.producto}</td>
+      <td style="font-size:9px;font-weight:600;white-space:nowrap">${nombre}</td>
       <td style="font-size:9px;color:var(--muted)">${r.fason}</td>
       <td style="text-align:right;font-size:9px">${fmtNum(r.litros)}</td>
       <td style="text-align:right;font-size:9px;color:var(--muted)">${fmtPct(r.pct_mix)}</td>
@@ -4980,21 +4981,43 @@ function renderCervezas() {
       <td colspan="2"></td>
     </tr>` : '';
 
-  el.innerHTML = `<div style="overflow-x:auto"><table>
-    <thead><tr>
-      <th style="font-size:8px;color:var(--muted)">Cód.</th>
-      <th>Producto</th>
-      <th>Fason</th>
-      <th style="text-align:right">Litros</th>
-      <th style="text-align:right;font-size:8px;color:var(--muted)">% Mix</th>
-      <th style="text-align:right">Costo Fab<br><span style="font-size:8px;font-weight:400">$/L</span></th>
-      <th style="text-align:right">PVP<br><span style="font-size:8px;font-weight:400">$/L</span></th>
-      <th style="text-align:right">Margen</th>
-      <th style="text-align:right">Stock<br><span style="font-size:8px;font-weight:400">KLOZER</span></th>
-      <th style="text-align:right;color:var(--muted)">Stock<br><span style="font-size:8px;font-weight:400">OFI</span></th>
-    </tr></thead>
-    <tbody>${rowsHtml}${totRow}</tbody>
-  </table></div>`;
+  // ── Cuadro evolutivo de costos ───────────────────────────────────────────────
+  const evolHtml = rows.map(r => {
+    const inv = r.cod != null ? invByCod[r.cod] : null;
+    const nombre = inv?.art || r.producto;
+    return `<tr>
+      <td style="font-size:9px;font-weight:600;white-space:nowrap">${nombre}</td>
+      <td style="text-align:right;font-size:9px;font-weight:700">${fmtARS(r.costo_fab)}</td>
+      <td style="text-align:right;font-size:9px;font-weight:600;${clsVar(r.costo_var)}">${fmtVar(r.costo_var)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th style="font-size:8px;color:var(--muted)">CÓD.</th>
+        <th>PRODUCTO</th>
+        <th>PRODUCTOR</th>
+        <th style="text-align:right">LITROS</th>
+        <th style="text-align:right;font-size:8px;color:var(--muted)">% MIX</th>
+        <th style="text-align:right">COSTO FAB<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+        <th style="text-align:right">PVP<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+        <th style="text-align:right">MARGEN</th>
+        <th style="text-align:right">STOCK<br><span style="font-size:8px;font-weight:400">KLOZER</span></th>
+        <th style="text-align:right;color:var(--muted)">STOCK<br><span style="font-size:8px;font-weight:400">OFI</span></th>
+      </tr></thead>
+      <tbody>${rowsHtml}${totRow}</tbody>
+    </table></div>
+    <div class="table-title" style="margin-top:18px;font-size:12px">📈 Evolutivo de costos · Cervezas Lata</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo mes actual vs mes anterior</div>
+    <div style="overflow-x:auto"><table>
+      <thead><tr>
+        <th>PRODUCTO</th>
+        <th style="text-align:right">COSTO MES ACT<br><span style="font-size:8px;font-weight:400">$/L</span></th>
+        <th style="text-align:right">AUMENTO</th>
+      </tr></thead>
+      <tbody>${evolHtml}</tbody>
+    </table></div>`;
 }
 </script>
 
