@@ -2258,8 +2258,10 @@ def fetch_cervezas():
             norm = c0.lower().strip()
             for key in sorted(_LATA_CODES, key=len, reverse=True):
                 if key in norm:
-                    costs[key]  = costo
-                    fasons[key] = c1.upper()
+                    # Primer match gana: evita sobrescribir con filas de referencia/resumen
+                    if key not in costs:
+                        costs[key]  = costo
+                        fasons[key] = c1.upper()
                     break
         return costs, fasons
 
@@ -2269,17 +2271,26 @@ def fetch_cervezas():
     yr, mo = today.year, today.month
     fails  = 0
 
-    # Si encontramos GIDs en el mapa, iteramos solo sobre esas hojas
     known_sheets = set(_gid_map.keys())
+    # Calcular el mes más antiguo descubierto vía GID (para saber desde dónde explorar más)
+    if known_sheets:
+        oldest = min(known_sheets, key=lambda s: (2000 + int(s[3:]), int(s[:2])))
+        oldest_yr  = 2000 + int(oldest[3:])
+        oldest_mo  = int(oldest[:2])
+    else:
+        oldest_yr, oldest_mo = yr, mo
 
-    for _ in range(36):
+    for _ in range(48):  # hasta 4 años atrás
         sheet = f"{mo:02d}/{str(yr)[2:]}"
         gid   = _gid_map.get(sheet)
-        # Si tenemos GIDs pero esta hoja no está, la saltamos (no existirá)
-        if known_sheets and not gid:
+
+        # Fase 1: mientras haya meses en el mapa GID, usarlos; saltar los que no están
+        in_gid_range = (yr > oldest_yr) or (yr == oldest_yr and mo >= oldest_mo)
+        if known_sheets and in_gid_range and not gid:
             mo -= 1
             if mo == 0: mo, yr = 12, yr - 1
             continue
+
         rows = _get_sheet_rows(sheet, gid=gid)
         if rows:
             c, f = _extract_lata_col_k(rows)
@@ -2290,10 +2301,12 @@ def fetch_cervezas():
                 print(f"    {sheet}: {len(c)} productos")
             else:
                 fails += 1
-                print(f"    {sheet}: hoja descargada pero sin datos lata en col K")
+                print(f"    {sheet}: sin datos lata")
         else:
             fails += 1
-        if not known_sheets and fails >= 3: break
+        # Fuera del rango GID conocido, parar tras 3 fallos consecutivos
+        if not in_gid_range and fails >= 3:
+            break
         mo -= 1
         if mo == 0: mo, yr = 12, yr - 1
 
