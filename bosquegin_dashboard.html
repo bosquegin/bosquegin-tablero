@@ -99,6 +99,15 @@
     .logo h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
     .logo span { font-size:9px; color: var(--muted); display: block; margin-top: 1px; }
 
+    .header-products { display: flex; align-items: center; gap: 6px; }
+    .header-products img {
+      height: 44px; border-radius: 7px; object-fit: cover;
+      opacity: .88; transition: opacity .15s, transform .15s;
+      cursor: default;
+    }
+    .header-products img:hover { opacity: 1; transform: scale(1.07); }
+    @media (max-width: 900px) { .header-products { display: none; } }
+
     .header-right { display: flex; align-items: center; gap: 12px; }
     .date-badge {
       background: var(--card);
@@ -518,6 +527,13 @@
       <h1>Bosque · Feriado · Temple</h1>
       <span>Tablero Operativo Supply Chain <span style="opacity:.45;font-size:9px;font-weight:400">v2.23</span></span>
     </div>
+  </div>
+  <div class="header-products">
+    <img src="img/Bosque--Nativo.jpg"          title="Bosque Nativo">
+    <img src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
+    <img src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
+    <img src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
+    <img src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
   </div>
   <div class="header-right">
     <div class="date-badge" id="current-date"></div>
