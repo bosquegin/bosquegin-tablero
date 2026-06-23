@@ -99,13 +99,33 @@
     .logo h1 { font-size: 18px; font-weight: 700; letter-spacing: .5px; }
     .logo span { font-size:9px; color: var(--muted); display: block; margin-top: 1px; }
 
-    .header-products { display: flex; align-items: center; gap: 6px; }
-    .header-products img {
-      height: 44px; border-radius: 7px; object-fit: cover;
-      opacity: .88; transition: opacity .15s, transform .15s;
-      cursor: default;
+    .header-products {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 16px;
+      padding: 6px 10px;
     }
-    .header-products img:hover { opacity: 1; transform: scale(1.07); }
+    .header-products img {
+      width: 44px; height: 44px;
+      border-radius: 10px; object-fit: cover; object-position: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.1);
+      opacity: .88;
+      transition: opacity .18s, transform .18s, box-shadow .18s, border-color .18s;
+      cursor: default; flex-shrink: 0;
+    }
+    .header-products img:hover {
+      opacity: 1;
+      transform: scale(1.12) translateY(-2px);
+      box-shadow: 0 6px 18px rgba(74,222,128,0.35);
+      border-color: rgba(74,222,128,0.45);
+    }
+    .header-products .prod-sep {
+      width: 1px; height: 32px; flex-shrink: 0;
+      background: rgba(255,255,255,0.12);
+      margin: 0 2px;
+    }
     @media (max-width: 900px) { .header-products { display: none; } }
 
     .header-right { display: flex; align-items: center; gap: 12px; }
@@ -532,6 +552,7 @@
     <img src="img/Bosque--Nativo.jpg"          title="Bosque Nativo">
     <img src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
     <img src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
+    <div class="prod-sep"></div>
     <img src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
     <img src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
   </div>
