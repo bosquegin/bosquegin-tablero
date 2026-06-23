@@ -139,9 +139,10 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 6px 14px;
+      padding: 4px 12px;
       font-size:9px;
       color: var(--muted);
+      display: inline-block;
     }
     .update-dot {
       width: 8px; height: 8px;
@@ -560,9 +561,9 @@
   <div class="header-title">
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
     <span class="sub">Tablero Operativo · Supply Chain &nbsp;<span class="ver">v2.23</span></span>
+    <div class="date-badge" id="current-date" style="margin-top:5px;pointer-events:auto"></div>
   </div>
   <div class="header-right">
-    <div class="date-badge" id="current-date"></div>
     <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
     <div id="data-freshness-dot" class="update-dot" title="Verificando datos…"></div>
     <button id="btn-update" onclick="runUpdate()"
