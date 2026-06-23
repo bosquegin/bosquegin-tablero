@@ -88,20 +88,29 @@
       z-index: 100;
       flex-shrink: 0;
     }
+    .header-left { display: flex; align-items: center; gap: 0; }
+    .header-vert-sep {
+      width: 1px; height: 52px; flex-shrink: 0;
+      background: var(--border); margin-left: 18px;
+    }
     .header-title {
       position: absolute; left: 50%; transform: translateX(-50%);
       text-align: center; pointer-events: none; white-space: nowrap;
     }
+    .header-title .supra {
+      display: block; font-size: 9px; font-weight: 600;
+      color: var(--muted); letter-spacing: 3px; text-transform: uppercase;
+      margin-bottom: 4px;
+    }
     .header-title h1 {
-      font-size: 20px; font-weight: 800;
+      font-size: 22px; font-weight: 800;
       letter-spacing: 3px; text-transform: uppercase;
-      color: var(--text);
-      text-shadow: 0 0 40px rgba(74,222,128,.2);
+      color: var(--text); line-height: 1;
     }
     .header-title h1 .sep { color: var(--accent); font-weight: 300; opacity: .8; }
     .header-title .sub {
-      font-size: 8px; color: var(--muted); letter-spacing: 2px;
-      text-transform: uppercase; display: block; margin-top: 4px;
+      font-size: 8px; color: var(--muted); letter-spacing: 1.5px;
+      text-transform: uppercase; display: block; margin-top: 5px;
     }
     .header-title .sub .ver { color: var(--accent); opacity: .65; font-weight: 700; }
 
@@ -548,20 +557,23 @@
 
 <!-- HEADER -->
 <header>
-  <!-- Izquierda: imágenes de productos -->
-  <div class="header-products">
-    <img src="img/Bosque--Nativo.jpg"          title="Bosque Nativo">
-    <img src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
-    <img src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
-    <div class="prod-sep"></div>
-    <img src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
-    <img src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
+  <!-- Izquierda: imágenes + separador vertical -->
+  <div class="header-left">
+    <div class="header-products">
+      <img src="img/Bosque--Nativo.jpg"          title="Bosque Nativo">
+      <img src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
+      <img src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
+      <div class="prod-sep"></div>
+      <img src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
+      <img src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
+    </div>
+    <div class="header-vert-sep"></div>
   </div>
   <!-- Centro: título -->
   <div class="header-title">
+    <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
-    <span class="sub">Tablero Operativo · Supply Chain &nbsp;<span class="ver">v2.23</span></span>
-    <div class="date-badge" id="current-date" style="margin-top:5px;pointer-events:auto"></div>
+    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.23</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
   </div>
   <div class="header-right">
     <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
