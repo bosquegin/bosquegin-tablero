@@ -4772,7 +4772,6 @@ let chartCerv = null;
 function initDestileria() {
   const D = BOSQUE_DATA.destileria;
   const prodSel = document.getElementById('dest-prod-sel');
-  const metSel  = document.getElementById('dest-metric-sel');
   if (!prodSel || prodSel.options.length > 0) return;
   if (!D || !D.products || !D.products.length) return;
 
@@ -4782,13 +4781,6 @@ function initDestileria() {
     opt.textContent = p.linea + ' · ' + p.producto;
     prodSel.appendChild(opt);
   });
-
-  [['total','Costo Neto'],['dest','Costo Prod. y Fin.'],['cerv','Costo Insumos']].forEach(([v,t]) => {
-    const opt = document.createElement('option');
-    opt.value = v; opt.textContent = t;
-    metSel.appendChild(opt);
-  });
-  metSel.value = 'total';
 }
 
 function renderDestileria() {
@@ -4801,7 +4793,6 @@ function renderDestileria() {
   initDestileria();
 
   const prodIdx = parseInt(document.getElementById('dest-prod-sel').value) || 0;
-  const metric  = document.getElementById('dest-metric-sel').value || 'total';
   const prod    = D.products[prodIdx];
   const periods = D.periods;
 
@@ -5210,8 +5201,6 @@ function renderCervezas() {
   <div class="filter-bar" style="margin-bottom:16px">
     <span class="filter-label">Producto:</span>
     <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
-    <span class="filter-label">Métrica:</span>
-    <select id="dest-metric-sel" onchange="renderDestileria()" style="min-width:160px"></select>
   </div>
 
   <div class="kpi-grid" id="dest-kpis"></div>
