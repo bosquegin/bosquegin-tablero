@@ -1025,6 +1025,7 @@ def fetch_costos_completo():
     costos_dict = {}
     costos_data = {
         "periodos": ["2025", "2026"],
+        "meses":    [],
         "productos": [],
         "actualizacion": "",
         "error": None,
@@ -1061,6 +1062,7 @@ def fetch_costos_completo():
     row1 = all_rows[1]
     row2 = all_rows[2]
     row3 = all_rows[3]
+    month_labels = []   # "YYYY-MM" por cada bloque mensual en costo_cols
 
     # Estructura antigua: fila 3 tiene etiquetas "COSTO FINAL"
     costo_cols_chk = [i for i, h in enumerate(row3) if h.strip() == "COSTO FINAL"]
@@ -1111,6 +1113,7 @@ def fetch_costos_completo():
                     max_b = 0                   # anio futuro: omitir
                 for b in range(min(n_monthly, max_b)):
                     costo_cols.append(start_col + b * 9)
+                    month_labels.append(f"{yr}-{b+1:02d}")
         print(f"  Costos: estructura nueva ({len(costo_cols)} bloques, resumen: {list(resumen_pos.keys())})")
 
     def _get_val(row, col, offset, default=None):
@@ -1138,6 +1141,17 @@ def fetch_costos_completo():
                 mb_actual    = _pct(_get_val(row, ci, 2))
                 break
 
+        # Datos por mes (costo_cols + month_labels van en paralelo)
+        meses_data = {}
+        for ci, ml in zip(costo_cols, month_labels):
+            c = _money(_get_val(row, ci, 0))
+            if c is not None and c > 0:
+                meses_data[ml] = {
+                    "costo": c,
+                    "pvp":   _money(_get_val(row, ci, 8)),
+                    "mb":    _pct(_get_val(row, ci, 2)),
+                }
+
         # Datos de RESUMEN 2025 y 2026
         periodos_data = {}
         for yr, base in resumen_pos.items():
@@ -1161,11 +1175,13 @@ def fetch_costos_completo():
             "pvp":    pvp_actual,
             "mb":     mb_actual,
             "periodos": periodos_data,
+            "meses":  meses_data,
         })
 
         if costo_actual and costo_actual > 0:
             costos_dict[cod] = costo_actual
 
+    costos_data["meses"] = month_labels
     costos_data["actualizacion"] = datetime.now(_AR).strftime("%Y-%m-%dT%H:%M:%S-03:00")
     n = len(costos_data["productos"])
     print(f"  Costos: {n} productos cargados desde {source}  |  {len(costos_dict)} con precio")

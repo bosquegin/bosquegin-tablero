@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
   <script>
@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.23</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.25</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
@@ -576,7 +576,7 @@
   <div class="header-title">
     <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
-    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.23</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
+    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.25</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
   </div>
   <div class="header-right">
     <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
@@ -615,18 +615,18 @@
   <div class="tab" data-section="ventas" onclick="showSection('ventas', this)">
     <span class="tab-icon">📤</span> Salidas
   </div>
-  <div class="tab" data-section="destileria" onclick="showSection('destileria', this)">
-    <span class="tab-icon">🏭</span>
-    <span style="line-height:1.25">Costo Producción<br><span style="font-size:8px">Bosque · Feriado · Temple</span></span>
-  </div>
   <div class="tab" data-section="supply" onclick="showSection('supply', this)">
     <span class="tab-icon">🛒</span> Compras
+  </div>
+  <div class="tab" data-section="calendario" onclick="showSection('calendario', this)">
+    <span class="tab-icon">📅</span> Calendario
   </div>
   <div class="tab" data-section="logistica" onclick="showSection('logistica', this)">
     <span class="tab-icon">🛒</span> Logística
   </div>
-  <div class="tab" data-section="calendario" onclick="showSection('calendario', this)">
-    <span class="tab-icon">📅</span> Calendario
+  <div class="tab" data-section="destileria" onclick="showSection('destileria', this)">
+    <span class="tab-icon">🏭</span>
+    <span style="line-height:1.25">Costo Producción<br><span style="font-size:8px">Bosque · Feriado · Temple</span></span>
   </div>
   <div class="tab" data-section="costos" onclick="showSection('costos', this)">
     <span class="tab-icon">💰</span>
@@ -5249,70 +5249,768 @@ function renderCervezas() {
 <!-- ═══════════════════════════════════════════════ -->
 <!--  DESTILERÍA                                    -->
 <!-- ═══════════════════════════════════════════════ -->
-<section id="destileria" class="section">
+<section id="calendario" class="section">
+<style>
+  .cal-header    { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
+  .cal-controls  { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .cal-kpi-grid  { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
+  .cal-section   { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:16px; }
+  .cal-section-title { font-size:9px; font-weight:600; color:var(--accent); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .cal-table     { width:100%; border-collapse:collapse; font-size:9px; }
+  .cal-table th  { background:rgba(255,255,255,.04); font-size:9px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
+  .cal-table td  { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle; }
+  .cal-table tr:last-child td { border-bottom:none; }
+  .cal-table tr:hover td { background:rgba(255,255,255,.025); }
+  .cal-badge        { display:inline-block; padding:2px 8px; border-radius:6px; font-size:9px; font-weight:700; }
+  .cal-badge-ok     { background:rgba(16,185,129,.15); color:#10b981; }
+  .cal-badge-warn   { background:rgba(234,179,8,.15);  color:#eab308; }
+  .cal-badge-danger { background:rgba(239,68,68,.15);  color:#ef4444; }
+  .cal-badge-info   { background:rgba(99,102,241,.15); color:#818cf8; }
+  .cal-badge-neutral{ background:rgba(255,255,255,.08); color:var(--muted); }
+  .cal-timeline  { position:relative; padding-left:28px; }
+  .cal-timeline::before { content:""; position:absolute; left:8px; top:0; bottom:0; width:2px; background:var(--border); }
+  .cal-event     { position:relative; margin-bottom:14px; }
+  .cal-event::before { content:""; position:absolute; left:-24px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--card); }
+  .cal-event.danger::before { background:#ef4444; }
+  .cal-event.warn::before   { background:#eab308; }
+  .cal-event.ok::before     { background:#10b981; }
+  .cal-event.info::before   { background:#818cf8; }
+  .cal-event-date  { font-size:9px; color:var(--muted); margin-bottom:2px; }
+  .cal-event-title { font-size:9px; font-weight:600; color:var(--text); }
+  .cal-event-sub   { font-size:9px; color:var(--muted); margin-top:1px; }
+  .cal-month-nav   { display:flex; gap:8px; align-items:center; }
+  .cal-month-nav button { background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text); padding:5px 12px; border-radius:8px; cursor:pointer; font-size:9px; }
+  .cal-month-nav button:hover { background:rgba(255,255,255,.12); }
+  .cal-month-nav span { font-size:9px; font-weight:600; min-width:120px; text-align:center; }
+  .cal-grid-month { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
+  .cal-day-head   { text-align:center; font-size:9px; color:var(--muted); font-weight:600; padding:4px 0; }
+  .cal-day        { min-height:68px; border:1px solid var(--border); border-radius:6px; padding:4px 5px; font-size:9px; }
+  .cal-day.today  { border-color:var(--accent); background:rgba(99,102,241,.08); }
+  .cal-day.empty  { background:transparent; border-color:transparent; min-height:20px; }
+  .cal-day-num    { font-weight:600; color:var(--muted); font-size:9px; margin-bottom:2px; }
+  .cal-day.today .cal-day-num { color:var(--accent); }
+  .cal-pill       { display:block; padding:2px 4px; border-radius:3px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:9px; font-weight:600; }
+  .cal-pill.compra     { background:rgba(99,102,241,.3); color:#a5b4fc; }
+  .cal-pill.llegada    { background:rgba(16,185,129,.3); color:#6ee7b7; }
+  .cal-pill.produccion { background:rgba(234,179,8,.3);  color:#fde68a; }
+  .cal-pill.despacho   { background:rgba(239,68,68,.25); color:#fca5a5; }
+  .cal-legend    { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
+  .cal-leg-item  { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--muted); }
+  .cal-leg-dot   { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+</style>
 
-  <div style="margin-bottom:14px">
-    <div class="table-title" style="font-size:15px">🏭 Costo Producción Bosque · Feriado · Temple</div>
-    <div class="chart-subtitle" style="margin-top:2px">Fuente: Hoja "RESUMEN PRODUCTOS X DESTILERIA" · Costo Destilería + Costo Cervecería por producto y período</div>
+<div class="cal-header">
+  <div>
+    <div style="font-size:16px;font-weight:700">&#128197; Calendario de Compras &amp; Producci&#243;n</div>
+    <div style="font-size:9px;color:var(--muted);margin-top:2px">Proyecci&#243;n de &#243;rdenes de compra seg&#250;n lead times y plan de producci&#243;n</div>
   </div>
-
-  <div class="filter-bar" style="margin-bottom:16px">
-    <span class="filter-label">Producto:</span>
-    <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
+  <div class="cal-controls">
+    <div class="cal-month-nav">
+      <button onclick="calNavMonth(-1)">&#9664;</button>
+      <span id="cal-month-label">&#8212;</span>
+      <button onclick="calNavMonth(+1)">&#9654;</button>
+    </div>
+    <select id="cal-view-sel" onchange="renderCalendario()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px">
+      <option value="calendar">Vista mensual</option>
+      <option value="list">Vista lista</option>
+      <option value="productos">Por producto</option>
+    </select>
   </div>
+</div>
 
-  <div class="kpi-grid" id="dest-kpis"></div>
+<div class="cal-kpi-grid" id="cal-kpis"></div>
 
-  <div class="chart-card" style="margin-bottom:16px">
-    <div class="chart-title" id="dest-chart-title">Destilería</div>
-    <div class="chart-subtitle">Últimos 18 períodos · barras = Destilería + Cervecería · línea = Total</div>
-    <div class="chart-wrap tall"><canvas id="chartDestileria"></canvas></div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-title">📊 Cuadro evolutivo de costos · Destilería</div>
-    <div class="chart-subtitle" style="margin-bottom:10px">Costo Prod. y Fin. + Costo Insumos = Costo Neto · variación mes a mes · anualizado = Costo Neto × 12</div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead id="dest-thead"></thead>
-      <tbody id="dest-tbody"></tbody>
-    </table>
+<!-- ── PROYECCIÓN DE COMPRAS ─────────────────────────────── -->
+<div class="cal-section" style="margin-bottom:16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
+    <div class="cal-section-title" style="margin-bottom:0">
+      &#128203; Proyecci&#243;n de compras &mdash; productos con &lt; 3 meses de stock
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span id="proy-count" style="font-size:9px;color:var(--muted)"></span>
+      <button id="proy-save-btn" onclick="guardarProyeccion()"
+        style="background:rgba(74,222,128,.12);border:1px solid var(--accent);color:var(--accent);
+               border-radius:8px;padding:6px 14px;font-size:9px;font-weight:600;cursor:pointer">
+        &#128190; Guardar aprobaciones
+      </button>
     </div>
   </div>
 
-  <div style="margin-top:28px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:18px">
-    <div class="table-title" style="font-size:15px">🍺 Costo Cervezas Lata</div>
-    <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
+  <div style="overflow-x:auto">
+  <table class="cal-table" id="proy-table">
+    <thead>
+      <tr>
+        <th class="sortable" onclick="setProySort('rub')" style="cursor:pointer;user-select:none">Rubro <span class="sort-icon" id="ps-icon-rub">⇅</span></th>
+        <th>Subrubro</th>
+        <th class="sortable" onclick="setProySort('cod')" style="cursor:pointer;user-select:none">C&#243;d <span class="sort-icon" id="ps-icon-cod">⇅</span></th>
+        <th class="sortable" onclick="setProySort('art')" style="cursor:pointer;user-select:none">Producto <span class="sort-icon" id="ps-icon-art">⇅</span></th>
+        <th class="sortable" onclick="setProySort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock (un) <span class="sort-icon" id="ps-icon-stock">⇅</span></th>
+        <th class="sortable" onclick="setProySort('min_k')" style="text-align:right;cursor:pointer;user-select:none">Min/mes (un) <span class="sort-icon" id="ps-icon-min_k">⇅</span></th>
+        <th class="sortable" onclick="setProySort('meses')" style="text-align:right;cursor:pointer;user-select:none">Meses <span class="sort-icon" id="ps-icon-meses">⇅</span></th>
+        <th class="sortable" onclick="setProySort('sug30')" style="text-align:right;cursor:pointer;user-select:none">Sug 30d (un) <span class="sort-icon" id="ps-icon-sug30">⇅</span></th>
+        <th class="sortable" onclick="setProySort('sug60')" style="text-align:right;cursor:pointer;user-select:none">Sug 60d (un) <span class="sort-icon" id="ps-icon-sug60">⇅</span></th>
+        <th class="sortable" onclick="setProySort('sug90')" style="text-align:right;cursor:pointer;user-select:none">Sug 90d (un) <span class="sort-icon" id="ps-icon-sug90">⇅</span></th>
+        <th style="text-align:right">Cant. a comprar (un)</th>
+        <th style="text-align:center">&#10003; Aprobar</th>
+      </tr>
+    </thead>
+    <tbody id="proy-tbody"></tbody>
+  </table>
   </div>
+  <div id="proy-save-msg" style="margin-top:10px;font-size:9px;display:none"></div>
+</div>
 
-  <div class="filter-bar" style="margin-bottom:16px">
-    <span class="filter-label">Producto:</span>
-    <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
+<div class="cal-legend">
+  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(99,102,241,.6)"></div> Orden de compra</div>
+  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(16,185,129,.6)"></div> Llegada de materiales</div>
+  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(234,179,8,.6)"></div> Inicio de producci&#243;n</div>
+  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(239,68,68,.5)"></div> Despacho / entrega</div>
+</div>
+
+<div id="cal-main-content"></div>
+
+<div class="cal-section" style="margin-top:4px">
+  <div class="cal-section-title">&#9881;&#65039; Par&#225;metros de lead time por producto</div>
+  <div style="font-size:9px;color:var(--muted);margin-bottom:12px">
+    Defin&#237; los tiempos de entrega del proveedor y de producci&#243;n para cada producto.
+    Se usar&#225;n para calcular cu&#225;ndo emitir cada orden de compra.
   </div>
-
-  <div class="kpi-grid" id="cerv-kpis"></div>
-
-  <div class="chart-card" style="margin-bottom:16px">
-    <div class="chart-title" id="cerv-chart-title">Cervezas</div>
-    <div class="chart-subtitle">Costo neto mensual · $/L · col. K de cada hoja mensual</div>
-    <div class="chart-wrap"><canvas id="chartCerveza"></canvas></div>
+  <div style="overflow-x:auto">
+  <table class="cal-table">
+    <thead>
+      <tr>
+        <th>C&#243;digo</th>
+        <th>Producto</th>
+        <th style="text-align:center">Lead time proveedor (d&#237;as)</th>
+        <th style="text-align:center">Tiempo producci&#243;n (d&#237;as)</th>
+        <th style="text-align:center">Lote m&#237;nimo (un)</th>
+        <th style="text-align:center">Stock de seguridad (un)</th>
+        <th style="text-align:center">Pr&#243;xima compra estimada</th>
+        <th style="text-align:center">Estado</th>
+      </tr>
+    </thead>
+    <tbody id="cal-params-tbody"></tbody>
+  </table>
   </div>
+  <div style="margin-top:12px;font-size:9px;color:var(--muted)">
+    &#8505; <strong>Lead time proveedor</strong>: d&#237;as desde la orden hasta recibir materiales &nbsp;|&nbsp;
+    <strong>Tiempo producci&#243;n</strong>: d&#237;as de proceso hasta producto terminado &nbsp;|&nbsp;
+    <strong>Pr&#243;xima compra</strong> = hoy + (d&#237;as hasta stock seg.) &#8722; lead times acumulados
+  </div>
+</div>
 
-  <div class="table-card">
-    <div class="table-title">📊 Cuadro evolutivo de costos · Cervezas</div>
-    <div class="chart-subtitle" style="margin-bottom:10px">Costo neto $/L · variación mes a mes</div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead id="cerv-thead"></thead>
-      <tbody id="cerv-tbody"></tbody>
-    </table>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <div class="cal-section" style="margin-bottom:0">
+    <div class="cal-section-title">&#128203; Pr&#243;ximos eventos (30 d&#237;as)</div>
+    <div id="cal-timeline-content" class="cal-timeline">
+      <div style="color:var(--muted);font-size:9px">Los eventos aparecer&#225;n aqu&#237; una vez que se carguen los datos.</div>
     </div>
   </div>
+  <div class="cal-section" style="margin-bottom:0">
+    <div class="cal-section-title">&#128202; Resumen del mes</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#818cf8" id="cal-sum-compras">0</div>
+        <div style="font-size:9px;color:var(--muted)">&#211;rdenes de compra</div>
+      </div>
+      <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#10b981" id="cal-sum-llegadas">0</div>
+        <div style="font-size:9px;color:var(--muted)">Llegadas esperadas</div>
+      </div>
+      <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#eab308" id="cal-sum-prod">0</div>
+        <div style="font-size:9px;color:var(--muted)">Lotes a producir</div>
+      </div>
+      <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#f87171" id="cal-sum-despachos">0</div>
+        <div style="font-size:9px;color:var(--muted)">Despachos / entregas</div>
+      </div>
+    </div>
+    <div style="padding:12px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--border)">
+      <div style="font-size:9px;color:var(--muted);margin-bottom:6px;font-weight:600">ALERTAS</div>
+      <div id="cal-alertas" style="font-size:9px;color:var(--muted)">Sin alertas cr&#237;ticas.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+var CAL_EVENTS = [];
+var CAL_PARAMS = {};
+var calYear  = new Date().getFullYear();
+var calMonth = new Date().getMonth();
+
+function calNavMonth(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth < 0)  { calMonth = 11; calYear--; }
+  renderCalendario();
+}
+
+// ── Sort state for Proyecciones table ────────────────────────────────────────
+var proySort = {col: 'meses', asc: true};
+
+function setProySort(col) {
+  if (proySort.col === col) proySort.asc = !proySort.asc;
+  else { proySort.col = col; proySort.asc = ['cod','art','rub'].includes(col); }
+  renderProyecciones();
+}
+function updateProySortIcons() {
+  var cols = ['cod','art','rub','stock','min_k','meses','sug30','sug60','sug90'];
+  cols.forEach(function(c) {
+    var el = document.getElementById('ps-icon-'+c);
+    if (el) el.textContent = c !== proySort.col ? '⇅' : proySort.asc ? '▲' : '▼';
+    var th = el ? el.parentElement : null;
+    if (th) th.style.color = c === proySort.col ? 'var(--accent)' : '';
+  });
+}
+
+// ── Proyección de compras ─────────────────────────────────────────────────────
+function renderProyecciones() {
+  // Solo KLOZER: stock = it.klozer, meses = it.pk_dep (klozer / min_k)
+  var alerta = INV_DATA.filter(function(it) {
+    return it.min_k > 0 && (it.pk_dep || 0) < 3;
+  }).sort(function(a, b) {
+    var c = proySort.col;
+    if (c === 'cod') return proySort.asc ? String(a.cod).localeCompare(String(b.cod)) : String(b.cod).localeCompare(String(a.cod));
+    if (c === 'art') return proySort.asc ? (a.art||'').localeCompare(b.art||'') : (b.art||'').localeCompare(a.art||'');
+    if (c === 'rub') return proySort.asc ? (a.rub||'').localeCompare(b.rub||'') : (b.rub||'').localeCompare(a.rub||'');
+    var stockA = a.klozer||0, stockB = b.klozer||0;
+    if (c === 'stock') return proySort.asc ? stockA-stockB : stockB-stockA;
+    if (c === 'min_k') return proySort.asc ? (a.min_k||0)-(b.min_k||0) : (b.min_k||0)-(a.min_k||0);
+    if (c === 'meses') return proySort.asc ? (a.pk_dep||0)-(b.pk_dep||0) : (b.pk_dep||0)-(a.pk_dep||0);
+    var mk_a = a.min_k||0, mk_b = b.min_k||0;
+    var stA = a.klozer||0, stB = b.klozer||0;
+    if (c === 'sug30') return proySort.asc ? (Math.max(0,mk_a*1-stA))-(Math.max(0,mk_b*1-stB)) : (Math.max(0,mk_b*1-stB))-(Math.max(0,mk_a*1-stA));
+    if (c === 'sug60') return proySort.asc ? (Math.max(0,mk_a*2-stA))-(Math.max(0,mk_b*2-stB)) : (Math.max(0,mk_b*2-stB))-(Math.max(0,mk_a*2-stA));
+    if (c === 'sug90') return proySort.asc ? (Math.max(0,mk_a*3-stA))-(Math.max(0,mk_b*3-stB)) : (Math.max(0,mk_b*3-stB))-(Math.max(0,mk_a*3-stA));
+    return proySort.asc ? (a.pk_dep||0)-(b.pk_dep||0) : (b.pk_dep||0)-(a.pk_dep||0);
+  });
+
+  document.getElementById('proy-count').textContent = alerta.length + ' producto' + (alerta.length !== 1 ? 's' : '');
+
+  if (!alerta.length) {
+    document.getElementById('proy-tbody').innerHTML =
+      '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">&#9989; Todos los productos tienen m&aacute;s de 3 meses de stock en KLOZER</td></tr>';
+    return;
+  }
+
+  var rows = alerta.map(function(it) {
+    var stock = it.klozer || 0;          // solo KLOZER
+    var min_k = it.min_k || 0;
+    var meses = it.pk_dep || 0;          // meses de stock KLOZER
+    var sug30 = Math.max(0, Math.round(min_k * 1 - stock));
+    var sug60 = Math.max(0, Math.round(min_k * 2 - stock));
+    var sug90 = Math.max(0, Math.round(min_k * 3 - stock));
+    var mCol  = meses < 1 ? 'color:#ef4444;font-weight:700'
+              : meses < 2 ? 'color:#eab308;font-weight:600' : '';
+    var codE  = String(it.cod).replace(/"/g,'');
+    var artE  = (it.art||'').replace(/"/g,'&quot;');
+    var rubE  = (it.rub||'').replace(/"/g,'&quot;');
+    var subE  = (it.sub||'').replace(/"/g,'&quot;');
+    return '<tr data-cod="'+codE+'" data-art="'+artE+'" data-rub="'+rubE+'" data-sub="'+subE+'"' +
+      ' data-stock="'+stock+'" data-min="'+min_k+'" data-meses="'+meses+'"' +
+      ' data-s30="'+sug30+'" data-s60="'+sug60+'" data-s90="'+sug90+'">' +
+      '<td style="font-size:9px">'+it.rub+'</td>' +
+      '<td style="font-size:9px;color:var(--muted)">'+it.sub+'</td>' +
+      '<td style="font-size:9px;color:var(--muted)">'+it.cod+'</td>' +
+      '<td style="font-weight:600">'+it.art+'</td>' +
+      '<td style="text-align:right">'+stock.toLocaleString('es-AR')+'</td>' +
+      '<td style="text-align:right">'+min_k.toFixed(1)+'</td>' +
+      '<td style="text-align:right;'+mCol+'">'+meses.toFixed(1)+'</td>' +
+      '<td style="text-align:right;color:var(--muted)">'+sug30.toLocaleString('es-AR')+'</td>' +
+      '<td style="text-align:right;color:var(--muted)">'+sug60.toLocaleString('es-AR')+'</td>' +
+      '<td style="text-align:right;color:var(--muted)">'+sug90.toLocaleString('es-AR')+'</td>' +
+      '<td style="text-align:right">' +
+        '<input type="number" min="0" value="'+sug60+'" data-default="'+sug60+'"' +
+        ' style="width:80px;background:var(--card);border:1px solid var(--border);' +
+        'color:var(--text);border-radius:4px;padding:3px 6px;font-size:9px;text-align:right">' +
+      '</td>' +
+      '<td style="text-align:center">' +
+        '<input type="checkbox"' +
+        ' style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">' +
+      '</td>' +
+      '</tr>';
+  }).join('');
+
+  document.getElementById('proy-tbody').innerHTML = rows;
+  updateProySortIcons();
+}
+
+function guardarProyeccion() {
+  var rows = document.querySelectorAll('#proy-tbody tr[data-cod]');
+  var items = [];
+  rows.forEach(function(tr) {
+    var input = tr.querySelector('input[type="number"]');
+    var chk   = tr.querySelector('input[type="checkbox"]');
+    if (!input || !chk) return;
+    var cant     = parseFloat(input.value) || 0;
+    var aprobado = chk.checked;
+    if (aprobado || cant > 0) {
+      items.push({
+        cod:           tr.dataset.cod,
+        art:           tr.dataset.art,
+        rub:           tr.dataset.rub,
+        sub:           tr.dataset.sub,
+        stock:         parseFloat(tr.dataset.stock),
+        min_k:         parseFloat(tr.dataset.min),
+        meses:         parseFloat(tr.dataset.meses),
+        cant_aprobada: cant,
+        aprobado:      aprobado
+      });
+    }
+  });
+
+  var msg = document.getElementById('proy-save-msg');
+  var btn = document.getElementById('proy-save-btn');
+
+  if (!items.length) {
+    msg.style.display = 'block';
+    msg.style.color   = '#eab308';
+    msg.textContent   = 'No hay items aprobados. Tildá al menos uno y asigná cantidad.';
+    return;
+  }
+
+  // Items con checkbox aprobado Y cantidad > 0 → van al calendario
+  var aprobados = items.filter(function(it) { return it.aprobado && it.cant_aprobada > 0; });
+
+  // ── Mostrar modal fecha/proveedor ─────────────────────────────────────
+  var modal = document.getElementById('cal-apro-modal');
+  document.getElementById('cal-apro-count').textContent = aprobados.length;
+  document.getElementById('cal-apro-err').style.display = 'none';
+
+  // Fecha default: hoy + 15 días
+  var defDate = new Date();
+  defDate.setDate(defDate.getDate() + 15);
+  document.getElementById('cal-apro-fecha').value =
+    defDate.getFullYear() + '-' +
+    String(defDate.getMonth()+1).padStart(2,'0') + '-' +
+    String(defDate.getDate()).padStart(2,'0');
+  document.getElementById('cal-apro-prov').value = '';
+
+  // Lista de items aprobados en el modal
+  document.getElementById('cal-apro-items').innerHTML = aprobados.length
+    ? aprobados.map(function(it) {
+        return '<div style="padding:1px 0;border-bottom:1px solid var(--border)">▸ ' +
+               '<strong>' + (it.art||it.cod) + '</strong>' +
+               ' — ' + it.cant_aprobada.toLocaleString('es-AR') + ' un.</div>';
+      }).join('')
+    : '<div style="color:var(--muted)">Sin items aprobados con cantidad asignada.</div>';
+
+  modal.style.display = 'flex';
+
+  // ── Handlers del modal ────────────────────────────────────────────────
+  document.getElementById('cal-apro-cancel').onclick = function() {
+    modal.style.display = 'none';
+  };
+
+  document.getElementById('cal-apro-confirm').onclick = function() {
+    var fecha = document.getElementById('cal-apro-fecha').value;
+    var prov  = document.getElementById('cal-apro-prov').value.trim();
+    var err   = document.getElementById('cal-apro-err');
+
+    if (!fecha) {
+      err.style.display = 'block';
+      err.textContent   = 'Ingresá la fecha de entrega estimada.';
+      return;
+    }
+
+    modal.style.display = 'none';
+
+    // ── Agregar eventos al calendario ─────────────────────────────────
+    var todayStr = (function() {
+      var t = new Date();
+      return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    })();
+
+    aprobados.forEach(function(it) {
+      // Evento de compra (hoy = orden emitida)
+      CAL_EVENTS.push({
+        date: todayStr,
+        tipo: 'compra',
+        cod:  it.cod,
+        art:  it.art,
+        qty:  it.cant_aprobada,
+        nota: prov || ''
+      });
+      // Evento de llegada (fecha de entrega)
+      CAL_EVENTS.push({
+        date: fecha,
+        tipo: 'llegada',
+        cod:  it.cod,
+        art:  it.art,
+        qty:  it.cant_aprobada,
+        nota: prov || ''
+      });
+    });
+
+    // Navegar al mes de la fecha de entrega y refrescar calendario
+    if (aprobados.length) {
+      var fDate = new Date(fecha + 'T12:00:00');
+      calYear  = fDate.getFullYear();
+      calMonth = fDate.getMonth();
+      var calSec = document.getElementById('calendario');
+      if (calSec && calSec.classList.contains('active')) {
+        renderCalendario();
+      }
+    }
+
+    // ── Guardar en servidor ───────────────────────────────────────────
+    btn.textContent   = '&#8987; Guardando…';
+    btn.style.opacity = '0.6';
+
+    fetch('/guardar_proyeccion', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      credentials: 'same-origin',
+      body:    JSON.stringify(items)
+    })
+    .then(function(r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function(d) {
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'block';
+      if (d.ok) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✓ ' + d.guardados + ' aprobación(es) guardada(s)' +
+          (aprobados.length ? ' · ' + aprobados.length + ' orden(es) en calendario' + (prov ? ' — ' + prov : '') : '');
+      } else {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Error: ' + d.error;
+      }
+    })
+    .catch(function(e) {
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'block';
+      msg.style.color   = '#ef4444';
+      msg.textContent   = 'No se pudo conectar al servidor: ' + e.message;
+    });
+  };
+}
+
+// ── guardarRepSugerida ────────────────────────────────────────────────────────
+function guardarRepSugerida() {
+  var state    = window._repState || {};
+  var aprobados = Object.values(state).filter(function(x){ return x.apro && x.qty > 0; });
+  var msg = document.getElementById('sc-rep-save-msg');
+  var btn = document.getElementById('sc-rep-save-btn');
+
+  if (!aprobados.length) {
+    msg.style.display = 'inline';
+    msg.style.color   = '#eab308';
+    msg.textContent   = 'Tildá al menos un artículo con cantidad.';
+    return;
+  }
+
+  // Reusar el mismo modal de cal-apro
+  var modal = document.getElementById('cal-apro-modal');
+  document.getElementById('cal-apro-count').textContent = aprobados.length;
+  document.getElementById('cal-apro-err').style.display = 'none';
+
+  var defDate = new Date();
+  defDate.setDate(defDate.getDate() + 15);
+  document.getElementById('cal-apro-fecha').value =
+    defDate.getFullYear() + '-' +
+    String(defDate.getMonth()+1).padStart(2,'0') + '-' +
+    String(defDate.getDate()).padStart(2,'0');
+  document.getElementById('cal-apro-prov').value = '';
+
+  document.getElementById('cal-apro-items').innerHTML =
+    aprobados.map(function(it){
+      return '<div style="padding:1px 0;border-bottom:1px solid var(--border)">▸ ' +
+             '<strong>' + (it.art||it.cod) + '</strong>' +
+             ' — ' + Number(it.qty).toLocaleString('es-AR') + ' un.</div>';
+    }).join('');
+
+  modal.style.display = 'flex';
+
+  document.getElementById('cal-apro-cancel').onclick = function() {
+    modal.style.display = 'none';
+  };
+
+  document.getElementById('cal-apro-confirm').onclick = function() {
+    var fecha = document.getElementById('cal-apro-fecha').value;
+    var prov  = document.getElementById('cal-apro-prov').value.trim();
+    var err   = document.getElementById('cal-apro-err');
+    if (!fecha) { err.style.display='block'; err.textContent='Ingresá la fecha de entrega.'; return; }
+
+    modal.style.display = 'none';
+
+    // Agregar al calendario
+    var todayStr = (function(){
+      var t=new Date();
+      return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+    })();
+    aprobados.forEach(function(it){
+      CAL_EVENTS.push({ date:todayStr, tipo:'compra',  cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
+      CAL_EVENTS.push({ date:fecha,    tipo:'llegada', cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
+    });
+
+    // Navegar al mes de entrega si calendario está activo
+    var fDate = new Date(fecha + 'T12:00:00');
+    calYear  = fDate.getFullYear();
+    calMonth = fDate.getMonth();
+    if (document.getElementById('calendario').classList.contains('active')) renderCalendario();
+
+    // Mapear al formato de proyección y guardar en servidor
+    var items = aprobados.map(function(it){
+      return { cod:it.cod, art:it.art, rub:it.rub, sub:it.sub||'', stock:it.stock,
+               min_k:it.min||0, meses:0, cant_aprobada:it.qty, aprobado:true };
+    });
+
+    btn.textContent   = '&#8987; Guardando…';
+    btn.style.opacity = '0.6';
+
+    fetch('/guardar_proyeccion', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      credentials:'same-origin', body:JSON.stringify(items)
+    })
+    .then(function(r){ if(_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function(d){
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'inline';
+      if (d.ok) {
+        msg.style.color = '#10b981';
+        msg.textContent = '✓ ' + d.guardados + ' orden(es) guardada(s)' + (prov ? ' — ' + prov : '') + ' · tránsito actualizado';
+        window._repState = {};   // recalcular tránsito con los nuevos eventos
+        renderSupply();
+      } else {
+        msg.style.color = '#ef4444';
+        msg.textContent = 'Error: ' + d.error;
+      }
+    })
+    .catch(function(e){
+      btn.textContent   = '&#128190; Guardar aprobaciones';
+      btn.style.opacity = '1';
+      msg.style.display = 'inline';
+      msg.style.color   = '#ef4444';
+      msg.textContent   = 'Sin conexión: ' + e.message;
+    });
+  };
+}
+
+// ── renderCalendario ──────────────────────────────────────────────────────────
+function renderCalendario() {
+  renderProyecciones();
+  for (var i=0; i<INV_DATA.length; i++) {
+    var it = INV_DATA[i];
+    if (!CAL_PARAMS[it.cod]) {
+      CAL_PARAMS[it.cod] = { leadtime:0, produccion:0, lote_min:0, stock_seg: it.min_k||0 };
+    }
+  }
+  var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  document.getElementById('cal-month-label').textContent = MESES[calMonth] + ' ' + calYear;
+  renderCalKPIs();
+  renderCalParams();
+  var view = (document.getElementById('cal-view-sel')||{}).value || 'calendar';
+  if (view === 'list') renderCalListView();
+  else if (view === 'productos') renderCalProductView();
+  else renderCalMonthView();
+  renderCalSummary();
+}
+
+function renderCalKPIs() {
+  var evMes = CAL_EVENTS.filter(function(e) {
+    var d = new Date(e.date);
+    return d.getFullYear()===calYear && d.getMonth()===calMonth;
+  });
+  var enRiesgo = 0;
+  INV_DATA.forEach(function(it) {
+    var p  = CAL_PARAMS[it.cod]||{};
+    var lt = (p.leadtime||0)+(p.produccion||0);
+    if (!lt || !it.min_k) return;
+    var stock = (it.klozer||0)+(it.klozer_mkt||0);
+    if ((stock / (it.min_k/30)) < lt) enRiesgo++;
+  });
+  var c  = evMes.filter(function(e){return e.tipo==='compra';}).length;
+  var ll = evMes.filter(function(e){return e.tipo==='llegada';}).length;
+  var pr = evMes.filter(function(e){return e.tipo==='produccion';}).length;
+  var de = evMes.filter(function(e){return e.tipo==='despacho';}).length;
+  document.getElementById('cal-kpis').innerHTML =
+    '<div class="kpi-card"><div class="kpi-icon">&#128722;</div><div class="kpi-label">&#211;rdenes compra &middot; mes</div><div class="kpi-value">'+c+'</div></div>'+
+    '<div class="kpi-card"><div class="kpi-icon">&#128230;</div><div class="kpi-label">Llegadas esperadas &middot; mes</div><div class="kpi-value">'+ll+'</div></div>'+
+    '<div class="kpi-card"><div class="kpi-icon">&#127981;</div><div class="kpi-label">Lotes a producir &middot; mes</div><div class="kpi-value">'+pr+'</div></div>'+
+    '<div class="kpi-card"><div class="kpi-icon">&#128666;</div><div class="kpi-label">Despachos &middot; mes</div><div class="kpi-value">'+de+'</div></div>'+
+    '<div class="kpi-card'+(enRiesgo>0?' red':'')+'"><div class="kpi-icon">'+(enRiesgo>0?'&#128680;':'&#9989;')+'</div><div class="kpi-label">Prod. en riesgo de quiebre</div><div class="kpi-value">'+enRiesgo+'</div></div>';
+}
+
+function renderCalMonthView() {
+  var today    = new Date();
+  var todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
+  var daysInM  = new Date(calYear, calMonth+1, 0).getDate();
+  var firstDow = (new Date(calYear, calMonth, 1).getDay()+6)%7;
+  var byDate   = {};
+  CAL_EVENTS.forEach(function(ev) {
+    var d = new Date(ev.date);
+    if (d.getFullYear()===calYear && d.getMonth()===calMonth) {
+      if (!byDate[ev.date]) byDate[ev.date]=[];
+      byDate[ev.date].push(ev);
+    }
+  });
+  var DIAS = ['Lun','Mar','Mi&#233;','Jue','Vie','S&#225;b','Dom'];
+  var html = '<div class="cal-grid-month">';
+  DIAS.forEach(function(d){ html += '<div class="cal-day-head">'+d+'</div>'; });
+  for (var i=0;i<firstDow;i++) html += '<div class="cal-day empty"></div>';
+  for (var d=1; d<=daysInM; d++) {
+    var ds  = calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    var evs = byDate[ds]||[];
+    var cls = ds===todayStr ? ' today' : '';
+    html += '<div class="cal-day'+cls+'"><div class="cal-day-num">'+d+'</div>';
+    evs.slice(0,3).forEach(function(ev){
+      var lbl = ev.art ? ev.art.substring(0,14) : ev.tipo;
+      html += '<span class="cal-pill '+ev.tipo+'" title="'+ev.tipo+(ev.nota?' - '+ev.nota:'')+'">'+lbl+'</span>';
+    });
+    if (evs.length>3) html += '<span style="font-size:9px;color:var(--muted)">+' +(evs.length-3)+ ' m&#225;s</span>';
+    html += '</div>';
+  }
+  html += '</div>';
+  document.getElementById('cal-main-content').innerHTML = '<div class="cal-section" style="margin-bottom:16px">'+html+'</div>';
+}
+
+function renderCalListView() {
+  var evs = CAL_EVENTS
+    .filter(function(e){ var d=new Date(e.date); return d.getFullYear()===calYear && d.getMonth()===calMonth; })
+    .sort(function(a,b){ return a.date.localeCompare(b.date); });
+  var TLABEL = {compra:'&#128722; Orden compra', llegada:'&#128230; Llegada', produccion:'&#127981; Producci&#243;n', despacho:'&#128666; Despacho'};
+  var TCLS   = {compra:'cal-badge-info', llegada:'cal-badge-ok', produccion:'cal-badge-warn', despacho:'cal-badge-danger'};
+  if (!evs.length) {
+    document.getElementById('cal-main-content').innerHTML =
+      '<div class="cal-section" style="text-align:center;padding:40px 20px;color:var(--muted)">Sin eventos registrados para este mes.<br><small>Los eventos se agregar&#225;n cuando se carguen los datos de compras.</small></div>';
+    return;
+  }
+  var rows = evs.map(function(ev){
+    return '<tr><td>'+ev.date+'</td><td><span class="cal-badge '+(TCLS[ev.tipo]||'cal-badge-neutral')+'">'+(TLABEL[ev.tipo]||ev.tipo)+'</span></td>'+
+      '<td style="font-size:9px;color:var(--muted)">'+(ev.cod||'&#8212;')+'</td>'+
+      '<td style="font-weight:600">'+(ev.art||'&#8212;')+'</td>'+
+      '<td style="text-align:right">'+(ev.qty!=null?ev.qty.toLocaleString('es-AR'):'&#8212;')+'</td>'+
+      '<td style="color:var(--muted)">'+(ev.nota||'')+'</td></tr>';
+  }).join('');
+  document.getElementById('cal-main-content').innerHTML =
+    '<div class="cal-section" style="margin-bottom:16px;overflow-x:auto"><table class="cal-table"><thead><tr>'+
+    '<th>Fecha</th><th>Tipo</th><th>C&#243;d</th><th>Producto</th><th style="text-align:right">Cant.</th><th>Proveedor</th>'+
+    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+}
+
+function renderCalProductView() {
+  var MESES_S = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  var headers = [];
+  for (var i=0;i<6;i++) {
+    var m = (calMonth+i)%12;
+    var y = calYear + Math.floor((calMonth+i)/12);
+    headers.push({ label: MESES_S[m]+' '+y, year:y, month:m, offset:i });
+  }
+  var items = INV_DATA.slice().sort(function(a,b){ return a.art.localeCompare(b.art); });
+  var hdrCells = headers.map(function(h){ return '<th style="text-align:right">'+h.label+'</th>'; }).join('');
+  var rows = items.map(function(it) {
+    var stock  = (it.klozer||0)+(it.klozer_mkt||0);
+    var demMes = it.min_k||0;
+    var cells  = headers.map(function(h){
+      var proy = Math.max(0, stock - demMes*h.offset);
+      var s = proy===0 ? 'color:#ef4444;font-weight:700' : proy<demMes ? 'color:#eab308' : '';
+      return '<td style="text-align:right;'+s+'">'+proy.toLocaleString('es-AR')+'</td>';
+    }).join('');
+    return '<tr><td style="font-size:9px;color:var(--muted)">'+it.cod+'</td><td style="font-weight:600">'+it.art+'</td>'+
+      '<td style="text-align:right">'+stock.toLocaleString('es-AR')+'</td>'+
+      '<td style="text-align:right;color:var(--muted)">'+demMes.toLocaleString('es-AR')+'</td>'+cells+'</tr>';
+  }).join('');
+  document.getElementById('cal-main-content').innerHTML =
+    '<div class="cal-section" style="margin-bottom:16px;overflow-x:auto">'+
+    '<div style="font-size:9px;color:var(--muted);margin-bottom:10px">Proyecci&#243;n de stock (un) sin reposici&#243;n &middot; &#128308; quiebre &middot; &#128993; bajo m&#237;nimo</div>'+
+    '<table class="cal-table"><thead><tr><th>C&#243;d</th><th>Producto</th>'+
+    '<th style="text-align:right">Stock hoy</th><th style="text-align:right">Dem/mes</th>'+hdrCells+'</tr></thead>'+
+    '<tbody>'+rows+'</tbody></table></div>';
+}
+
+function renderCalParams() {
+  var today = new Date();
+  var rows = INV_DATA.map(function(it) {
+    var p      = CAL_PARAMS[it.cod]||{};
+    var stock  = (it.klozer||0)+(it.klozer_mkt||0);
+    var lt     = (p.leadtime||0)+(p.produccion||0);
+    var demDia = it.min_k ? it.min_k/30 : 0;
+    var proxCompra = '&#8212;';
+    var estado = '<span class="cal-badge cal-badge-neutral">Sin datos LT</span>';
+    if (lt > 0 && demDia > 0) {
+      var diasHastaSeg = Math.max(0, (stock-(p.stock_seg||0))/demDia);
+      var diasOrden    = diasHastaSeg - lt;
+      if (diasOrden <= 0) {
+        estado     = '<span class="cal-badge cal-badge-danger">&#128680; Urgente</span>';
+        proxCompra = 'HOY';
+      } else {
+        var fechaOrden = new Date(today);
+        fechaOrden.setDate(today.getDate()+Math.round(diasOrden));
+        proxCompra = fechaOrden.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
+        estado = diasOrden<=14
+          ? '<span class="cal-badge cal-badge-warn">&#9888;&#65039; '+Math.round(diasOrden)+'d</span>'
+          : '<span class="cal-badge cal-badge-ok">&#9989; '+Math.round(diasOrden)+'d</span>';
+      }
+    }
+    var ltVal  = p.leadtime  ? p.leadtime  : '<span style="color:var(--border)">&#8212;</span>';
+    var prVal  = p.produccion? p.produccion: '<span style="color:var(--border)">&#8212;</span>';
+    var lmVal  = p.lote_min  ? p.lote_min  : '<span style="color:var(--border)">&#8212;</span>';
+    var ssVal  = p.stock_seg!=null ? p.stock_seg : '&#8212;';
+    return '<tr>'+
+      '<td style="font-size:9px;color:var(--muted)">'+it.cod+'</td>'+
+      '<td style="font-weight:600">'+it.art+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+ltVal+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+prVal+'</td>'+
+      '<td style="text-align:center;color:var(--muted)">'+lmVal+'</td>'+
+      '<td style="text-align:center">'+ssVal+'</td>'+
+      '<td style="text-align:center;font-weight:600">'+proxCompra+'</td>'+
+      '<td style="text-align:center">'+estado+'</td>'+
+      '</tr>';
+  }).join('');
+  document.getElementById('cal-params-tbody').innerHTML = rows;
+}
+
+function renderCalSummary() {
+  var evMes = CAL_EVENTS.filter(function(e){
+    var d=new Date(e.date); return d.getFullYear()===calYear && d.getMonth()===calMonth;
+  });
+  document.getElementById('cal-sum-compras').textContent   = evMes.filter(function(e){return e.tipo==='compra';}).length;
+  document.getElementById('cal-sum-llegadas').textContent  = evMes.filter(function(e){return e.tipo==='llegada';}).length;
+  document.getElementById('cal-sum-prod').textContent      = evMes.filter(function(e){return e.tipo==='produccion';}).length;
+  document.getElementById('cal-sum-despachos').textContent = evMes.filter(function(e){return e.tipo==='despacho';}).length;
+
+  var today   = new Date();
+  var urgentes= [], pronto = [];
+  INV_DATA.forEach(function(it) {
+    var p  = CAL_PARAMS[it.cod]||{};
+    var lt = (p.leadtime||0)+(p.produccion||0);
+    if (!lt || !it.min_k) return;
+    var stock    = (it.klozer||0)+(it.klozer_mkt||0);
+    var diasOrden = Math.max(0,(stock-(p.stock_seg||0))/(it.min_k/30))-lt;
+    if (diasOrden<=0) urgentes.push(it.art);
+    else if (diasOrden<=14) pronto.push({art:it.art, dias:Math.round(diasOrden)});
+  });
+  var alertHtml = '';
+  urgentes.forEach(function(a){ alertHtml+='<div style="color:#ef4444;margin-bottom:4px">&#128680; '+a+' &#8212; compra urgente</div>'; });
+  pronto.forEach(function(x){   alertHtml+='<div style="color:#eab308;margin-bottom:4px">&#9888;&#65039; '+x.art+' &#8212; ordenar en '+x.dias+' d&#237;as</div>'; });
+  document.getElementById('cal-alertas').innerHTML = alertHtml || '<span style="color:var(--muted)">Sin alertas cr&#237;ticas.</span>';
+
+  var in30   = new Date(today); in30.setDate(today.getDate()+30);
+  var TLABEL = {compra:'Orden de compra', llegada:'Llegada de materiales', produccion:'Inicio de producci&#243;n', despacho:'Despacho/entrega'};
+  var TCLS   = {compra:'info', llegada:'ok', produccion:'warn', despacho:'danger'};
+  var evNext = CAL_EVENTS
+    .filter(function(e){ var d=new Date(e.date); return d>=today && d<=in30; })
+    .sort(function(a,b){ return a.date.localeCompare(b.date); });
+  document.getElementById('cal-timeline-content').innerHTML = evNext.length
+    ? evNext.map(function(ev){
+        return '<div class="cal-event '+(TCLS[ev.tipo]||'')+'">'+
+          '<div class="cal-event-date">'+ev.date+'</div>'+
+          '<div class="cal-event-title">'+(TLABEL[ev.tipo]||ev.tipo)+(ev.art?' &middot; '+ev.art:'')+'</div>'+
+          (ev.nota?'<div class="cal-event-sub">'+ev.nota+'</div>':'')+
+          '</div>';
+      }).join('')
+    : '<div style="color:var(--muted);font-size:9px">Sin eventos en los pr&#243;ximos 30 d&#237;as.<br><small>Carg&#225; los datos de compras para ver el timeline.</small></div>';
+}
+</script>
 
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!--  LOGÍSTICA                                     -->
+<!--  COSTOS                                        -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="logistica" class="section">
 
@@ -6168,768 +6866,70 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 <!-- ═════════════════════════════════════════════════ CALENDARIO ══ -->
-<section id="calendario" class="section">
-<style>
-  .cal-header    { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px; }
-  .cal-controls  { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .cal-kpi-grid  { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:20px; }
-  .cal-section   { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; margin-bottom:16px; }
-  .cal-section-title { font-size:9px; font-weight:600; color:var(--accent); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
-  .cal-table     { width:100%; border-collapse:collapse; font-size:9px; }
-  .cal-table th  { background:rgba(255,255,255,.04); font-size:9px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; padding:8px 10px; text-align:left; border-bottom:1px solid var(--border); white-space:nowrap; }
-  .cal-table td  { padding:9px 10px; border-bottom:1px solid rgba(255,255,255,.04); vertical-align:middle; }
-  .cal-table tr:last-child td { border-bottom:none; }
-  .cal-table tr:hover td { background:rgba(255,255,255,.025); }
-  .cal-badge        { display:inline-block; padding:2px 8px; border-radius:6px; font-size:9px; font-weight:700; }
-  .cal-badge-ok     { background:rgba(16,185,129,.15); color:#10b981; }
-  .cal-badge-warn   { background:rgba(234,179,8,.15);  color:#eab308; }
-  .cal-badge-danger { background:rgba(239,68,68,.15);  color:#ef4444; }
-  .cal-badge-info   { background:rgba(99,102,241,.15); color:#818cf8; }
-  .cal-badge-neutral{ background:rgba(255,255,255,.08); color:var(--muted); }
-  .cal-timeline  { position:relative; padding-left:28px; }
-  .cal-timeline::before { content:""; position:absolute; left:8px; top:0; bottom:0; width:2px; background:var(--border); }
-  .cal-event     { position:relative; margin-bottom:14px; }
-  .cal-event::before { content:""; position:absolute; left:-24px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--card); }
-  .cal-event.danger::before { background:#ef4444; }
-  .cal-event.warn::before   { background:#eab308; }
-  .cal-event.ok::before     { background:#10b981; }
-  .cal-event.info::before   { background:#818cf8; }
-  .cal-event-date  { font-size:9px; color:var(--muted); margin-bottom:2px; }
-  .cal-event-title { font-size:9px; font-weight:600; color:var(--text); }
-  .cal-event-sub   { font-size:9px; color:var(--muted); margin-top:1px; }
-  .cal-month-nav   { display:flex; gap:8px; align-items:center; }
-  .cal-month-nav button { background:rgba(255,255,255,.06); border:1px solid var(--border); color:var(--text); padding:5px 12px; border-radius:8px; cursor:pointer; font-size:9px; }
-  .cal-month-nav button:hover { background:rgba(255,255,255,.12); }
-  .cal-month-nav span { font-size:9px; font-weight:600; min-width:120px; text-align:center; }
-  .cal-grid-month { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; }
-  .cal-day-head   { text-align:center; font-size:9px; color:var(--muted); font-weight:600; padding:4px 0; }
-  .cal-day        { min-height:68px; border:1px solid var(--border); border-radius:6px; padding:4px 5px; font-size:9px; }
-  .cal-day.today  { border-color:var(--accent); background:rgba(99,102,241,.08); }
-  .cal-day.empty  { background:transparent; border-color:transparent; min-height:20px; }
-  .cal-day-num    { font-weight:600; color:var(--muted); font-size:9px; margin-bottom:2px; }
-  .cal-day.today .cal-day-num { color:var(--accent); }
-  .cal-pill       { display:block; padding:2px 4px; border-radius:3px; margin-bottom:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:9px; font-weight:600; }
-  .cal-pill.compra     { background:rgba(99,102,241,.3); color:#a5b4fc; }
-  .cal-pill.llegada    { background:rgba(16,185,129,.3); color:#6ee7b7; }
-  .cal-pill.produccion { background:rgba(234,179,8,.3);  color:#fde68a; }
-  .cal-pill.despacho   { background:rgba(239,68,68,.25); color:#fca5a5; }
-  .cal-legend    { display:flex; gap:14px; flex-wrap:wrap; margin-bottom:16px; }
-  .cal-leg-item  { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--muted); }
-  .cal-leg-dot   { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
-</style>
+<section id="destileria" class="section">
 
-<div class="cal-header">
-  <div>
-    <div style="font-size:16px;font-weight:700">&#128197; Calendario de Compras &amp; Producci&#243;n</div>
-    <div style="font-size:9px;color:var(--muted);margin-top:2px">Proyecci&#243;n de &#243;rdenes de compra seg&#250;n lead times y plan de producci&#243;n</div>
+  <div style="margin-bottom:14px">
+    <div class="table-title" style="font-size:15px">🏭 Costo Producción Bosque · Feriado · Temple</div>
+    <div class="chart-subtitle" style="margin-top:2px">Fuente: Hoja "RESUMEN PRODUCTOS X DESTILERIA" · Costo Destilería + Costo Cervecería por producto y período</div>
   </div>
-  <div class="cal-controls">
-    <div class="cal-month-nav">
-      <button onclick="calNavMonth(-1)">&#9664;</button>
-      <span id="cal-month-label">&#8212;</span>
-      <button onclick="calNavMonth(+1)">&#9654;</button>
-    </div>
-    <select id="cal-view-sel" onchange="renderCalendario()" style="padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px">
-      <option value="calendar">Vista mensual</option>
-      <option value="list">Vista lista</option>
-      <option value="productos">Por producto</option>
-    </select>
+
+  <div class="filter-bar" style="margin-bottom:16px">
+    <span class="filter-label">Producto:</span>
+    <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
   </div>
-</div>
 
-<div class="cal-kpi-grid" id="cal-kpis"></div>
+  <div class="kpi-grid" id="dest-kpis"></div>
 
-<!-- ── PROYECCIÓN DE COMPRAS ─────────────────────────────── -->
-<div class="cal-section" style="margin-bottom:16px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px">
-    <div class="cal-section-title" style="margin-bottom:0">
-      &#128203; Proyecci&#243;n de compras &mdash; productos con &lt; 3 meses de stock
-    </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <span id="proy-count" style="font-size:9px;color:var(--muted)"></span>
-      <button id="proy-save-btn" onclick="guardarProyeccion()"
-        style="background:rgba(74,222,128,.12);border:1px solid var(--accent);color:var(--accent);
-               border-radius:8px;padding:6px 14px;font-size:9px;font-weight:600;cursor:pointer">
-        &#128190; Guardar aprobaciones
-      </button>
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title" id="dest-chart-title">Destilería</div>
+    <div class="chart-subtitle">Últimos 18 períodos · barras = Destilería + Cervecería · línea = Total</div>
+    <div class="chart-wrap tall"><canvas id="chartDestileria"></canvas></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">📊 Cuadro evolutivo de costos · Destilería</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo Prod. y Fin. + Costo Insumos = Costo Neto · variación mes a mes · anualizado = Costo Neto × 12</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead id="dest-thead"></thead>
+      <tbody id="dest-tbody"></tbody>
+    </table>
     </div>
   </div>
 
-  <div style="overflow-x:auto">
-  <table class="cal-table" id="proy-table">
-    <thead>
-      <tr>
-        <th class="sortable" onclick="setProySort('rub')" style="cursor:pointer;user-select:none">Rubro <span class="sort-icon" id="ps-icon-rub">⇅</span></th>
-        <th>Subrubro</th>
-        <th class="sortable" onclick="setProySort('cod')" style="cursor:pointer;user-select:none">C&#243;d <span class="sort-icon" id="ps-icon-cod">⇅</span></th>
-        <th class="sortable" onclick="setProySort('art')" style="cursor:pointer;user-select:none">Producto <span class="sort-icon" id="ps-icon-art">⇅</span></th>
-        <th class="sortable" onclick="setProySort('stock')" style="text-align:right;cursor:pointer;user-select:none">Stock (un) <span class="sort-icon" id="ps-icon-stock">⇅</span></th>
-        <th class="sortable" onclick="setProySort('min_k')" style="text-align:right;cursor:pointer;user-select:none">Min/mes (un) <span class="sort-icon" id="ps-icon-min_k">⇅</span></th>
-        <th class="sortable" onclick="setProySort('meses')" style="text-align:right;cursor:pointer;user-select:none">Meses <span class="sort-icon" id="ps-icon-meses">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug30')" style="text-align:right;cursor:pointer;user-select:none">Sug 30d (un) <span class="sort-icon" id="ps-icon-sug30">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug60')" style="text-align:right;cursor:pointer;user-select:none">Sug 60d (un) <span class="sort-icon" id="ps-icon-sug60">⇅</span></th>
-        <th class="sortable" onclick="setProySort('sug90')" style="text-align:right;cursor:pointer;user-select:none">Sug 90d (un) <span class="sort-icon" id="ps-icon-sug90">⇅</span></th>
-        <th style="text-align:right">Cant. a comprar (un)</th>
-        <th style="text-align:center">&#10003; Aprobar</th>
-      </tr>
-    </thead>
-    <tbody id="proy-tbody"></tbody>
-  </table>
+  <div style="margin-top:28px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:18px">
+    <div class="table-title" style="font-size:15px">🍺 Costo Cervezas Lata</div>
+    <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
   </div>
-  <div id="proy-save-msg" style="margin-top:10px;font-size:9px;display:none"></div>
-</div>
 
-<div class="cal-legend">
-  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(99,102,241,.6)"></div> Orden de compra</div>
-  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(16,185,129,.6)"></div> Llegada de materiales</div>
-  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(234,179,8,.6)"></div> Inicio de producci&#243;n</div>
-  <div class="cal-leg-item"><div class="cal-leg-dot" style="background:rgba(239,68,68,.5)"></div> Despacho / entrega</div>
-</div>
-
-<div id="cal-main-content"></div>
-
-<div class="cal-section" style="margin-top:4px">
-  <div class="cal-section-title">&#9881;&#65039; Par&#225;metros de lead time por producto</div>
-  <div style="font-size:9px;color:var(--muted);margin-bottom:12px">
-    Defin&#237; los tiempos de entrega del proveedor y de producci&#243;n para cada producto.
-    Se usar&#225;n para calcular cu&#225;ndo emitir cada orden de compra.
+  <div class="filter-bar" style="margin-bottom:16px">
+    <span class="filter-label">Producto:</span>
+    <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
   </div>
-  <div style="overflow-x:auto">
-  <table class="cal-table">
-    <thead>
-      <tr>
-        <th>C&#243;digo</th>
-        <th>Producto</th>
-        <th style="text-align:center">Lead time proveedor (d&#237;as)</th>
-        <th style="text-align:center">Tiempo producci&#243;n (d&#237;as)</th>
-        <th style="text-align:center">Lote m&#237;nimo (un)</th>
-        <th style="text-align:center">Stock de seguridad (un)</th>
-        <th style="text-align:center">Pr&#243;xima compra estimada</th>
-        <th style="text-align:center">Estado</th>
-      </tr>
-    </thead>
-    <tbody id="cal-params-tbody"></tbody>
-  </table>
-  </div>
-  <div style="margin-top:12px;font-size:9px;color:var(--muted)">
-    &#8505; <strong>Lead time proveedor</strong>: d&#237;as desde la orden hasta recibir materiales &nbsp;|&nbsp;
-    <strong>Tiempo producci&#243;n</strong>: d&#237;as de proceso hasta producto terminado &nbsp;|&nbsp;
-    <strong>Pr&#243;xima compra</strong> = hoy + (d&#237;as hasta stock seg.) &#8722; lead times acumulados
-  </div>
-</div>
 
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-  <div class="cal-section" style="margin-bottom:0">
-    <div class="cal-section-title">&#128203; Pr&#243;ximos eventos (30 d&#237;as)</div>
-    <div id="cal-timeline-content" class="cal-timeline">
-      <div style="color:var(--muted);font-size:9px">Los eventos aparecer&#225;n aqu&#237; una vez que se carguen los datos.</div>
+  <div class="kpi-grid" id="cerv-kpis"></div>
+
+  <div class="chart-card" style="margin-bottom:16px">
+    <div class="chart-title" id="cerv-chart-title">Cervezas</div>
+    <div class="chart-subtitle">Costo neto mensual · $/L · col. K de cada hoja mensual</div>
+    <div class="chart-wrap"><canvas id="chartCerveza"></canvas></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-title">📊 Cuadro evolutivo de costos · Cervezas</div>
+    <div class="chart-subtitle" style="margin-bottom:10px">Costo neto $/L · variación mes a mes</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead id="cerv-thead"></thead>
+      <tbody id="cerv-tbody"></tbody>
+    </table>
     </div>
   </div>
-  <div class="cal-section" style="margin-bottom:0">
-    <div class="cal-section-title">&#128202; Resumen del mes</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-      <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#818cf8" id="cal-sum-compras">0</div>
-        <div style="font-size:9px;color:var(--muted)">&#211;rdenes de compra</div>
-      </div>
-      <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#10b981" id="cal-sum-llegadas">0</div>
-        <div style="font-size:9px;color:var(--muted)">Llegadas esperadas</div>
-      </div>
-      <div style="background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.2);border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#eab308" id="cal-sum-prod">0</div>
-        <div style="font-size:9px;color:var(--muted)">Lotes a producir</div>
-      </div>
-      <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:12px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#f87171" id="cal-sum-despachos">0</div>
-        <div style="font-size:9px;color:var(--muted)">Despachos / entregas</div>
-      </div>
-    </div>
-    <div style="padding:12px;background:rgba(255,255,255,.03);border-radius:8px;border:1px solid var(--border)">
-      <div style="font-size:9px;color:var(--muted);margin-bottom:6px;font-weight:600">ALERTAS</div>
-      <div id="cal-alertas" style="font-size:9px;color:var(--muted)">Sin alertas cr&#237;ticas.</div>
-    </div>
-  </div>
-</div>
-
-<script>
-var CAL_EVENTS = [];
-var CAL_PARAMS = {};
-var calYear  = new Date().getFullYear();
-var calMonth = new Date().getMonth();
-
-function calNavMonth(dir) {
-  calMonth += dir;
-  if (calMonth > 11) { calMonth = 0; calYear++; }
-  if (calMonth < 0)  { calMonth = 11; calYear--; }
-  renderCalendario();
-}
-
-// ── Sort state for Proyecciones table ────────────────────────────────────────
-var proySort = {col: 'meses', asc: true};
-
-function setProySort(col) {
-  if (proySort.col === col) proySort.asc = !proySort.asc;
-  else { proySort.col = col; proySort.asc = ['cod','art','rub'].includes(col); }
-  renderProyecciones();
-}
-function updateProySortIcons() {
-  var cols = ['cod','art','rub','stock','min_k','meses','sug30','sug60','sug90'];
-  cols.forEach(function(c) {
-    var el = document.getElementById('ps-icon-'+c);
-    if (el) el.textContent = c !== proySort.col ? '⇅' : proySort.asc ? '▲' : '▼';
-    var th = el ? el.parentElement : null;
-    if (th) th.style.color = c === proySort.col ? 'var(--accent)' : '';
-  });
-}
-
-// ── Proyección de compras ─────────────────────────────────────────────────────
-function renderProyecciones() {
-  // Solo KLOZER: stock = it.klozer, meses = it.pk_dep (klozer / min_k)
-  var alerta = INV_DATA.filter(function(it) {
-    return it.min_k > 0 && (it.pk_dep || 0) < 3;
-  }).sort(function(a, b) {
-    var c = proySort.col;
-    if (c === 'cod') return proySort.asc ? String(a.cod).localeCompare(String(b.cod)) : String(b.cod).localeCompare(String(a.cod));
-    if (c === 'art') return proySort.asc ? (a.art||'').localeCompare(b.art||'') : (b.art||'').localeCompare(a.art||'');
-    if (c === 'rub') return proySort.asc ? (a.rub||'').localeCompare(b.rub||'') : (b.rub||'').localeCompare(a.rub||'');
-    var stockA = a.klozer||0, stockB = b.klozer||0;
-    if (c === 'stock') return proySort.asc ? stockA-stockB : stockB-stockA;
-    if (c === 'min_k') return proySort.asc ? (a.min_k||0)-(b.min_k||0) : (b.min_k||0)-(a.min_k||0);
-    if (c === 'meses') return proySort.asc ? (a.pk_dep||0)-(b.pk_dep||0) : (b.pk_dep||0)-(a.pk_dep||0);
-    var mk_a = a.min_k||0, mk_b = b.min_k||0;
-    var stA = a.klozer||0, stB = b.klozer||0;
-    if (c === 'sug30') return proySort.asc ? (Math.max(0,mk_a*1-stA))-(Math.max(0,mk_b*1-stB)) : (Math.max(0,mk_b*1-stB))-(Math.max(0,mk_a*1-stA));
-    if (c === 'sug60') return proySort.asc ? (Math.max(0,mk_a*2-stA))-(Math.max(0,mk_b*2-stB)) : (Math.max(0,mk_b*2-stB))-(Math.max(0,mk_a*2-stA));
-    if (c === 'sug90') return proySort.asc ? (Math.max(0,mk_a*3-stA))-(Math.max(0,mk_b*3-stB)) : (Math.max(0,mk_b*3-stB))-(Math.max(0,mk_a*3-stA));
-    return proySort.asc ? (a.pk_dep||0)-(b.pk_dep||0) : (b.pk_dep||0)-(a.pk_dep||0);
-  });
-
-  document.getElementById('proy-count').textContent = alerta.length + ' producto' + (alerta.length !== 1 ? 's' : '');
-
-  if (!alerta.length) {
-    document.getElementById('proy-tbody').innerHTML =
-      '<tr><td colspan="12" style="text-align:center;color:var(--muted);padding:20px">&#9989; Todos los productos tienen m&aacute;s de 3 meses de stock en KLOZER</td></tr>';
-    return;
-  }
-
-  var rows = alerta.map(function(it) {
-    var stock = it.klozer || 0;          // solo KLOZER
-    var min_k = it.min_k || 0;
-    var meses = it.pk_dep || 0;          // meses de stock KLOZER
-    var sug30 = Math.max(0, Math.round(min_k * 1 - stock));
-    var sug60 = Math.max(0, Math.round(min_k * 2 - stock));
-    var sug90 = Math.max(0, Math.round(min_k * 3 - stock));
-    var mCol  = meses < 1 ? 'color:#ef4444;font-weight:700'
-              : meses < 2 ? 'color:#eab308;font-weight:600' : '';
-    var codE  = String(it.cod).replace(/"/g,'');
-    var artE  = (it.art||'').replace(/"/g,'&quot;');
-    var rubE  = (it.rub||'').replace(/"/g,'&quot;');
-    var subE  = (it.sub||'').replace(/"/g,'&quot;');
-    return '<tr data-cod="'+codE+'" data-art="'+artE+'" data-rub="'+rubE+'" data-sub="'+subE+'"' +
-      ' data-stock="'+stock+'" data-min="'+min_k+'" data-meses="'+meses+'"' +
-      ' data-s30="'+sug30+'" data-s60="'+sug60+'" data-s90="'+sug90+'">' +
-      '<td style="font-size:9px">'+it.rub+'</td>' +
-      '<td style="font-size:9px;color:var(--muted)">'+it.sub+'</td>' +
-      '<td style="font-size:9px;color:var(--muted)">'+it.cod+'</td>' +
-      '<td style="font-weight:600">'+it.art+'</td>' +
-      '<td style="text-align:right">'+stock.toLocaleString('es-AR')+'</td>' +
-      '<td style="text-align:right">'+min_k.toFixed(1)+'</td>' +
-      '<td style="text-align:right;'+mCol+'">'+meses.toFixed(1)+'</td>' +
-      '<td style="text-align:right;color:var(--muted)">'+sug30.toLocaleString('es-AR')+'</td>' +
-      '<td style="text-align:right;color:var(--muted)">'+sug60.toLocaleString('es-AR')+'</td>' +
-      '<td style="text-align:right;color:var(--muted)">'+sug90.toLocaleString('es-AR')+'</td>' +
-      '<td style="text-align:right">' +
-        '<input type="number" min="0" value="'+sug60+'" data-default="'+sug60+'"' +
-        ' style="width:80px;background:var(--card);border:1px solid var(--border);' +
-        'color:var(--text);border-radius:4px;padding:3px 6px;font-size:9px;text-align:right">' +
-      '</td>' +
-      '<td style="text-align:center">' +
-        '<input type="checkbox"' +
-        ' style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)">' +
-      '</td>' +
-      '</tr>';
-  }).join('');
-
-  document.getElementById('proy-tbody').innerHTML = rows;
-  updateProySortIcons();
-}
-
-function guardarProyeccion() {
-  var rows = document.querySelectorAll('#proy-tbody tr[data-cod]');
-  var items = [];
-  rows.forEach(function(tr) {
-    var input = tr.querySelector('input[type="number"]');
-    var chk   = tr.querySelector('input[type="checkbox"]');
-    if (!input || !chk) return;
-    var cant     = parseFloat(input.value) || 0;
-    var aprobado = chk.checked;
-    if (aprobado || cant > 0) {
-      items.push({
-        cod:           tr.dataset.cod,
-        art:           tr.dataset.art,
-        rub:           tr.dataset.rub,
-        sub:           tr.dataset.sub,
-        stock:         parseFloat(tr.dataset.stock),
-        min_k:         parseFloat(tr.dataset.min),
-        meses:         parseFloat(tr.dataset.meses),
-        cant_aprobada: cant,
-        aprobado:      aprobado
-      });
-    }
-  });
-
-  var msg = document.getElementById('proy-save-msg');
-  var btn = document.getElementById('proy-save-btn');
-
-  if (!items.length) {
-    msg.style.display = 'block';
-    msg.style.color   = '#eab308';
-    msg.textContent   = 'No hay items aprobados. Tildá al menos uno y asigná cantidad.';
-    return;
-  }
-
-  // Items con checkbox aprobado Y cantidad > 0 → van al calendario
-  var aprobados = items.filter(function(it) { return it.aprobado && it.cant_aprobada > 0; });
-
-  // ── Mostrar modal fecha/proveedor ─────────────────────────────────────
-  var modal = document.getElementById('cal-apro-modal');
-  document.getElementById('cal-apro-count').textContent = aprobados.length;
-  document.getElementById('cal-apro-err').style.display = 'none';
-
-  // Fecha default: hoy + 15 días
-  var defDate = new Date();
-  defDate.setDate(defDate.getDate() + 15);
-  document.getElementById('cal-apro-fecha').value =
-    defDate.getFullYear() + '-' +
-    String(defDate.getMonth()+1).padStart(2,'0') + '-' +
-    String(defDate.getDate()).padStart(2,'0');
-  document.getElementById('cal-apro-prov').value = '';
-
-  // Lista de items aprobados en el modal
-  document.getElementById('cal-apro-items').innerHTML = aprobados.length
-    ? aprobados.map(function(it) {
-        return '<div style="padding:1px 0;border-bottom:1px solid var(--border)">▸ ' +
-               '<strong>' + (it.art||it.cod) + '</strong>' +
-               ' — ' + it.cant_aprobada.toLocaleString('es-AR') + ' un.</div>';
-      }).join('')
-    : '<div style="color:var(--muted)">Sin items aprobados con cantidad asignada.</div>';
-
-  modal.style.display = 'flex';
-
-  // ── Handlers del modal ────────────────────────────────────────────────
-  document.getElementById('cal-apro-cancel').onclick = function() {
-    modal.style.display = 'none';
-  };
-
-  document.getElementById('cal-apro-confirm').onclick = function() {
-    var fecha = document.getElementById('cal-apro-fecha').value;
-    var prov  = document.getElementById('cal-apro-prov').value.trim();
-    var err   = document.getElementById('cal-apro-err');
-
-    if (!fecha) {
-      err.style.display = 'block';
-      err.textContent   = 'Ingresá la fecha de entrega estimada.';
-      return;
-    }
-
-    modal.style.display = 'none';
-
-    // ── Agregar eventos al calendario ─────────────────────────────────
-    var todayStr = (function() {
-      var t = new Date();
-      return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-    })();
-
-    aprobados.forEach(function(it) {
-      // Evento de compra (hoy = orden emitida)
-      CAL_EVENTS.push({
-        date: todayStr,
-        tipo: 'compra',
-        cod:  it.cod,
-        art:  it.art,
-        qty:  it.cant_aprobada,
-        nota: prov || ''
-      });
-      // Evento de llegada (fecha de entrega)
-      CAL_EVENTS.push({
-        date: fecha,
-        tipo: 'llegada',
-        cod:  it.cod,
-        art:  it.art,
-        qty:  it.cant_aprobada,
-        nota: prov || ''
-      });
-    });
-
-    // Navegar al mes de la fecha de entrega y refrescar calendario
-    if (aprobados.length) {
-      var fDate = new Date(fecha + 'T12:00:00');
-      calYear  = fDate.getFullYear();
-      calMonth = fDate.getMonth();
-      var calSec = document.getElementById('calendario');
-      if (calSec && calSec.classList.contains('active')) {
-        renderCalendario();
-      }
-    }
-
-    // ── Guardar en servidor ───────────────────────────────────────────
-    btn.textContent   = '&#8987; Guardando…';
-    btn.style.opacity = '0.6';
-
-    fetch('/guardar_proyeccion', {
-      method:  'POST',
-      headers: {'Content-Type': 'application/json'},
-      credentials: 'same-origin',
-      body:    JSON.stringify(items)
-    })
-    .then(function(r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
-    .then(function(d) {
-      btn.textContent   = '&#128190; Guardar aprobaciones';
-      btn.style.opacity = '1';
-      msg.style.display = 'block';
-      if (d.ok) {
-        msg.style.color = '#10b981';
-        msg.textContent = '✓ ' + d.guardados + ' aprobación(es) guardada(s)' +
-          (aprobados.length ? ' · ' + aprobados.length + ' orden(es) en calendario' + (prov ? ' — ' + prov : '') : '');
-      } else {
-        msg.style.color = '#ef4444';
-        msg.textContent = 'Error: ' + d.error;
-      }
-    })
-    .catch(function(e) {
-      btn.textContent   = '&#128190; Guardar aprobaciones';
-      btn.style.opacity = '1';
-      msg.style.display = 'block';
-      msg.style.color   = '#ef4444';
-      msg.textContent   = 'No se pudo conectar al servidor: ' + e.message;
-    });
-  };
-}
-
-// ── guardarRepSugerida ────────────────────────────────────────────────────────
-function guardarRepSugerida() {
-  var state    = window._repState || {};
-  var aprobados = Object.values(state).filter(function(x){ return x.apro && x.qty > 0; });
-  var msg = document.getElementById('sc-rep-save-msg');
-  var btn = document.getElementById('sc-rep-save-btn');
-
-  if (!aprobados.length) {
-    msg.style.display = 'inline';
-    msg.style.color   = '#eab308';
-    msg.textContent   = 'Tildá al menos un artículo con cantidad.';
-    return;
-  }
-
-  // Reusar el mismo modal de cal-apro
-  var modal = document.getElementById('cal-apro-modal');
-  document.getElementById('cal-apro-count').textContent = aprobados.length;
-  document.getElementById('cal-apro-err').style.display = 'none';
-
-  var defDate = new Date();
-  defDate.setDate(defDate.getDate() + 15);
-  document.getElementById('cal-apro-fecha').value =
-    defDate.getFullYear() + '-' +
-    String(defDate.getMonth()+1).padStart(2,'0') + '-' +
-    String(defDate.getDate()).padStart(2,'0');
-  document.getElementById('cal-apro-prov').value = '';
-
-  document.getElementById('cal-apro-items').innerHTML =
-    aprobados.map(function(it){
-      return '<div style="padding:1px 0;border-bottom:1px solid var(--border)">▸ ' +
-             '<strong>' + (it.art||it.cod) + '</strong>' +
-             ' — ' + Number(it.qty).toLocaleString('es-AR') + ' un.</div>';
-    }).join('');
-
-  modal.style.display = 'flex';
-
-  document.getElementById('cal-apro-cancel').onclick = function() {
-    modal.style.display = 'none';
-  };
-
-  document.getElementById('cal-apro-confirm').onclick = function() {
-    var fecha = document.getElementById('cal-apro-fecha').value;
-    var prov  = document.getElementById('cal-apro-prov').value.trim();
-    var err   = document.getElementById('cal-apro-err');
-    if (!fecha) { err.style.display='block'; err.textContent='Ingresá la fecha de entrega.'; return; }
-
-    modal.style.display = 'none';
-
-    // Agregar al calendario
-    var todayStr = (function(){
-      var t=new Date();
-      return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
-    })();
-    aprobados.forEach(function(it){
-      CAL_EVENTS.push({ date:todayStr, tipo:'compra',  cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
-      CAL_EVENTS.push({ date:fecha,    tipo:'llegada', cod:it.cod, art:it.art, qty:it.qty, nota:prov||'' });
-    });
-
-    // Navegar al mes de entrega si calendario está activo
-    var fDate = new Date(fecha + 'T12:00:00');
-    calYear  = fDate.getFullYear();
-    calMonth = fDate.getMonth();
-    if (document.getElementById('calendario').classList.contains('active')) renderCalendario();
-
-    // Mapear al formato de proyección y guardar en servidor
-    var items = aprobados.map(function(it){
-      return { cod:it.cod, art:it.art, rub:it.rub, sub:it.sub||'', stock:it.stock,
-               min_k:it.min||0, meses:0, cant_aprobada:it.qty, aprobado:true };
-    });
-
-    btn.textContent   = '&#8987; Guardando…';
-    btn.style.opacity = '0.6';
-
-    fetch('/guardar_proyeccion', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      credentials:'same-origin', body:JSON.stringify(items)
-    })
-    .then(function(r){ if(_auth401(r)) throw new Error('auth'); return r.json(); })
-    .then(function(d){
-      btn.textContent   = '&#128190; Guardar aprobaciones';
-      btn.style.opacity = '1';
-      msg.style.display = 'inline';
-      if (d.ok) {
-        msg.style.color = '#10b981';
-        msg.textContent = '✓ ' + d.guardados + ' orden(es) guardada(s)' + (prov ? ' — ' + prov : '') + ' · tránsito actualizado';
-        window._repState = {};   // recalcular tránsito con los nuevos eventos
-        renderSupply();
-      } else {
-        msg.style.color = '#ef4444';
-        msg.textContent = 'Error: ' + d.error;
-      }
-    })
-    .catch(function(e){
-      btn.textContent   = '&#128190; Guardar aprobaciones';
-      btn.style.opacity = '1';
-      msg.style.display = 'inline';
-      msg.style.color   = '#ef4444';
-      msg.textContent   = 'Sin conexión: ' + e.message;
-    });
-  };
-}
-
-// ── renderCalendario ──────────────────────────────────────────────────────────
-function renderCalendario() {
-  renderProyecciones();
-  for (var i=0; i<INV_DATA.length; i++) {
-    var it = INV_DATA[i];
-    if (!CAL_PARAMS[it.cod]) {
-      CAL_PARAMS[it.cod] = { leadtime:0, produccion:0, lote_min:0, stock_seg: it.min_k||0 };
-    }
-  }
-  var MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  document.getElementById('cal-month-label').textContent = MESES[calMonth] + ' ' + calYear;
-  renderCalKPIs();
-  renderCalParams();
-  var view = (document.getElementById('cal-view-sel')||{}).value || 'calendar';
-  if (view === 'list') renderCalListView();
-  else if (view === 'productos') renderCalProductView();
-  else renderCalMonthView();
-  renderCalSummary();
-}
-
-function renderCalKPIs() {
-  var evMes = CAL_EVENTS.filter(function(e) {
-    var d = new Date(e.date);
-    return d.getFullYear()===calYear && d.getMonth()===calMonth;
-  });
-  var enRiesgo = 0;
-  INV_DATA.forEach(function(it) {
-    var p  = CAL_PARAMS[it.cod]||{};
-    var lt = (p.leadtime||0)+(p.produccion||0);
-    if (!lt || !it.min_k) return;
-    var stock = (it.klozer||0)+(it.klozer_mkt||0);
-    if ((stock / (it.min_k/30)) < lt) enRiesgo++;
-  });
-  var c  = evMes.filter(function(e){return e.tipo==='compra';}).length;
-  var ll = evMes.filter(function(e){return e.tipo==='llegada';}).length;
-  var pr = evMes.filter(function(e){return e.tipo==='produccion';}).length;
-  var de = evMes.filter(function(e){return e.tipo==='despacho';}).length;
-  document.getElementById('cal-kpis').innerHTML =
-    '<div class="kpi-card"><div class="kpi-icon">&#128722;</div><div class="kpi-label">&#211;rdenes compra &middot; mes</div><div class="kpi-value">'+c+'</div></div>'+
-    '<div class="kpi-card"><div class="kpi-icon">&#128230;</div><div class="kpi-label">Llegadas esperadas &middot; mes</div><div class="kpi-value">'+ll+'</div></div>'+
-    '<div class="kpi-card"><div class="kpi-icon">&#127981;</div><div class="kpi-label">Lotes a producir &middot; mes</div><div class="kpi-value">'+pr+'</div></div>'+
-    '<div class="kpi-card"><div class="kpi-icon">&#128666;</div><div class="kpi-label">Despachos &middot; mes</div><div class="kpi-value">'+de+'</div></div>'+
-    '<div class="kpi-card'+(enRiesgo>0?' red':'')+'"><div class="kpi-icon">'+(enRiesgo>0?'&#128680;':'&#9989;')+'</div><div class="kpi-label">Prod. en riesgo de quiebre</div><div class="kpi-value">'+enRiesgo+'</div></div>';
-}
-
-function renderCalMonthView() {
-  var today    = new Date();
-  var todayStr = today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0');
-  var daysInM  = new Date(calYear, calMonth+1, 0).getDate();
-  var firstDow = (new Date(calYear, calMonth, 1).getDay()+6)%7;
-  var byDate   = {};
-  CAL_EVENTS.forEach(function(ev) {
-    var d = new Date(ev.date);
-    if (d.getFullYear()===calYear && d.getMonth()===calMonth) {
-      if (!byDate[ev.date]) byDate[ev.date]=[];
-      byDate[ev.date].push(ev);
-    }
-  });
-  var DIAS = ['Lun','Mar','Mi&#233;','Jue','Vie','S&#225;b','Dom'];
-  var html = '<div class="cal-grid-month">';
-  DIAS.forEach(function(d){ html += '<div class="cal-day-head">'+d+'</div>'; });
-  for (var i=0;i<firstDow;i++) html += '<div class="cal-day empty"></div>';
-  for (var d=1; d<=daysInM; d++) {
-    var ds  = calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-    var evs = byDate[ds]||[];
-    var cls = ds===todayStr ? ' today' : '';
-    html += '<div class="cal-day'+cls+'"><div class="cal-day-num">'+d+'</div>';
-    evs.slice(0,3).forEach(function(ev){
-      var lbl = ev.art ? ev.art.substring(0,14) : ev.tipo;
-      html += '<span class="cal-pill '+ev.tipo+'" title="'+ev.tipo+(ev.nota?' - '+ev.nota:'')+'">'+lbl+'</span>';
-    });
-    if (evs.length>3) html += '<span style="font-size:9px;color:var(--muted)">+' +(evs.length-3)+ ' m&#225;s</span>';
-    html += '</div>';
-  }
-  html += '</div>';
-  document.getElementById('cal-main-content').innerHTML = '<div class="cal-section" style="margin-bottom:16px">'+html+'</div>';
-}
-
-function renderCalListView() {
-  var evs = CAL_EVENTS
-    .filter(function(e){ var d=new Date(e.date); return d.getFullYear()===calYear && d.getMonth()===calMonth; })
-    .sort(function(a,b){ return a.date.localeCompare(b.date); });
-  var TLABEL = {compra:'&#128722; Orden compra', llegada:'&#128230; Llegada', produccion:'&#127981; Producci&#243;n', despacho:'&#128666; Despacho'};
-  var TCLS   = {compra:'cal-badge-info', llegada:'cal-badge-ok', produccion:'cal-badge-warn', despacho:'cal-badge-danger'};
-  if (!evs.length) {
-    document.getElementById('cal-main-content').innerHTML =
-      '<div class="cal-section" style="text-align:center;padding:40px 20px;color:var(--muted)">Sin eventos registrados para este mes.<br><small>Los eventos se agregar&#225;n cuando se carguen los datos de compras.</small></div>';
-    return;
-  }
-  var rows = evs.map(function(ev){
-    return '<tr><td>'+ev.date+'</td><td><span class="cal-badge '+(TCLS[ev.tipo]||'cal-badge-neutral')+'">'+(TLABEL[ev.tipo]||ev.tipo)+'</span></td>'+
-      '<td style="font-size:9px;color:var(--muted)">'+(ev.cod||'&#8212;')+'</td>'+
-      '<td style="font-weight:600">'+(ev.art||'&#8212;')+'</td>'+
-      '<td style="text-align:right">'+(ev.qty!=null?ev.qty.toLocaleString('es-AR'):'&#8212;')+'</td>'+
-      '<td style="color:var(--muted)">'+(ev.nota||'')+'</td></tr>';
-  }).join('');
-  document.getElementById('cal-main-content').innerHTML =
-    '<div class="cal-section" style="margin-bottom:16px;overflow-x:auto"><table class="cal-table"><thead><tr>'+
-    '<th>Fecha</th><th>Tipo</th><th>C&#243;d</th><th>Producto</th><th style="text-align:right">Cant.</th><th>Proveedor</th>'+
-    '</tr></thead><tbody>'+rows+'</tbody></table></div>';
-}
-
-function renderCalProductView() {
-  var MESES_S = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  var headers = [];
-  for (var i=0;i<6;i++) {
-    var m = (calMonth+i)%12;
-    var y = calYear + Math.floor((calMonth+i)/12);
-    headers.push({ label: MESES_S[m]+' '+y, year:y, month:m, offset:i });
-  }
-  var items = INV_DATA.slice().sort(function(a,b){ return a.art.localeCompare(b.art); });
-  var hdrCells = headers.map(function(h){ return '<th style="text-align:right">'+h.label+'</th>'; }).join('');
-  var rows = items.map(function(it) {
-    var stock  = (it.klozer||0)+(it.klozer_mkt||0);
-    var demMes = it.min_k||0;
-    var cells  = headers.map(function(h){
-      var proy = Math.max(0, stock - demMes*h.offset);
-      var s = proy===0 ? 'color:#ef4444;font-weight:700' : proy<demMes ? 'color:#eab308' : '';
-      return '<td style="text-align:right;'+s+'">'+proy.toLocaleString('es-AR')+'</td>';
-    }).join('');
-    return '<tr><td style="font-size:9px;color:var(--muted)">'+it.cod+'</td><td style="font-weight:600">'+it.art+'</td>'+
-      '<td style="text-align:right">'+stock.toLocaleString('es-AR')+'</td>'+
-      '<td style="text-align:right;color:var(--muted)">'+demMes.toLocaleString('es-AR')+'</td>'+cells+'</tr>';
-  }).join('');
-  document.getElementById('cal-main-content').innerHTML =
-    '<div class="cal-section" style="margin-bottom:16px;overflow-x:auto">'+
-    '<div style="font-size:9px;color:var(--muted);margin-bottom:10px">Proyecci&#243;n de stock (un) sin reposici&#243;n &middot; &#128308; quiebre &middot; &#128993; bajo m&#237;nimo</div>'+
-    '<table class="cal-table"><thead><tr><th>C&#243;d</th><th>Producto</th>'+
-    '<th style="text-align:right">Stock hoy</th><th style="text-align:right">Dem/mes</th>'+hdrCells+'</tr></thead>'+
-    '<tbody>'+rows+'</tbody></table></div>';
-}
-
-function renderCalParams() {
-  var today = new Date();
-  var rows = INV_DATA.map(function(it) {
-    var p      = CAL_PARAMS[it.cod]||{};
-    var stock  = (it.klozer||0)+(it.klozer_mkt||0);
-    var lt     = (p.leadtime||0)+(p.produccion||0);
-    var demDia = it.min_k ? it.min_k/30 : 0;
-    var proxCompra = '&#8212;';
-    var estado = '<span class="cal-badge cal-badge-neutral">Sin datos LT</span>';
-    if (lt > 0 && demDia > 0) {
-      var diasHastaSeg = Math.max(0, (stock-(p.stock_seg||0))/demDia);
-      var diasOrden    = diasHastaSeg - lt;
-      if (diasOrden <= 0) {
-        estado     = '<span class="cal-badge cal-badge-danger">&#128680; Urgente</span>';
-        proxCompra = 'HOY';
-      } else {
-        var fechaOrden = new Date(today);
-        fechaOrden.setDate(today.getDate()+Math.round(diasOrden));
-        proxCompra = fechaOrden.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'});
-        estado = diasOrden<=14
-          ? '<span class="cal-badge cal-badge-warn">&#9888;&#65039; '+Math.round(diasOrden)+'d</span>'
-          : '<span class="cal-badge cal-badge-ok">&#9989; '+Math.round(diasOrden)+'d</span>';
-      }
-    }
-    var ltVal  = p.leadtime  ? p.leadtime  : '<span style="color:var(--border)">&#8212;</span>';
-    var prVal  = p.produccion? p.produccion: '<span style="color:var(--border)">&#8212;</span>';
-    var lmVal  = p.lote_min  ? p.lote_min  : '<span style="color:var(--border)">&#8212;</span>';
-    var ssVal  = p.stock_seg!=null ? p.stock_seg : '&#8212;';
-    return '<tr>'+
-      '<td style="font-size:9px;color:var(--muted)">'+it.cod+'</td>'+
-      '<td style="font-weight:600">'+it.art+'</td>'+
-      '<td style="text-align:center;color:var(--muted)">'+ltVal+'</td>'+
-      '<td style="text-align:center;color:var(--muted)">'+prVal+'</td>'+
-      '<td style="text-align:center;color:var(--muted)">'+lmVal+'</td>'+
-      '<td style="text-align:center">'+ssVal+'</td>'+
-      '<td style="text-align:center;font-weight:600">'+proxCompra+'</td>'+
-      '<td style="text-align:center">'+estado+'</td>'+
-      '</tr>';
-  }).join('');
-  document.getElementById('cal-params-tbody').innerHTML = rows;
-}
-
-function renderCalSummary() {
-  var evMes = CAL_EVENTS.filter(function(e){
-    var d=new Date(e.date); return d.getFullYear()===calYear && d.getMonth()===calMonth;
-  });
-  document.getElementById('cal-sum-compras').textContent   = evMes.filter(function(e){return e.tipo==='compra';}).length;
-  document.getElementById('cal-sum-llegadas').textContent  = evMes.filter(function(e){return e.tipo==='llegada';}).length;
-  document.getElementById('cal-sum-prod').textContent      = evMes.filter(function(e){return e.tipo==='produccion';}).length;
-  document.getElementById('cal-sum-despachos').textContent = evMes.filter(function(e){return e.tipo==='despacho';}).length;
-
-  var today   = new Date();
-  var urgentes= [], pronto = [];
-  INV_DATA.forEach(function(it) {
-    var p  = CAL_PARAMS[it.cod]||{};
-    var lt = (p.leadtime||0)+(p.produccion||0);
-    if (!lt || !it.min_k) return;
-    var stock    = (it.klozer||0)+(it.klozer_mkt||0);
-    var diasOrden = Math.max(0,(stock-(p.stock_seg||0))/(it.min_k/30))-lt;
-    if (diasOrden<=0) urgentes.push(it.art);
-    else if (diasOrden<=14) pronto.push({art:it.art, dias:Math.round(diasOrden)});
-  });
-  var alertHtml = '';
-  urgentes.forEach(function(a){ alertHtml+='<div style="color:#ef4444;margin-bottom:4px">&#128680; '+a+' &#8212; compra urgente</div>'; });
-  pronto.forEach(function(x){   alertHtml+='<div style="color:#eab308;margin-bottom:4px">&#9888;&#65039; '+x.art+' &#8212; ordenar en '+x.dias+' d&#237;as</div>'; });
-  document.getElementById('cal-alertas').innerHTML = alertHtml || '<span style="color:var(--muted)">Sin alertas cr&#237;ticas.</span>';
-
-  var in30   = new Date(today); in30.setDate(today.getDate()+30);
-  var TLABEL = {compra:'Orden de compra', llegada:'Llegada de materiales', produccion:'Inicio de producci&#243;n', despacho:'Despacho/entrega'};
-  var TCLS   = {compra:'info', llegada:'ok', produccion:'warn', despacho:'danger'};
-  var evNext = CAL_EVENTS
-    .filter(function(e){ var d=new Date(e.date); return d>=today && d<=in30; })
-    .sort(function(a,b){ return a.date.localeCompare(b.date); });
-  document.getElementById('cal-timeline-content').innerHTML = evNext.length
-    ? evNext.map(function(ev){
-        return '<div class="cal-event '+(TCLS[ev.tipo]||'')+'">'+
-          '<div class="cal-event-date">'+ev.date+'</div>'+
-          '<div class="cal-event-title">'+(TLABEL[ev.tipo]||ev.tipo)+(ev.art?' &middot; '+ev.art:'')+'</div>'+
-          (ev.nota?'<div class="cal-event-sub">'+ev.nota+'</div>':'')+
-          '</div>';
-      }).join('')
-    : '<div style="color:var(--muted);font-size:9px">Sin eventos en los pr&#243;ximos 30 d&#237;as.<br><small>Carg&#225; los datos de compras para ver el timeline.</small></div>';
-}
-</script>
 
 </section>
 
 <!-- ═══════════════════════════════════════════════ -->
-<!--  COSTOS                                        -->
+<!--  LOGÍSTICA                                     -->
 <!-- ═══════════════════════════════════════════════ -->
 <section id="costos" class="section">
 
@@ -6939,233 +6939,305 @@ function renderCalSummary() {
   <!-- FILTROS -->
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
     <input id="cos-search" type="text" placeholder="🔍  Buscar producto…"
-      oninput="renderCostosTable()"
+      oninput="renderCostos()"
       style="flex:1;min-width:180px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px"/>
-    <select id="cos-rubro" onchange="renderCostosTable()"
+    <select id="cos-rubro" onchange="renderCostos()"
       style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px">
       <option value="">Todos los rubros</option>
     </select>
-    <select id="cos-estado" onchange="renderCostosTable()"
+    <select id="cos-estado" onchange="renderCostos()"
       style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px">
       <option value="">Todos los estados</option>
-    </select>
-    <select id="cos-periodo" onchange="renderCostosTable()"
-      style="padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px">
     </select>
     <span id="cos-count" style="font-size:9px;color:var(--muted);white-space:nowrap"></span>
   </div>
 
-  <!-- TABLA -->
-  <div style="overflow-x:auto;overflow-y:auto;max-height:calc(100vh - 340px);border-radius:12px;border:1px solid var(--border)">
-    <table id="costos-table" style="width:100%;border-collapse:collapse;font-size:9px">
-      <thead id="costos-thead" style="position:sticky;top:0;z-index:2;background:var(--surface)"></thead>
-      <tbody id="costos-tbody"></tbody>
-    </table>
+  <!-- SECCIÓN A+B: selector de mes + tabla + mini chart -->
+  <div style="margin-bottom:28px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px">Mes a mes</div>
+    <div id="cos-months" style="display:flex;gap:5px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px;scrollbar-width:thin;-webkit-overflow-scrolling:touch;flex-wrap:nowrap"></div>
+    <div id="cos-ab-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
+    <div style="overflow-x:auto;overflow-y:auto;max-height:400px;border-radius:12px;border:1px solid var(--border)">
+      <table id="costos-ab-table" style="width:100%;border-collapse:collapse;font-size:9px">
+        <thead id="costos-ab-thead" style="position:sticky;top:0;z-index:2;background:var(--surface)"></thead>
+        <tbody id="costos-ab-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECCIÓN C: tabla pivote meses × productos -->
+  <div>
+    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <span style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)">Evolución mensual</span>
+      <div style="margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <span style="font-size:9px;color:var(--muted)">Métrica:</span>
+        <div id="cos-c-metric" style="display:flex;gap:3px"></div>
+        <span style="font-size:9px;color:var(--muted);margin-left:8px">Período:</span>
+        <div id="cos-c-period" style="display:flex;gap:3px"></div>
+      </div>
+    </div>
+    <div style="overflow-x:auto;border-radius:12px;border:1px solid var(--border)">
+      <table id="costos-pivot" style="width:100%;border-collapse:collapse;font-size:9px">
+        <thead id="costos-pivot-thead" style="position:sticky;top:0;z-index:2;background:var(--surface)"></thead>
+        <tbody id="costos-pivot-tbody"></tbody>
+      </table>
+    </div>
   </div>
 
 <script>
 (function(){
   // ─── estado de ordenamiento ─────────────────────
-  var _cosSort = {col: null, dir: 1};
+  var _mes='', _pivMetric='costo', _pivPeriod='6m', _sort={col:null,dir:1}, _expanded=null;
+  var _MO=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  function _fmtM(ym){var p=ym.split('-');return _MO[+p[1]-1]+' '+p[0].slice(2);}
+  function _fmtA(v){return v!=null?'$ '+Math.round(v).toLocaleString('es-AR'):'<span style="color:var(--muted)">&#8212;</span>';}
+  function _fmtP(v){return v!=null?v.toFixed(1)+'%':'<span style="color:var(--muted)">&#8212;</span>';}
+  function _fmtV(v){
+    if(v==null) return '<span style="color:var(--muted)">&#8212;</span>';
+    var s=v>0?'+':'',c=v>0?'var(--red)':v<0?'var(--green)':'var(--muted)';
+    return '<span style="color:'+c+'">'+s+v.toFixed(1)+'%</span>';
+  }
+  function _getMD(p,m){return p.meses&&p.meses[m]?p.meses[m]:null;}
+  function _filt(prods){
+    var s=(document.getElementById('cos-search').value||'').toLowerCase();
+    var r=document.getElementById('cos-rubro').value;
+    var e=document.getElementById('cos-estado').value;
+    return prods.filter(function(p){
+      if(r&&p.rubro!==r) return false;
+      if(e&&p.estado!==e) return false;
+      if(s&&!(p.desc.toLowerCase().includes(s)||p.cod.includes(s)||(p.linea||'').toLowerCase().includes(s))) return false;
+      return true;
+    });
+  }
 
-  // ─── renderCostos: entry point ──────────────────
-  window.renderCostos = function() {
-    var cd = (BOSQUE_DATA.costos || {});
-    var prods = cd.productos || [];
-    var periodos = cd.periodos || [];
-
-    if (cd.error && !prods.length) {
-      document.getElementById('costos-kpis').innerHTML =
-        '<div style="grid-column:1/-1;color:var(--accent4);font-size:9px;padding:12px">' +
-        '⚠️ No se pudieron cargar los datos de costos desde Google Sheets.<br>' +
-        '<small style="color:var(--muted)">' + (cd.error||'') + '</small><br>' +
-        '<small style="color:var(--muted)">Corré <b>Actualizar</b> con la hoja de Google Sheets accesible.</small></div>';
+  window.renderCostos=function(){
+    var cd=BOSQUE_DATA.costos||{};
+    var prods=cd.productos||[],meses=cd.meses||[];
+    if(!prods.length){
+      document.getElementById('costos-kpis').innerHTML='<div style="grid-column:1/-1;color:var(--muted);font-size:9px;padding:12px">Sin datos — corré Actualizar.</div>';
       return;
     }
-    if (!prods.length) {
-      document.getElementById('costos-kpis').innerHTML =
-        '<div style="grid-column:1/-1;color:var(--muted);font-size:9px;padding:12px">Sin datos — corré Actualizar.</div>';
-      return;
-    }
-
-    // Poblar filtros de rubro / estado
-    var rubros  = [...new Set(prods.map(p => p.rubro).filter(Boolean))].sort();
-    var estados = [...new Set(prods.map(p => p.estado).filter(Boolean))].sort();
-    var selRub  = document.getElementById('cos-rubro');
-    var selEst  = document.getElementById('cos-estado');
-    var selPer  = document.getElementById('cos-periodo');
-
-    // Rubros
-    var prevRub = selRub.value;
-    selRub.innerHTML = '<option value="">Todos los rubros</option>' +
-      rubros.map(r => '<option value="'+r+'"'+(prevRub===r?' selected':'')+'>'+r+'</option>').join('');
-
-    // Estados
-    var prevEst = selEst.value;
-    selEst.innerHTML = '<option value="">Todos los estados</option>' +
-      estados.map(e => '<option value="'+e+'"'+(prevEst===e?' selected':'')+'>'+e+'</option>').join('');
-
-    // Períodos
-    var prevPer = selPer.value || (periodos[1]||periodos[0]||'');
-    selPer.innerHTML = periodos.map(p =>
-      '<option value="'+p+'"'+(p===prevPer?' selected':'')+'>'+p+'</option>'
-    ).join('');
-    if (!selPer.value && periodos.length) selPer.value = periodos[1] || periodos[0];
-
-    _renderKPIs(prods, periodos);
-    renderCostosTable();
+    if(!_mes&&meses.length) _mes=meses[meses.length-1];
+    var rubros=[...new Set(prods.map(p=>p.rubro).filter(Boolean))].sort();
+    var estados=[...new Set(prods.map(p=>p.estado).filter(Boolean))].sort();
+    var sr=document.getElementById('cos-rubro'),se=document.getElementById('cos-estado');
+    if(sr.options.length<=1) sr.innerHTML='<option value="">Todos los rubros</option>'+rubros.map(r=>'<option value="'+r+'">'+r+'</option>').join('');
+    if(se.options.length<=1) se.innerHTML='<option value="">Todos los estados</option>'+estados.map(e=>'<option value="'+e+'">'+e+'</option>').join('');
+    _renderKPIs(prods,meses);
+    _renderMonths(meses);
+    _renderAB(prods,meses);
+    _renderC(prods,meses);
   };
+  window.renderCostosTable=window.renderCostos;
 
   // ─── KPIs ───────────────────────────────────────
-  function _renderKPIs(prods, periodos) {
-    var per = periodos[1] || periodos[0] || '';
-    var p2  = periodos[periodos.indexOf(per)+1];  // siguiente período para comparar var
-
-    var activos  = prods.filter(p => (p.estado||'').toUpperCase() === 'ACTIVO');
-    var margenes = activos.map(p => (p.periodos[per]||{}).margen).filter(v => v != null);
-    var avgMg    = margenes.length ? margenes.reduce((a,b)=>a+b,0)/margenes.length : null;
-
-    var conCambio = 0;
-    if (p2) {
-      conCambio = prods.filter(p => {
-        var pv1 = (p.periodos[per]||{}).pvp;
-        var pv2 = (p.periodos[p2]||{}).pvp;
-        return pv1 && pv2 && pv1 !== pv2;
-      }).length;
-    }
-
-    var costos = activos.map(p => (p.periodos[per]||{}).costo).filter(v => v != null);
-    var avgCosto = costos.length ? costos.reduce((a,b)=>a+b,0)/costos.length : null;
-
-    var fmtARS = v => v != null ? '$' + Math.round(v).toLocaleString('es-AR') : '-';
-    var fmtPct = v => v != null ? v.toFixed(1) + '%' : '-';
-
-    var kpis = [
-      {label:'Productos activos', val: activos.length, unit:'', color:'var(--accent)'},
-      {label:'Costo prom. '+per+' (ARS)', val: fmtARS(avgCosto), unit:'', color:'var(--accent2)'},
-      {label:'Margen prom. '+per, val: fmtPct(avgMg), unit:'', color:'var(--accent3)'},
+  function _renderKPIs(prods,meses){
+    var mes=_mes||(meses.length?meses[meses.length-1]:'');
+    var act=prods.filter(p=>(p.estado||'').toUpperCase()==='ACTIVO');
+    var wd=act.filter(p=>_getMD(p,mes));
+    var ac=wd.length?wd.reduce((s,p)=>s+_getMD(p,mes).costo,0)/wd.length:null;
+    var am=wd.length?wd.reduce((s,p)=>s+(_getMD(p,mes).mb||0),0)/wd.length:null;
+    var kpis=[
+      {l:'Productos activos',v:''+act.length,c:'var(--accent)'},
+      {l:'Costo prom. '+(mes?_fmtM(mes):''),v:_fmtA(ac),c:'var(--accent2)'},
+      {l:'Margen prom.',v:am!=null?am.toFixed(1)+'%':'—',c:'var(--accent3)'},
+      {l:'Meses cargados',v:''+meses.length,c:'var(--yellow)'},
     ];
-    if (p2) kpis.push({label:'Con cambio PVP en '+p2, val: conCambio, unit:'', color:'var(--yellow)'});
-
-    document.getElementById('costos-kpis').innerHTML = kpis.map(k =>
-      '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px">' +
-      '<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+k.label+'</div>' +
-      '<div style="font-size:24px;font-weight:700;color:'+k.color+'">'+k.val+''+k.unit+'</div>' +
-      '</div>'
+    document.getElementById('costos-kpis').innerHTML=kpis.map(k=>
+      '<div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 20px">'+
+      '<div style="font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">'+k.l+'</div>'+
+      '<div style="font-size:24px;font-weight:700;color:'+k.c+'">'+k.v+'</div></div>'
     ).join('');
   }
 
-  // ─── renderCostosTable ──────────────────────────
-  window.renderCostosTable = function() {
-    var cd     = BOSQUE_DATA.costos || {};
-    var prods  = cd.productos || [];
-    var search = (document.getElementById('cos-search').value||'').toLowerCase();
-    var rubro  = document.getElementById('cos-rubro').value;
-    var estado = document.getElementById('cos-estado').value;
-    var per    = document.getElementById('cos-periodo').value;
+  function _renderMonths(meses){
+    if(!meses.length){
+      document.getElementById('cos-months').innerHTML='<span style="font-size:9px;color:var(--muted)">Sin datos mensuales — corré Actualizar.</span>';
+      return;
+    }
+    document.getElementById('cos-months').innerHTML=meses.map(function(m){
+      var a=m===_mes;
+      return '<span onclick="window._cosMes(\''+m+'\')" style="cursor:pointer;display:inline-block;padding:4px 11px;border-radius:20px;font-size:9px;'+
+        (a?'background:var(--accent);color:#000;font-weight:700':'background:var(--card);border:1px solid var(--border);color:var(--muted)')+
+        '">'+_fmtM(m)+'</span>';
+    }).join('');
+    var cont=document.getElementById('cos-months'),idx=meses.indexOf(_mes),chips=cont.querySelectorAll('span');
+    if(idx>=0&&chips[idx]) setTimeout(function(){chips[idx].scrollIntoView({block:'nearest',inline:'center'});},0);
+  }
 
-    var filt = prods.filter(p => {
-      if (rubro  && p.rubro  !== rubro)  return false;
-      if (estado && p.estado !== estado) return false;
-      if (search && !(
-        p.desc.toLowerCase().includes(search) ||
-        p.cod.includes(search) ||
-        (p.linea||'').toLowerCase().includes(search)
-      )) return false;
-      return true;
+  window._cosMes=function(m){
+    _mes=m;_expanded=null;
+    var cd=BOSQUE_DATA.costos||{};
+    _renderKPIs(cd.productos||[],cd.meses||[]);
+    _renderMonths(cd.meses||[]);
+    _renderAB(cd.productos||[],cd.meses||[]);
+    _renderC(cd.productos||[],cd.meses||[]);
+  };
+
+  function _renderAB(prods,meses){
+    var filt=_filt(prods);
+    document.getElementById('cos-count').textContent=filt.length+' producto'+(filt.length!==1?'s':'');
+    var mes=_mes||(meses.length?meses[meses.length-1]:'');
+    var idx=meses.indexOf(mes),prev=idx>0?meses[idx-1]:null;
+    var wd=filt.filter(p=>_getMD(p,mes));
+    var ac=wd.length?wd.reduce((s,p)=>s+_getMD(p,mes).costo,0)/wd.length:null;
+    var am=wd.length?wd.reduce((s,p)=>s+(_getMD(p,mes).mb||0),0)/wd.length:null;
+    var chg=prev?filt.filter(p=>{var d=_getMD(p,mes),d0=_getMD(p,prev);return d&&d0&&d.costo!==d0.costo;}).length:0;
+    var abk=[{l:'Costo promedio',v:_fmtA(ac)},{l:'Margen promedio',v:am!=null?am.toFixed(1)+'%':'—'}];
+    if(prev) abk.push({l:'Con cambio vs '+_fmtM(prev),v:''+chg});
+    document.getElementById('cos-ab-kpis').innerHTML=abk.map(k=>
+      '<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px">'+
+      '<div style="font-size:9px;color:var(--muted);margin-bottom:4px">'+k.l+'</div>'+
+      '<div style="font-size:18px;font-weight:700">'+k.v+'</div></div>'
+    ).join('');
+    if(_sort.col) filt.sort(function(a,b){
+      function gv(p,col){
+        if(col==='cod') return p.cod; if(col==='desc') return p.desc;
+        if(col==='rubro') return p.rubro; if(col==='estado') return p.estado;
+        var d=_getMD(p,mes)||{};
+        if(col==='costo') return d.costo; if(col==='pvp') return d.pvp; if(col==='mb') return d.mb;
+        if(col==='var'){var d0=prev&&_getMD(p,prev);return d.costo&&d0&&d0.costo?(d.costo-d0.costo)/d0.costo*100:null;}
+      }
+      var va=gv(a,_sort.col),vb=gv(b,_sort.col);
+      if(va==null&&vb==null) return 0; if(va==null) return 1; if(vb==null) return -1;
+      if(typeof va==='string') return _sort.dir*va.localeCompare(vb);
+      return _sort.dir*(va-vb);
     });
+    var thS='padding:9px 12px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none';
+    var thR=thS+';text-align:right';
+    function th(col,lbl,right){
+      var ic=_sort.col===col?(_sort.dir===1?'&#9650;':'&#9660;'):'&#8645;';
+      return '<th onclick="window._cosSrt(\''+col+'\')" style="'+(right?thR:thS)+'">'+lbl+' <span style="opacity:.5;font-size:8px">'+ic+'</span></th>';
+    }
+    document.getElementById('costos-ab-thead').innerHTML='<tr>'+
+      th('cod','Cód',false)+th('desc','Producto',false)+th('rubro','Rubro',false)+
+      th('costo','Costo',true)+th('var','Var.',true)+th('pvp','PVP',true)+th('mb','Mg%',true)+
+      '<th style="'+thS+';width:28px;cursor:default"> </th></tr>';
+    var tdB='padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap';
+    var tdR=tdB+';text-align:right';
+    var rows=filt.map(function(p){
+      var d=_getMD(p,mes)||{},d0=prev?_getMD(p,prev):null;
+      var vr=d.costo&&d0&&d0.costo?(d.costo-d0.costo)/d0.costo*100:null;
+      var isExp=_expanded===p.cod;
+      var btn='<span onclick="event.stopPropagation();window._cosExp(\''+p.cod+'\')" style="cursor:pointer;color:var(--muted);font-size:12px">'+(isExp?'&#9650;':'&#9660;')+'</span>';
+      var ecol=(p.estado||'').toUpperCase()==='ACTIVO'?'var(--green)':'var(--muted)';
+      var r='<tr style="cursor:pointer" onclick="window._cosExp(\''+p.cod+'\')">'+
+        '<td style="'+tdB+';color:var(--muted);font-size:8px">'+p.cod+'</td>'+
+        '<td style="'+tdB+'"><span style="color:'+ecol+';font-size:8px;margin-right:4px">&#9679;</span>'+p.desc+'</td>'+
+        '<td style="'+tdB+';color:var(--muted)">'+p.rubro+'</td>'+
+        '<td style="'+tdR+';font-variant-numeric:tabular-nums">'+_fmtA(d.costo)+'</td>'+
+        '<td style="'+tdR+'">'+_fmtV(vr)+'</td>'+
+        '<td style="'+tdR+';font-variant-numeric:tabular-nums">'+_fmtA(d.pvp)+'</td>'+
+        '<td style="'+tdR+'">'+_fmtP(d.mb)+'</td>'+
+        '<td style="'+tdB+';text-align:center">'+btn+'</td></tr>';
+      if(isExp){
+        r+='<tr><td colspan="8" style="padding:0;border-bottom:1px solid var(--border)">'+
+          '<div style="padding:14px 20px;background:rgba(255,255,255,0.015)">'+_miniChart(p,meses,mes)+'</div></td></tr>';
+      }
+      return r;
+    });
+    document.getElementById('costos-ab-tbody').innerHTML=rows.join('')||
+      '<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--muted)">Sin resultados</td></tr>';
+  }
 
-    // Ordenamiento
-    if (_cosSort.col) {
-      filt.sort(function(a, b) {
-        var va, vb;
-        if (_cosSort.col === 'cod')   { va = a.cod;   vb = b.cod; }
-        else if (_cosSort.col === 'desc')  { va = a.desc;  vb = b.desc; }
-        else if (_cosSort.col === 'rubro') { va = a.rubro; vb = b.rubro; }
-        else if (_cosSort.col === 'linea') { va = a.linea; vb = b.linea; }
-        else if (_cosSort.col === 'estado'){ va = a.estado;vb = b.estado; }
-        else {
-          var pa = a.periodos[per]||{}, pb = b.periodos[per]||{};
-          va = pa[_cosSort.col]; vb = pb[_cosSort.col];
-        }
-        if (va == null && vb == null) return 0;
-        if (va == null) return 1;
-        if (vb == null) return -1;
-        if (typeof va === 'string') return _cosSort.dir * va.localeCompare(vb);
-        return _cosSort.dir * (va - vb);
+  function _miniChart(p,meses,selMes){
+    if(!p.meses||!Object.keys(p.meses).length)
+      return '<span style="font-size:9px;color:var(--muted)">Sin datos mensuales — corré Actualizar</span>';
+    var vals=meses.map(m=>p.meses[m]?p.meses[m].costo:null);
+    var nv=vals.filter(v=>v!=null);
+    if(!nv.length) return '<span style="font-size:9px;color:var(--muted)">—</span>';
+    var mx=Math.max.apply(null,nv),mn=Math.min.apply(null,nv),rng=mx-mn||1,H=48;
+    var bars=meses.map(function(m,i){
+      var v=vals[i],isSel=m===selMes;
+      if(v==null) return '<div style="flex:1;min-width:16px;max-width:30px"></div>';
+      var h=Math.max(4,Math.round((v-mn)/rng*H));
+      return '<div style="flex:1;min-width:16px;max-width:30px;display:flex;flex-direction:column;align-items:center;gap:2px" title="'+_fmtM(m)+': $'+Math.round(v).toLocaleString('es-AR')+'">'+
+        '<div style="width:100%;height:'+h+'px;background:'+(isSel?'var(--accent)':'rgba(74,222,128,0.3)')+';border-radius:3px 3px 0 0;align-self:flex-end"></div>'+
+        '<div style="font-size:7px;color:'+(isSel?'var(--accent)':'var(--muted)')+'">'+_fmtM(m)+'</div></div>';
+    }).join('');
+    var sd=p.meses[selMes];
+    var info=sd?'<span style="font-size:9px;margin-right:14px">Costo: <b>'+_fmtA(sd.costo)+'</b></span>'+
+      (sd.pvp?'<span style="font-size:9px;margin-right:14px">PVP: <b>'+_fmtA(sd.pvp)+'</b></span>':'')+
+      (sd.mb!=null?'<span style="font-size:9px">Margen: <b>'+sd.mb.toFixed(1)+'%</b></span>':''):'';
+    return '<div style="font-size:8px;color:var(--muted);margin-bottom:6px">'+p.desc+'</div>'+
+      '<div style="display:flex;align-items:flex-end;gap:3px;height:'+(H+20)+'px;overflow-x:auto;padding-bottom:2px">'+bars+'</div>'+
+      '<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--border)">'+info+'</div>';
+  }
+
+  window._cosExp=function(cod){
+    _expanded=_expanded===cod?null:cod;
+    var cd=BOSQUE_DATA.costos||{};
+    _renderAB(cd.productos||[],cd.meses||[]);
+  };
+  window._cosSrt=function(col){
+    if(_sort.col===col) _sort.dir*=-1; else{_sort.col=col;_sort.dir=1;}
+    var cd=BOSQUE_DATA.costos||{};
+    _renderAB(cd.productos||[],cd.meses||[]);
+  };
+
+  function _renderC(prods,meses){
+    var mets=[{k:'costo',l:'Costo'},{k:'pvp',l:'PVP'},{k:'mb',l:'Mg%'}];
+    document.getElementById('cos-c-metric').innerHTML=mets.map(function(m){
+      var a=m.k===_pivMetric;
+      return '<span onclick="window._cosCMet(\''+m.k+'\')" style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:9px;'+
+        (a?'background:var(--accent);color:#000;font-weight:700':'background:var(--card);border:1px solid var(--border);color:var(--muted)')+
+        '">'+m.l+'</span>';
+    }).join('');
+    var pers=[{k:'6m',l:'Últ. 6m'},{k:'2026',l:'2026'},{k:'2025',l:'2025'},{k:'all',l:'Todo'}];
+    document.getElementById('cos-c-period').innerHTML=pers.map(function(p){
+      var a=p.k===_pivPeriod;
+      return '<span onclick="window._cosCPer(\''+p.k+'\')" style="cursor:pointer;padding:3px 10px;border-radius:20px;font-size:9px;'+
+        (a?'background:var(--accent);color:#000;font-weight:700':'background:var(--card);border:1px solid var(--border);color:var(--muted)')+
+        '">'+p.l+'</span>';
+    }).join('');
+    var vm=_pivPeriod==='6m'?meses.slice(-6):_pivPeriod==='all'?meses:meses.filter(m=>m.startsWith(_pivPeriod));
+    if(!vm.length) vm=meses.slice(-6);
+    var filt=_filt(prods);
+    if(!vm.length){
+      document.getElementById('costos-pivot-thead').innerHTML='';
+      document.getElementById('costos-pivot-tbody').innerHTML=
+        '<tr><td style="padding:24px;text-align:center;color:var(--muted)">Sin datos mensuales — corré Actualizar.</td></tr>';
+      return;
+    }
+    var thS='padding:8px 10px;text-align:center;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;min-width:68px';
+    document.getElementById('costos-pivot-thead').innerHTML=
+      '<tr><th style="'+thS+';text-align:left;min-width:190px;position:sticky;left:0;background:var(--surface);z-index:3">Producto</th>'+
+      vm.map(function(m){
+        var isSel=m===_mes;
+        return '<th style="'+thS+(isSel?';color:var(--accent);border-bottom:2px solid var(--accent)':'')+'">'+_fmtM(m)+'</th>';
+      }).join('')+'</tr>';
+    var tdN='padding:7px 10px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:center;font-size:9px';
+    var tdL=tdN+';text-align:left;position:sticky;left:0;background:var(--surface);z-index:1';
+    var rows=filt.map(function(p){
+      var rv=vm.map(function(m){
+        var d=_getMD(p,m);if(!d) return null;
+        return _pivMetric==='costo'?d.costo:_pivMetric==='pvp'?d.pvp:d.mb;
       });
-    }
-
-    document.getElementById('cos-count').textContent = filt.length + ' producto' + (filt.length !== 1 ? 's' : '');
-
-    // THEAD
-    var thStyle = 'padding:9px 12px;text-align:left;font-size:9px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;cursor:pointer;user-select:none';
-    var thR     = thStyle + ';text-align:right';
-    function thSort(col, label) {
-      var icon = _cosSort.col===col ? (_cosSort.dir===1?'▲':'▼') : '⇅';
-      return '<th onclick="_cosSortBy(\''+col+'\')" style="'+thStyle+'">'+label+' <span style="opacity:.6;font-size:9px">'+icon+'</span></th>';
-    }
-    function thSortR(col, label) {
-      var icon = _cosSort.col===col ? (_cosSort.dir===1?'▲':'▼') : '⇅';
-      return '<th onclick="_cosSortBy(\''+col+'\')" style="'+thR+'">'+label+' <span style="opacity:.6;font-size:9px">'+icon+'</span></th>';
-    }
-
-    document.getElementById('costos-thead').innerHTML =
-      '<tr>' +
-      thSort('cod','Código') +
-      thSort('desc','Descripción') +
-      thSort('rubro','Rubro') +
-      thSort('linea','Línea') +
-      thSort('estado','Estado') +
-      thSortR('costo','Costo (ARS)') +
-      thSortR('pvp','PVP (ARS)') +
-      thSortR('margen','Margen %') +
-      thSortR('var_costo','Var. Costo %') +
-      thSortR('var_pvp','Var. PVP %') +
-      thSortR('costo_pvp','Costo/PVP %') +
-      '</tr>';
-
-    // TBODY
-    var fmtARS = v => v != null ? '$ ' + Math.round(v).toLocaleString('es-AR') : '<span style="color:var(--muted)">-</span>';
-    var fmtPct = v => v != null ? v.toFixed(1) + '%' : '<span style="color:var(--muted)">-</span>';
-    var fmtVar = (v, invert) => {
-      if (v == null) return '<span style="color:var(--muted)">-</span>';
-      var col = invert ? (v>0?'var(--red)':'var(--green)') : (v>0?'var(--green)':'var(--red)');
-      var sign = v > 0 ? '+' : '';
-      return '<span style="color:'+col+'">'+sign+v.toFixed(1)+'%</span>';
-    };
-
-    var tdBase = 'padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap';
-    var tdR    = tdBase + ';text-align:right';
-
-    var rows = filt.map(function(p, i) {
-      var d = p.periodos[per] || {};
-      var bgEven = i % 2 === 0 ? '' : 'background:rgba(255,255,255,.02)';
-      var estCol = (p.estado||'').toUpperCase()==='ACTIVO' ? 'var(--green)' : 'var(--muted)';
-      return '<tr style="' + bgEven + '">' +
-        '<td style="'+tdBase+';color:var(--muted);font-size:9px">'+p.cod+'</td>' +
-        '<td style="'+tdBase+'">'+p.desc+'</td>' +
-        '<td style="'+tdBase+';color:var(--muted)">'+p.rubro+'</td>' +
-        '<td style="'+tdBase+';color:var(--muted)">'+p.linea+'</td>' +
-        '<td style="'+tdBase+'"><span style="color:'+estCol+';font-size:9px">'+p.estado+'</span></td>' +
-        '<td style="'+tdR+';font-variant-numeric:tabular-nums">'+fmtARS(d.costo)+'</td>' +
-        '<td style="'+tdR+';font-variant-numeric:tabular-nums">'+fmtARS(d.pvp)+'</td>' +
-        '<td style="'+tdR+'">'+fmtPct(d.margen)+'</td>' +
-        '<td style="'+tdR+'">'+fmtVar(d.var_costo, false)+'</td>' +
-        '<td style="'+tdR+'">'+fmtVar(d.var_pvp, false)+'</td>' +
-        '<td style="'+tdR+'">'+fmtPct(d.costo_pvp)+'</td>' +
-        '</tr>';
+      var nv=rv.filter(v=>v!=null);
+      var rmn=nv.length?Math.min.apply(null,nv):0,rmx=nv.length?Math.max.apply(null,nv):0,rrng=rmx-rmn;
+      function hc(v,isSel){
+        var pfx=isSel?'background:rgba(74,222,128,0.06);':'';
+        if(v==null||!rrng) return pfx;
+        var t=(v-rmn)/rrng,bad=_pivMetric==='costo'?t:1-t;
+        if(bad<0.2) return pfx+'color:#22c55e';
+        if(bad>0.8) return pfx+'color:#ef4444';
+        return pfx;
+      }
+      function fv(v){
+        if(v==null) return '<span style="color:var(--muted)">—</span>';
+        return _pivMetric==='mb'?v.toFixed(1)+'%':'$ '+Math.round(v).toLocaleString('es-AR');
+      }
+      var cells=vm.map(function(m,i){
+        return '<td style="'+tdN+hc(rv[i],m===_mes)+'">'+fv(rv[i])+'</td>';
+      }).join('');
+      return '<tr><td style="'+tdL+'"><span style="color:var(--muted);font-size:8px;margin-right:4px">'+p.cod+'</span>'+p.desc+'</td>'+cells+'</tr>';
     });
-    document.getElementById('costos-tbody').innerHTML = rows.join('') ||
-      '<tr><td colspan="11" style="padding:24px;text-align:center;color:var(--muted)">Sin resultados</td></tr>';
-  };
+    document.getElementById('costos-pivot-tbody').innerHTML=rows.join('')||
+      '<tr><td colspan="'+(vm.length+1)+'" style="padding:24px;text-align:center;color:var(--muted)">Sin resultados</td></tr>';
+  }
 
-  // ─── ordenamiento ───────────────────────────────
-  window._cosSortBy = function(col) {
-    if (_cosSort.col === col) _cosSort.dir *= -1;
-    else { _cosSort.col = col; _cosSort.dir = 1; }
-    renderCostosTable();
-  };
+  window._cosCMet=function(m){_pivMetric=m;var cd=BOSQUE_DATA.costos||{};_renderC(cd.productos||[],cd.meses||[]);};
+  window._cosCPer=function(p){_pivPeriod=p;var cd=BOSQUE_DATA.costos||{};_renderC(cd.productos||[],cd.meses||[]);};
 })();
 </script>
 
