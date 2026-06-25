@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.27</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.28</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
@@ -576,7 +576,7 @@
   <div class="header-title">
     <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
-    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.27</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
+    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.28</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
   </div>
   <div class="header-right">
     <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
@@ -1620,8 +1620,8 @@ document.addEventListener('DOMContentLoaded', () => {
     th.style.userSelect = 'none';
     th.addEventListener('click', () => setSortCol(th.dataset.col));
   });
-  renderInvTable();
-  renderOverview();
+  // Cargar datos del overview al inicio (la pestaña activa por defecto)
+  _loadData(_sectionFiles.overview).then(function() { renderOverview(); });
 });
 
 // ── showSection ───────────────────────────────────────────────────────────────
@@ -1666,8 +1666,9 @@ function showSection(id, el) {
     if (id === 'supply')     renderSupply();
     if (id === 'logistica')  renderLogistica();
     if (id === 'calendario') renderCalendario();
-    if (id === 'costos')     renderCostos();
-    if (id === 'admin')      { if (window._admLoad) window._admLoad(); }
+    if (id === 'costos')       renderCostos();
+    if (id === 'inv-insumos')  renderInsumos();
+    if (id === 'admin')        { if (window._admLoad) window._admLoad(); }
   });
 }
 
@@ -2386,6 +2387,7 @@ function getMesFiltro() {
 }
 
 function renderVentas() {
+  populateClientFilter();
   const yr   = String(vYear);
   const yrPrev = String(vYear - 1);
   const mes    = getMesFiltro();
@@ -3412,7 +3414,7 @@ var REMITOS_SAL_2026 = {
   "110027": {"klozer":{1:810,2:1056,3:828},"ofi":{1:30}},
   "110030": {"klozer":{1:4146,2:450,3:426},"ofi":{1:48}}
 };
-
+
 
 function _snapStk(codStr, key) {
   const snap = STOCK_CIERRE_MES[key];
@@ -3790,7 +3792,6 @@ function rotMensualToggle(rub) {
   if (arr) arr.textContent = open ? '▶' : '▼';
 }
 
-document.addEventListener('DOMContentLoaded', () => { populateClientFilter(); renderVentas(); });
 
 // ── renderSupply ──────────────────────────────────────────────────────────────
 function renderSupply() {
@@ -6907,12 +6908,7 @@ document.addEventListener('DOMContentLoaded', () => {
       thead+'<tbody>'+rows.join('')+'</tbody></table>';
   };
 
-  document.addEventListener('DOMContentLoaded', function() {
-    // Se renderiza solo cuando se activa la pestaña (via showSection)
-    document.querySelector('[onclick*="inv-insumos"]').addEventListener('click', function() {
-      setTimeout(renderInsumos, 50);
-    });
-  });
+  // renderInsumos se llama desde showSection al activar la pestaña
 })();
 </script>
 
