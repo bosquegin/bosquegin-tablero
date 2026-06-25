@@ -7270,9 +7270,10 @@ document.addEventListener('DOMContentLoaded', () => {
         (a?'background:var(--accent);color:#000;font-weight:700':'background:var(--surface);border:1px solid var(--border);color:var(--muted)')+'">'+m.l+'</span>';
     }).join('');
     var svg=document.getElementById('cos-chart');
-    if(_chartTab==='linea') _drawLinea(prods,meses,svg);
-    else if(_chartTab==='barras') _drawBarras(prods,meses,svg);
-    else _drawDispersion(prods,meses,svg);
+    var filt=_filt(prods);
+    if(_chartTab==='linea') _drawLinea(filt,meses,svg);
+    else if(_chartTab==='barras') _drawBarras(filt,meses,svg);
+    else _drawDispersion(filt,meses,svg);
   }
 
   function _svgEmpty(svg,msg,W,H){
