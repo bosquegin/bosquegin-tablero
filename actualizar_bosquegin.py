@@ -2490,15 +2490,13 @@ def update_stock_cierre_mes():
         pattern = r'(?s)("%s_[^"]*": \{.*?"%s": \{.*?\}(?:,)?)' % (year, last_key)
         m = _re.search(pattern, html)
 
-    if m:
-        html = html[:m.start()] + new_block + html[m.end():]
-        with open(DASHBOARD, "w", encoding="utf-8") as f:
-            f.write(html)
-        print("  STOCK_CIERRE_MES actualizado: %s" % ", ".join(month_keys))
-        print("  Último snapshot: %s -> %s" % (last_key, last_day[last_key]))
-    else:
-        print("  ADVERTENCIA: No se encontró el bloque STOCK_CIERRE_MES en el dashboard.")
-        print("  Ejecutar actualizar_stock.ps1 manualmente si es necesario.")
+    # Escribir data_stock_cierre.js (ya no se embebe en el HTML)
+    scm_js = "window.STOCK_CIERRE_MES={\n" + new_block + "\n};"
+    scm_path = os.path.join(BASE, "data_stock_cierre.js")
+    with open(scm_path, "w", encoding="utf-8") as f:
+        f.write(scm_js)
+    print("  data_stock_cierre.js escrito: %s" % ", ".join(month_keys))
+    print("  Último snapshot: %s -> %s" % (last_key, last_day[last_key]))
 
 
 # ─── 7. MAIN ──────────────────────────────────────────────────────────────────
@@ -2664,6 +2662,23 @@ def main():
     print("  Stock:   %d articulos al %s" % (len(inv_data), stock_hasta))
     print("  Ventas:  hasta %s" % ventas_hasta)
 
+    # ── Archivos por sección (lazy loading) ───────────────────────────────────
+    _b = "window.BOSQUE_DATA=window.BOSQUE_DATA||{};"
+    _section_files = {
+        "data_meta.js":       _b + "window.BOSQUE_DATA.meta="       + json.dumps(new_data["meta"],       ensure_ascii=False) + ";",
+        "data_ventas.js":     _b + "window.BOSQUE_DATA.ventas="     + json.dumps(new_data["ventas"],     ensure_ascii=False) + ";",
+        "data_stock.js":      _b + "window.BOSQUE_DATA.stock="      + json.dumps(new_data["stock"],      ensure_ascii=False) + ";",
+        "data_destileria.js": _b + "window.BOSQUE_DATA.destileria=" + json.dumps(new_data["destileria"], ensure_ascii=False) + ";window.BOSQUE_DATA.cervezas=" + json.dumps(new_data["cervezas"], ensure_ascii=False) + ";",
+        "data_costos.js":     _b + "window.BOSQUE_DATA.costos="     + json.dumps(new_data["costos"],     ensure_ascii=False) + ";",
+        "data_insumos.js":    _b + "window.BOSQUE_DATA.insumos="    + json.dumps(new_data["insumos"],    ensure_ascii=False) + ";",
+    }
+    print("\nArchivos por sección:")
+    for fname, content in _section_files.items():
+        fpath = os.path.join(BASE, fname)
+        with open(fpath, "w", encoding="utf-8") as f:
+            f.write(content)
+        print("  %s (%d KB)" % (fname, len(content) // 1024))
+
     print("\n[6/6] Generando proyecciones de compra...")
     try:
         generate_proyecciones(inv_data)
@@ -2682,7 +2697,9 @@ def main():
     try:
         import subprocess
         git_cmds = [
-            ["git", "add", "bosquegin_data.js", "auth_static.js", "bosquegin_dashboard.html"],
+            ["git", "add", "bosquegin_data.js", "data_meta.js", "data_ventas.js", "data_stock.js",
+              "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
+              "auth_static.js", "bosquegin_dashboard.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
             ["git", "pull", "--rebase", "origin", "main"],
             ["git", "push", "origin", "main"],

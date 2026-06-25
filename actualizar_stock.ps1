@@ -1,10 +1,8 @@
 # actualizar_stock.ps1
-# Lee Stock_consolidado_por_deposito_y_dia.xlsx y actualiza STOCK_CIERRE_MES
-# en bosquegin_dashboard.html con el stock real KLOZER+OFI por mes.
+# Lee Stock_consolidado_por_deposito_y_dia.xlsx y escribe data_stock_cierre.js
 # Uso: .\actualizar_stock.ps1
 
 $consolidadoPath = "$PSScriptRoot\Data\Inventario\Stock_consolidado_por_deposito_y_dia.xlsx"
-$dashboardPath   = "$PSScriptRoot\bosquegin_dashboard.html"
 
 Write-Host "=== Actualizando stock KLOZER+OFI ===" -ForegroundColor Cyan
 Write-Host "Fuente: $consolidadoPath"
@@ -92,34 +90,10 @@ foreach ($key in $monthKeys) {
 }
 $newBlockContent = $blocks -join ",`n"
 
-# --- Leer dashboard y reemplazar seccion 2026 ---
-$html = Get-Content $dashboardPath -Raw -Encoding UTF8
 
-# Patron: desde el primer "2026_" hasta el cierre de la ultima entrada 2026 antes de };
-# Buscamos el inicio del primer bloque 2026 y el final del ultimo
-$firstYearKey = ($monthKeys | Where-Object { $_ -like "2026_*" } | Sort-Object | Select-Object -First 1)
-$lastYearKey  = ($monthKeys | Where-Object { $_ -like "2026_*" } | Sort-Object | Select-Object -Last 1)
-
-if (-not $firstYearKey) {
-  Write-Error "No se encontraron meses 2026 en el consolidado."; exit 1
-}
-
-# Encontrar el bloque en el HTML usando regex
-# El patron captura desde el comentario/clave del primer mes 2026 hasta el cierre del ultimo
-$pattern = '(?s)(  // 2026_1[^\n]*\n  "2026_1": \{.*?"' + $lastYearKey + '": \{.*?\})'
-if ($html -notmatch $pattern) {
-  # Intento alternativo sin comentario previo
-  $pattern = '(?s)("2026_1": \{.*?"' + $lastYearKey + '": \{.*?\})'
-}
-
-if ($html -match $pattern) {
-  $oldBlock = $Matches[1]
-  $html = $html.Replace($oldBlock, $newBlockContent)
-  $html | Set-Content $dashboardPath -Encoding UTF8 -NoNewline
-  Write-Host "`nDashboard actualizado correctamente." -ForegroundColor Green
-  Write-Host "Meses actualizados: $($monthKeys -join ', ')"
-} else {
-  Write-Error "No se pudo encontrar el bloque 2026 en el dashboard. Actualizacion manual requerida."
-  Write-Host "`nBloque generado (copiar manualmente si es necesario):"
-  Write-Host $newBlockContent
-}
+# Escribir data_stock_cierre.js (ya no se embebe en el HTML)
+$scmJs = "window.STOCK_CIERRE_MES={`n$newBlockContent`n};"
+$scmPath = Join-Path $PSScriptRoot "data_stock_cierre.js"
+$scmJs | Set-Content $scmPath -Encoding UTF8 -NoNewline
+Write-Host "`ndata_stock_cierre.js escrito correctamente." -ForegroundColor Green
+Write-Host "Meses actualizados: $($monthKeys -join ', ')"
