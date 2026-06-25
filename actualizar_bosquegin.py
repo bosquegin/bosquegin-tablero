@@ -1090,6 +1090,7 @@ def fetch_costos_completo():
         costo_cols = []
         resumen_pos = {}
 
+
         if year_starts:
             max_col = max((len(r) for r in all_rows[data_start:] if r), default=300)
             year_starts.append((9999, max_col + 1))   # sentinel al final
@@ -1111,9 +1112,16 @@ def fetch_costos_completo():
                     max_b = n_monthly           # anio actual con pocos bloques (ej. solo Dic)
                 else:
                     max_b = 0                   # anio futuro: omitir
+                # Años pasados con <12 bloques: los bloques son los ÚLTIMOS meses del año
+                # Año actual o años completos: los bloques arrancan desde Enero
+                if yr < date.today().year and n_monthly < 12:
+                    mes_inicio = 12 - n_monthly + 1
+                else:
+                    mes_inicio = 1
                 for b in range(min(n_monthly, max_b)):
-                    costo_cols.append(start_col + b * 9)
-                    month_labels.append(f"{yr}-{b+1:02d}")
+                    col = start_col + b * 9
+                    costo_cols.append(col)
+                    month_labels.append(f"{yr}-{mes_inicio + b:02d}")
         print(f"  Costos: estructura nueva ({len(costo_cols)} bloques, resumen: {list(resumen_pos.keys())})")
 
     def _get_val(row, col, offset, default=None):
