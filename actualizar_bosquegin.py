@@ -1397,6 +1397,8 @@ def parse_remitos_gc(folder=None, prod_lookup=None, costos=None):
 
     monthly    = {}
     total_rows = 0
+    dup_total  = 0
+    seen_rows  = set()   # (fecha_str, cod, dep, fantasia) — descarta duplicados
 
     for fpath in files:
         fname = os.path.basename(fpath)
@@ -1465,6 +1467,17 @@ def parse_remitos_gc(folder=None, prod_lookup=None, costos=None):
             dep_str = str(dep_raw).strip().upper() if dep_raw else ""
             dep = DEP_MAP.get(dep_str, dep_str if dep_str else "SIN DEPOSITO")
 
+            # Deduplicación: misma (fecha, cod, dep, fantasia) = error de carga
+            fan_raw = row[4] if len(row) > 4 else None
+            fan_str = str(fan_raw).strip().upper() if fan_raw not in (None, "", "nan", "None") else ""
+            fecha_str = f"{yr}-{mo:02d}"
+            if hasattr(fecha_raw, "year"):
+                fecha_str = f"{fecha_raw.year}-{fecha_raw.month:02d}-{fecha_raw.day:02d}"
+            row_key = (fecha_str, cod, dep, fan_str)
+            if row_key in seen_rows:
+                dup_total += 1; continue
+            seen_rows.add(row_key)
+
             # Nombre del producto
             art_gc = str(prod_raw).strip() if prod_raw else ""
             if art_gc in ("nan", "None", ""): art_gc = ""
@@ -1505,7 +1518,7 @@ def parse_remitos_gc(folder=None, prod_lookup=None, costos=None):
 
         print(f"  Remitos GC {fname}: {file_rows} filas")
 
-    print(f"  Remitos GC total: {total_rows} filas de {len(files)} archivo(s)")
+    print(f"  Remitos GC total: {total_rows} filas de {len(files)} archivo(s) ({dup_total} duplicados descartados)")
 
     if not monthly:
         return {"VD": {}, "MONTHLY_DATA": {}, "PROD_DATA": {}}, None, {}
@@ -1549,7 +1562,8 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         next(rows_iter, None)   # cabecera
 
     monthly = {}   # yr -> mo_str -> {deps:{}, prods:{cod:{}}}
-    row_count = skip_count = 0
+    row_count = skip_count = dup_count = 0
+    seen_rows = set()   # (fecha_str, cod, dep, fantasia) — descarta entradas duplicadas
 
     for row in rows_iter:
         if not row or not any(row):
@@ -1612,6 +1626,12 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
             fantasia = str(rs_raw).strip().upper() if rs_raw not in (None, "", "nan", "None") else "SIN CLIENTE"
         if not fantasia or fantasia in ("NAN", "NONE", ""):
             fantasia = "SIN CLIENTE"
+
+        # ── Deduplicación: misma (fecha, cod, dep, fantasia) en dos filas = error de carga ──
+        row_key = (f"{yr}-{mo:02d}-{day:02d}", cod, dep, fantasia)
+        if row_key in seen_rows:
+            dup_count += 1; skip_count += 1; continue
+        seen_rows.add(row_key)
 
         # ── Enriquecer desde productos ──
         pi  = prod_lookup.get(cod, {})
@@ -1682,7 +1702,7 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         cl["weekly"][wk_str]["c"] += c
 
     wb.close()
-    print(f"  Salidas: {row_count} filas procesadas, {skip_count} saltadas")
+    print(f"  Salidas: {row_count} filas procesadas, {skip_count} saltadas ({dup_count} duplicados descartados)")
 
     return _build_ventas_output(monthly)
 
