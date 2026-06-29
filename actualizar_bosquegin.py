@@ -1708,6 +1708,22 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
     wb.close()
     print(f"  Salidas: {row_count} filas procesadas, {skip_count} saltadas ({dup_count} duplicados descartados)")
 
+    # Post-proceso: rellenar art/rub/sub vacíos desde prod_lookup
+    filled = 0
+    for yr_mo in monthly.values():
+        for mo_data in yr_mo.values():
+            for p in mo_data["prods"].values():
+                if not p.get("art") or not p.get("rub") or p.get("rub") == "SIN RUBRO":
+                    pi = prod_lookup.get(str(p["cod"]), {})
+                    if pi.get("art") and not p.get("art"):
+                        p["art"] = pi["art"]; filled += 1
+                    if pi.get("rub") and (not p.get("rub") or p.get("rub") == "SIN RUBRO"):
+                        p["rub"] = pi["rub"]
+                    if pi.get("sub") and not p.get("sub"):
+                        p["sub"] = pi["sub"]
+    if filled:
+        print(f"  Nombres enriquecidos desde PRODUCTOS.xlsx: {filled} productos actualizados")
+
     return _build_ventas_output(monthly)
 
 
