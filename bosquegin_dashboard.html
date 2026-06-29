@@ -39,6 +39,7 @@
   <title>Tablero Operativo Supply Chain — Bosque Gin v2.29</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
   <script src="cloud_config.js" onerror="if(!window.BG_CLOUD_URL)window.BG_CLOUD_URL='';"></script>
 <script>document.write('<script src="data_meta.js?v='+Date.now()+'"><\/script>')</script>
@@ -98,21 +99,32 @@
       text-align: center; pointer-events: none; white-space: nowrap;
     }
     .header-title .supra {
-      display: block; font-size: 9px; font-weight: 600;
-      color: var(--muted); letter-spacing: 3px; text-transform: uppercase;
-      margin-bottom: 4px;
+      display: block; font-size: 8px; font-weight: 600;
+      font-family: 'Cinzel', serif;
+      color: rgba(255,255,255,.38); letter-spacing: 5px; text-transform: uppercase;
+      margin-bottom: 6px;
     }
     .header-title h1 {
-      font-size: 22px; font-weight: 800;
-      letter-spacing: 3px; text-transform: uppercase;
-      color: var(--text); line-height: 1;
+      font-family: 'Cinzel Decorative', serif;
+      font-size: 20px; font-weight: 700;
+      letter-spacing: 2px;
+      color: #fff; line-height: 1;
+      text-shadow:
+        0 0 18px rgba(255,255,255,.45),
+        0 0 40px rgba(255,255,255,.18),
+        0 2px 6px rgba(0,0,0,.7);
     }
-    .header-title h1 .sep { color: var(--accent); font-weight: 300; opacity: .8; }
+    .header-title h1 .sep {
+      font-family: 'Cinzel', serif;
+      color: rgba(255,255,255,.35); font-weight: 400;
+      margin: 0 4px; font-size: .8em;
+    }
     .header-title .sub {
-      font-size: 8px; color: var(--muted); letter-spacing: 1.5px;
-      text-transform: uppercase; display: block; margin-top: 5px;
+      font-family: 'Cinzel', serif;
+      font-size: 7.5px; color: rgba(255,255,255,.3); letter-spacing: 2.5px;
+      text-transform: uppercase; display: block; margin-top: 7px;
     }
-    .header-title .sub .ver { color: var(--accent); opacity: .65; font-weight: 700; }
+    .header-title .sub .ver { color: var(--accent); opacity: .7; font-weight: 600; }
 
     .header-products {
       display: flex; align-items: center; gap: 6px;
