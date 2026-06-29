@@ -2482,45 +2482,55 @@ def update_stock_cierre_mes():
 
     month_keys = sorted(stock.keys(), key=lambda k: (int(k.split("_")[0]), int(k.split("_")[1])))
 
-    # Generar bloque JS
+    # ── Leer meses existentes de data_stock_cierre.js para preservar historicos ──
+    scm_path = os.path.join(BASE, "data_stock_cierre.js")
+    existing_months = {}   # key -> raw JSON block string  (ej: '{"100001": 802, ...}')
+    if os.path.exists(scm_path):
+        try:
+            old_js = open(scm_path, encoding="utf-8").read()
+            for m_key, m_body in _re.findall(r'"(\d{4}_\d{1,2})"\s*:\s*(\{[^}]*\})', old_js):
+                existing_months[m_key] = m_body
+        except Exception as e:
+            print("  Advertencia leyendo stock_cierre existente: %s" % e)
+
+    # Los meses del Excel reemplazan los existentes; el resto se conserva
+    all_keys = sorted(
+        set(list(existing_months.keys()) + list(stock.keys())),
+        key=lambda k: (int(k.split("_")[0]), int(k.split("_")[1]))
+    )
+
+    # Generar bloque JS (meses frescos del Excel o conservados del archivo)
     js_lines = []
-    for i, key in enumerate(month_keys):
-        day  = last_day[key]
-        data = stock[key]
-        js_lines.append("  // %s: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — %s" % (key, day))
-        sorted_cods = sorted(data.keys())
-        entries = ['"%s": %d' % (c, data[c]) for c in sorted_cods]
-        chunk = 4
-        entry_lines = []
-        for j in range(0, len(entries), chunk):
-            sl = entries[j:j+chunk]
-            comma = "," if j + chunk < len(entries) else ""
-            entry_lines.append("    %s%s" % (", ".join(sl), comma))
-        comma_after = "," if i < len(month_keys) - 1 else ""
-        js_lines.append('  "%s": {\n%s\n  }%s' % (key, "\n".join(entry_lines), comma_after))
+    for i, key in enumerate(all_keys):
+        comma_after = "," if i < len(all_keys) - 1 else ""
+        if key in stock:
+            # Datos frescos del Excel
+            day  = last_day[key]
+            data = stock[key]
+            js_lines.append("  // %s: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — %s" % (key, day))
+            sorted_cods = sorted(data.keys())
+            entries = ['"%s": %d' % (c, data[c]) for c in sorted_cods]
+            chunk = 4
+            entry_lines = []
+            for j in range(0, len(entries), chunk):
+                sl = entries[j:j+chunk]
+                entry_lines.append("    %s%s" % (", ".join(sl), "," if j + chunk < len(entries) else ""))
+            js_lines.append('  "%s": {\n%s\n  }%s' % (key, "\n".join(entry_lines), comma_after))
+        else:
+            # Mes histórico conservado tal cual
+            js_lines.append('  "%s": %s%s' % (key, existing_months[key], comma_after))
 
     new_block = "\n".join(js_lines)
 
-    # Reemplazar en el dashboard HTML
-    html = open(DASHBOARD, encoding="utf-8").read()
-    year     = month_keys[0].split("_")[0]
-    last_key = month_keys[-1]
-
-    # Patrón: desde el comentario/clave del primer bloque del año hasta cierre del último
-    pattern = r'(?s)(  // %s_[^\n]*\n  "%s_[^"]*": \{.*?"%s": \{.*?\}(?:,)?)' % (year, year, last_key)
-    m = _re.search(pattern, html)
-    if not m:
-        # Fallback sin comentario
-        pattern = r'(?s)("%s_[^"]*": \{.*?"%s": \{.*?\}(?:,)?)' % (year, last_key)
-        m = _re.search(pattern, html)
-
-    # Escribir data_stock_cierre.js (ya no se embebe en el HTML)
+    # Escribir data_stock_cierre.js
     scm_js = "window.STOCK_CIERRE_MES={\n" + new_block + "\n};"
-    scm_path = os.path.join(BASE, "data_stock_cierre.js")
     with open(scm_path, "w", encoding="utf-8") as f:
         f.write(scm_js)
-    print("  data_stock_cierre.js escrito: %s" % ", ".join(month_keys))
-    print("  Último snapshot: %s -> %s" % (last_key, last_day[last_key]))
+    fresh = [k for k in all_keys if k in stock]
+    kept  = [k for k in all_keys if k not in stock]
+    print("  data_stock_cierre.js: %d meses frescos (%s), %d historicos preservados (%s)" % (
+        len(fresh), ", ".join(fresh), len(kept), ", ".join(kept)))
+    print("  Último snapshot: %s -> %s" % (month_keys[-1], last_day[month_keys[-1]]))
 
 
 # ─── 7. MAIN ──────────────────────────────────────────────────────────────────
