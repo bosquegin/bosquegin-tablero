@@ -1562,8 +1562,7 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         next(rows_iter, None)   # cabecera
 
     monthly = {}   # yr -> mo_str -> {deps:{}, prods:{cod:{}}}
-    row_count = skip_count = dup_count = 0
-    seen_rows = set()   # (fecha_str, cod, dep, fantasia) — descarta entradas duplicadas
+    row_count = skip_count = 0
 
     for row in rows_iter:
         if not row or not any(row):
@@ -1627,15 +1626,6 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
             fantasia = str(rs_raw).strip().upper() if rs_raw not in (None, "", "nan", "None") else "SIN CLIENTE"
         if not fantasia or fantasia in ("NAN", "NONE", ""):
             fantasia = "SIN CLIENTE"
-
-        # ── Deduplicación: solo aplica a BOSQUE_SALIDAS (errores de carga manual) ──
-        # Los remitos GC son transacciones automaticas separadas y no se deduplicaan
-        fuente = str(fuente_raw).strip().upper() if fuente_raw not in (None, "", "nan", "None") else "BOSQUE_SALIDAS"
-        if fuente == "BOSQUE_SALIDAS":
-            row_key = (f"{yr}-{mo:02d}-{day:02d}", cod, dep, fantasia)
-            if row_key in seen_rows:
-                dup_count += 1; skip_count += 1; continue
-            seen_rows.add(row_key)
 
         # ── Enriquecer desde productos ──
         pi  = prod_lookup.get(cod, {})
@@ -1706,7 +1696,7 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         cl["weekly"][wk_str]["c"] += c
 
     wb.close()
-    print(f"  Salidas: {row_count} filas procesadas, {skip_count} saltadas ({dup_count} duplicados descartados)")
+    print(f"  Salidas: {row_count} filas procesadas, {skip_count} saltadas")
 
     # Post-proceso: rellenar art/rub/sub vacíos desde prod_lookup
     filled = 0
