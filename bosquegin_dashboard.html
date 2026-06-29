@@ -2928,6 +2928,21 @@ function renderVentas() {
 
 
 // ── SEMANAL ───────────────────────────────────────────────────────────────────
+const _WK_RANGES_JS = {"1":"1–7","2":"8–14","3":"15–21","4":"22–28","5":"29–31"};
+function _weeklyFromProds(prods, mesLabel) {
+  const wkMap = {};
+  for (const p of (prods||[])) {
+    for (const [wk, wv] of Object.entries(p.weekly || {})) {
+      if (!wkMap[wk]) wkMap[wk] = {u:0, c:0};
+      wkMap[wk].u += wv.u || 0;
+      wkMap[wk].c += wv.c || 0;
+    }
+  }
+  return Object.entries(wkMap)
+    .map(([wk, wv]) => ({w: wk, label: `${_WK_RANGES_JS[wk]||wk} ${mesLabel}`,
+                          u: Math.round(wv.u*100)/100, c: Math.round(wv.c*100)/100}))
+    .sort((a,b) => parseInt(a.w) - parseInt(b.w));
+}
 function renderSemanal(mes, series, clData, mesCostoTotal) {
   const wrap = document.getElementById('v-semanal-wrap');
   const tbody = document.getElementById('v-semanal-tbody');
@@ -2941,18 +2956,30 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
   const mesStr = String(mes);
   const MESES_NOM_LOC = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
   const mesLabel = MESES_NOM_LOC[mes] || mes;
+  const pf = getProdFilter();
 
   // Obtener datos semanales
   let weeks = [];
   if (clData) {
-    // Buscar en la serie efectiva (ya filtrada si hay pf.active)
-    const moEntry = series.find(s => s.mes === mes);
-    if (moEntry && moEntry.weekly) weeks = moEntry.weekly;
-    else {
-      // fallback: leer de CLIENT_DATA directamente
-      const moE2 = (clData.monthly || []).find(s => s.mes === mes);
-      if (moE2 && moE2.weekly) weeks = moE2.weekly;
+    if (pf.active) {
+      // Filtrado por producto dentro del cliente: reconstruir desde prods del mes
+      const moE = (clData.monthly || []).find(s => s.mes === mes);
+      const fp  = applyProdFilter((moE && moE.prods) || [], pf.rub, pf.search);
+      weeks = _weeklyFromProds(fp, mesLabel);
+    } else {
+      // Buscar en la serie efectiva
+      const moEntry = series.find(s => s.mes === mes);
+      if (moEntry && moEntry.weekly) weeks = moEntry.weekly;
+      else {
+        // fallback: leer de CLIENT_DATA directamente
+        const moE2 = (clData.monthly || []).find(s => s.mes === mes);
+        if (moE2 && moE2.weekly) weeks = moE2.weekly;
+      }
     }
+  } else if (pf.active) {
+    // Filtrado por producto/rubro: reconstruir semanal desde productos filtrados del mes
+    const mp = applyProdFilter(((MONTHLY_DATA[yr]||{}).prods||{})[mesStr]||[], pf.rub, pf.search);
+    weeks = _weeklyFromProds(mp, mesLabel);
   } else {
     // Global: desde MONTHLY_DATA
     const wkRaw = ((MONTHLY_DATA[yr] || {}).weekly || {})[mesStr] || [];
@@ -2962,7 +2989,8 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
   if (!weeks.length) { wrap.style.display = 'none'; return; }
 
   wrap.style.display = '';
-  title.textContent = `📆 Desglose semanal · ${mesLabel} ${vYear}${_clSfxStr()}`;
+  const _pfSfx = pf.active ? (pf.rub ? ` [${pf.rub}]` : pf.search ? ` [${pf.search}]` : '') : '';
+  title.textContent = `📆 Desglose semanal · ${mesLabel} ${vYear}${_clSfxStr()}${_pfSfx}`;
 
   const totalU = weeks.reduce((s, w) => s + w.u, 0);
   const _mct   = mesCostoTotal || 0;
