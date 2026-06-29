@@ -61,10 +61,23 @@ foreach ($row in $rows) {
   $stockByMonth[$key][$row.Cod] += $row.Qty
 }
 
+# --- Leer meses existentes de data_stock_cierre.js (preservar los que no están en el Excel) ---
+$scmPath = Join-Path $PSScriptRoot "data_stock_cierre.js"
+$existingMonths = @{}  # key → raw JSON block string
+
+if (Test-Path $scmPath) {
+  $existingJs = [System.IO.File]::ReadAllText($scmPath, [System.Text.Encoding]::UTF8)
+  # Extract each "YYYY_M": { ... } block
+  $rx = [regex]'"(\d{4}_\d{1,2})"\s*:\s*(\{[^}]*\})'
+  foreach ($m in $rx.Matches($existingJs)) {
+    $existingMonths[$m.Groups[1].Value] = $m.Groups[2].Value
+  }
+  Write-Host "Meses existentes en data_stock_cierre.js: $($existingMonths.Keys | Sort-Object)"
+}
+
 # --- Generar bloque JS para cada mes ---
 function Build-MonthBlock($key, $date, $data) {
   $lines = @()
-  $lines += "  // $key`: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — $date"
   $lines += "  `"$key`": {"
 
   $sorted = $data.Keys | Sort-Object
@@ -81,19 +94,30 @@ function Build-MonthBlock($key, $date, $data) {
   return $lines -join "`n"
 }
 
-# --- Construir el bloque completo de meses 2026 ---
-$monthKeys = $stockByMonth.Keys | Sort-Object
+# --- Fusionar: meses existentes + meses nuevos del Excel ---
+# Los meses del Excel reemplazan los existentes; el resto se conserva
+foreach ($key in $stockByMonth.Keys) {
+  $existingMonths[$key] = $null  # marcar para reemplazar con datos frescos del Excel
+}
+
+# Construir bloques ordenados
+$allKeys = ($existingMonths.Keys + $stockByMonth.Keys) | Select-Object -Unique | Sort-Object {
+  $parts = $_ -split "_"; [int]$parts[0] * 100 + [int]$parts[1]
+}
 $blocks = @()
-foreach ($key in $monthKeys) {
-  $block = Build-MonthBlock $key $lastDayByMonth[$key] $stockByMonth[$key]
-  $blocks += $block
+foreach ($key in $allKeys) {
+  if ($stockByMonth.ContainsKey($key)) {
+    # Datos frescos del Excel
+    $blocks += Build-MonthBlock $key $lastDayByMonth[$key] $stockByMonth[$key]
+  } elseif ($existingMonths[$key]) {
+    # Mes existente (ej: 2025) que no está en el Excel — preservar
+    $blocks += "  `"$key`": $($existingMonths[$key])"
+  }
 }
 $newBlockContent = $blocks -join ",`n"
 
-
-# Escribir data_stock_cierre.js (ya no se embebe en el HTML)
+# Escribir data_stock_cierre.js
 $scmJs = "window.STOCK_CIERRE_MES={`n$newBlockContent`n};"
-$scmPath = Join-Path $PSScriptRoot "data_stock_cierre.js"
-$scmJs | Set-Content $scmPath -Encoding UTF8 -NoNewline
+[System.IO.File]::WriteAllText($scmPath, $scmJs, [System.Text.Encoding]::UTF8)
 Write-Host "`ndata_stock_cierre.js escrito correctamente." -ForegroundColor Green
-Write-Host "Meses actualizados: $($monthKeys -join ', ')"
+Write-Host "Meses en archivo: $($allKeys -join ', ')"
