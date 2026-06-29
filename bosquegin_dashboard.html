@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v2.28</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v2.29</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
@@ -576,7 +576,7 @@
   <div class="header-title">
     <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
-    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.28</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
+    <span class="sub">Supply Chain &nbsp;<span class="ver">v2.29</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
   </div>
   <div class="header-right">
     <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
@@ -1256,22 +1256,23 @@ function artName(cod, fallback) { return ART_NAME_MAP[String(cod)] || fallback |
 function unitPrice(cod) { return UNIT_PRICE_MAP[String(cod)] || 0; }
 
 // ── Costo unitario desde CSV local (Costos y PVP) ────────────────────────────
-const _COST_MAP = (function(){
-  const map = {};
-  const prods = ((BOSQUE_DATA.costos)||{}).productos || [];
+var _COST_MAP = null;  // rebuilt lazily before each render
+function _rebuildCostMap() {
+  _COST_MAP = {};
+  const prods = ((window.BOSQUE_DATA && window.BOSQUE_DATA.costos)||{}).productos || [];
   for (const p of prods) {
-    // Preferir p.costo (más reciente); fallback a resumen 2026 o 2025
     const c = p.costo || ((p.periodos||{})['2026']||{}).costo || ((p.periodos||{})['2025']||{}).costo;
-    if (c && c > 0) map[p.cod] = c;
+    if (c && c > 0) _COST_MAP[p.cod] = c;
   }
-  // Cervezas lata: costo_fab = Costo Mes ACT del período más reciente ($/lata)
-  for (const r of ((BOSQUE_DATA.cervezas||{}).lata || [])) {
+  for (const r of (((window.BOSQUE_DATA && window.BOSQUE_DATA.cervezas)||{}).lata || [])) {
     if (r.cod != null && r.costo_fab != null)
-      map[String(r.cod)] = Math.round(r.costo_fab);
+      _COST_MAP[String(r.cod)] = Math.round(r.costo_fab);
   }
-  return map;
-})();
-function costUnit(cod) { return _COST_MAP[String(cod)] || 0; }
+}
+function costUnit(cod) {
+  if (!_COST_MAP) _rebuildCostMap();
+  return _COST_MAP[String(cod)] || 0;
+}
 function _fmtARS(v) {
   if (!v || v <= 0) return '';
   if (v >= 1e9) return '$ '+(v/1e9).toFixed(1)+'B ARS';
@@ -1470,6 +1471,7 @@ function updateSortIcons() {
 
 // ── render ────────────────────────────────────────────────────────────────────
 function renderInvTable() {
+  _COST_MAP = null;  // force rebuild with loaded costos data
   const dep    = document.getElementById('dep-filter')?.value || 'klozer_ofi';
   const rub    = document.getElementById('rub-filter').value;
   const search = (document.getElementById('inv-search').value || '').toLowerCase();
@@ -1628,11 +1630,11 @@ document.addEventListener('DOMContentLoaded', () => {
 var _dataLoaded = {};
 var _sectionFiles = {
   overview:    ['data_stock.js','data_stock_cierre.js','data_ventas.js','data_destileria.js','data_costos.js','data_insumos.js'],
-  inventario:  ['data_stock.js','data_stock_cierre.js'],
-  ventas:      ['data_ventas.js'],
-  supply:      ['data_stock.js','data_stock_cierre.js'],
+  inventario:  ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
+  ventas:      ['data_ventas.js','data_costos.js','data_destileria.js'],
+  supply:      ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
   calendario:  ['data_ventas.js'],
-  logistica:   ['data_stock.js','data_stock_cierre.js','data_ventas.js'],
+  logistica:   ['data_stock.js','data_stock_cierre.js','data_ventas.js','data_costos.js','data_destileria.js'],
   destileria:  ['data_destileria.js'],
   costos:      ['data_costos.js'],
   'inv-insumos':['data_insumos.js'],
@@ -2147,19 +2149,21 @@ function _buildTrailMap(days) {
   }
   return map;
 }
-const TRAIL90  = _buildTrailMap(90);   // cod → total uds en últimos 90d
-const TRAIL365 = _buildTrailMap(365);  // cod → total uds en últimos 365d
+var TRAIL90 = {}, TRAIL365 = {};  // rebuilt lazily in renderVentas()
 function fmtAvg(v) {
   if (!v || v < 0.05) return '—';
   return v < 10 ? v.toFixed(1).replace('.', ',') : Math.round(v).toLocaleString('es-AR');
 }
 
-// Lookup rub+sub from INV_DATA (authoritative source for categories)
-const INV_RUBSUB = {};
-for (const it of INV_DATA) {
-  const k = String(it.cod);
-  if (!INV_RUBSUB[k] || (it.sub && it.sub !== '' && it.sub !== 'SIN CATALOGAR')) {
-    INV_RUBSUB[k] = { rub: it.rub || '', sub: it.sub || '' };
+// Lookup rub+sub from INV_DATA — rebuilt lazily in renderVentas()
+var INV_RUBSUB = {};
+function _rebuildInvRubSub() {
+  INV_RUBSUB = {};
+  for (const it of (window.INV_DATA || [])) {
+    const k = String(it.cod);
+    if (!INV_RUBSUB[k] || (it.sub && it.sub !== '' && it.sub !== 'SIN CATALOGAR')) {
+      INV_RUBSUB[k] = { rub: it.rub || '', sub: it.sub || '' };
+    }
   }
 }
 function invRub(cod, fallback) { return (INV_RUBSUB[String(cod)] || {}).rub || fallback || ''; }
@@ -2387,6 +2391,10 @@ function getMesFiltro() {
 }
 
 function renderVentas() {
+  _COST_MAP = null;  // force rebuild with loaded costos data
+  TRAIL90  = _buildTrailMap(90);
+  TRAIL365 = _buildTrailMap(365);
+  _rebuildInvRubSub();
   populateClientFilter();
   const yr   = String(vYear);
   const yrPrev = String(vYear - 1);
