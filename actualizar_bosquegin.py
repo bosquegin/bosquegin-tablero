@@ -1569,12 +1569,13 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         if not row or not any(row):
             continue
 
-        fecha_raw = row[0] if len(row) > 0 else None
-        rs_raw    = row[1] if len(row) > 1 else None
-        cod_raw   = row[2] if len(row) > 2 else None
-        qty_raw   = row[3] if len(row) > 3 else None
-        dep_raw   = row[4] if len(row) > 4 else None
-        fan_raw   = row[5] if len(row) > 5 else None
+        fecha_raw  = row[0] if len(row) > 0 else None
+        rs_raw     = row[1] if len(row) > 1 else None
+        cod_raw    = row[2] if len(row) > 2 else None
+        qty_raw    = row[3] if len(row) > 3 else None
+        dep_raw    = row[4] if len(row) > 4 else None
+        fan_raw    = row[5] if len(row) > 5 else None
+        fuente_raw = row[6] if len(row) > 6 else None
 
         if fecha_raw is None or cod_raw is None or qty_raw is None:
             skip_count += 1; continue
@@ -1627,11 +1628,14 @@ def parse_ventas(ventas_path, prod_lookup=None, costos=None):
         if not fantasia or fantasia in ("NAN", "NONE", ""):
             fantasia = "SIN CLIENTE"
 
-        # ── Deduplicación: misma (fecha, cod, dep, fantasia) en dos filas = error de carga ──
-        row_key = (f"{yr}-{mo:02d}-{day:02d}", cod, dep, fantasia)
-        if row_key in seen_rows:
-            dup_count += 1; skip_count += 1; continue
-        seen_rows.add(row_key)
+        # ── Deduplicación: solo aplica a BOSQUE_SALIDAS (errores de carga manual) ──
+        # Los remitos GC son transacciones automaticas separadas y no se deduplicaan
+        fuente = str(fuente_raw).strip().upper() if fuente_raw not in (None, "", "nan", "None") else "BOSQUE_SALIDAS"
+        if fuente == "BOSQUE_SALIDAS":
+            row_key = (f"{yr}-{mo:02d}-{day:02d}", cod, dep, fantasia)
+            if row_key in seen_rows:
+                dup_count += 1; skip_count += 1; continue
+            seen_rows.add(row_key)
 
         # ── Enriquecer desde productos ──
         pi  = prod_lookup.get(cod, {})
