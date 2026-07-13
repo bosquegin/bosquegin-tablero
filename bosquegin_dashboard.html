@@ -3290,13 +3290,13 @@ function renderRotRub() {
 
   let rows = '';
 
-  const CON_SUBRUBRO = new Set(['🥃 Cristalería','👕 Indumentaria','📦 Combo','🪑 Mobiliario']);
+  // Todos los rubros usan el mismo formato: columna de Subrubro dedicada
+  // (antes sólo Cristalería/Indumentaria/Combo/Mobiliario la tenían).
+  const conSub = true;
 
   for (const grupo of GRUPO_ORDER) {
     const subs = tree[grupo];
     if (!Object.keys(subs).length) continue;
-
-    const conSub = CON_SUBRUBRO.has(grupo);
 
     // Totales del grupo
     let gStk=0, gDem=0, gArts=0, gValor=0;
@@ -3346,26 +3346,6 @@ function renderRotRub() {
       );
 
     for (const [sub, arts] of subList) {
-      // Fila de subrubro resumen — solo para grupos sin columna inline
-      if (!conSub) {
-        let sSt=0, sDm=0, sVal=0;
-        for (const it of arts) {
-          const s = stkTot(it);
-          sSt += s; sDm += demTot(it); sVal += s * costUnit(it.cod);
-        }
-        const sM = mes(sSt, sDm);
-        rows += `<tr style="background:rgba(255,255,255,.025)">
-            <td colspan="3" style="padding-left:20px;font-size:9px;font-weight:600;color:var(--muted)">
-              ↳ ${sub} <span style="font-weight:400">(${arts.length})</span>
-            </td>
-            <td style="text-align:right;font-size:9px;${BL}">${sSt > 0 ? sSt.toLocaleString('es-AR') : '—'}</td>
-            <td style="text-align:right;font-size:9px;color:var(--accent2)">${fmtVal(sVal)}</td>
-            <td style="text-align:right;font-size:9px">${sDm > 0 ? sDm.toFixed(1) : '—'}</td>
-            <td style="text-align:right;font-size:9px;${mesStyle(sM)}">${mesTxt(sM)}</td>
-            <td>${estBadge(sM)}</td>
-          </tr>`;
-      }
-
       // ── Artículos del subrubro ──────────────────────────────────────
       const artsSorted = [...arts].sort((a, b) => {
         const rc = (a.rub||'').localeCompare(b.rub||'', 'es');
