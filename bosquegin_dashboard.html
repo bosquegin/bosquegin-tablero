@@ -1641,9 +1641,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // ── showSection ───────────────────────────────────────────────────────────────
 var _dataLoaded = {};
 var _sectionFiles = {
+  // data_clientes.js (CLIENT_DATA, ~4 MB) sólo se carga en "ventas" — es lo único
+  // que lo usa (filtro por cliente). El resto de secciones no lo necesitan.
   overview:    ['data_stock.js','data_stock_cierre.js','data_ventas.js','data_destileria.js','data_costos.js','data_insumos.js'],
   inventario:  ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
-  ventas:      ['data_ventas.js','data_costos.js','data_destileria.js'],
+  ventas:      ['data_ventas.js','data_clientes.js','data_costos.js','data_destileria.js'],
   supply:      ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
   calendario:  ['data_ventas.js'],
   logistica:   ['data_stock.js','data_stock_cierre.js','data_ventas.js','data_costos.js','data_destileria.js'],
@@ -1654,7 +1656,11 @@ var _sectionFiles = {
 };
 
 function _loadData(files) {
-  var ts = Date.now();
+  // Versión estable = momento real del último "Actualizar" (BOSQUE_DATA.meta.generado),
+  // NO Date.now(). Con Date.now() cada visita/recarga baja TODO de nuevo sin usar caché
+  // del navegador — con esto, el navegador cachea hasta el próximo dato nuevo real.
+  var ts = (window.BOSQUE_DATA && window.BOSQUE_DATA.meta && window.BOSQUE_DATA.meta.generado)
+    ? encodeURIComponent(window.BOSQUE_DATA.meta.generado) : Date.now();
   return Promise.all((files||[]).map(function(f) {
     if (_dataLoaded[f]) return Promise.resolve();
     return new Promise(function(resolve) {
