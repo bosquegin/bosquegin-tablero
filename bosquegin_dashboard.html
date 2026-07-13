@@ -630,6 +630,9 @@
   <div class="tab" data-section="supply" onclick="showSection('supply', this)">
     <span class="tab-icon">🛒</span> Compras
   </div>
+  <div class="tab" data-section="proyeccion" onclick="showSection('proyeccion', this)">
+    <span class="tab-icon">🔮</span> Proyección
+  </div>
   <div class="tab" data-section="calendario" onclick="showSection('calendario', this)">
     <span class="tab-icon">📅</span> Calendario
   </div>
@@ -1647,6 +1650,7 @@ var _sectionFiles = {
   inventario:  ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
   ventas:      ['data_ventas.js','data_clientes.js','data_costos.js','data_destileria.js'],
   supply:      ['data_stock.js','data_stock_cierre.js','data_costos.js','data_destileria.js'],
+  proyeccion:  ['data_proyeccion.js'],
   calendario:  ['data_ventas.js'],
   logistica:   ['data_stock.js','data_stock_cierre.js','data_ventas.js','data_costos.js','data_destileria.js'],
   destileria:  ['data_destileria.js'],
@@ -1684,6 +1688,7 @@ function showSection(id, el) {
     if (id === 'ventas')     setTimeout(renderVentas, 50);
     if (id === 'destileria') renderDestileria();
     if (id === 'supply')     renderSupply();
+    if (id === 'proyeccion') renderProyeccion();
     if (id === 'logistica')  renderLogistica();
     if (id === 'calendario') renderCalendario();
     if (id === 'costos')       renderCostos();
@@ -4219,6 +4224,152 @@ function scSetSort(table, col) {
 
 
 
+// ── PROYECCIÓN TRIMESTRAL (FORECAST) ─────────────────────────────────────
+window.proyCol = 'meses_stock';
+window.proyAsc = true;
+window.proySelectedCod = null;
+
+function proySetSort(col) {
+  if (window.proyCol === col) window.proyAsc = !window.proyAsc;
+  else { window.proyCol = col; window.proyAsc = ['art', 'cod'].includes(col); }
+  renderProyeccion();
+}
+
+function _proyAlertaBadge(alerta) {
+  const a = (alerta || '').toUpperCase();
+  if (a.includes('COMPRAR')) return `<span style="background:rgba(248,113,113,.15);color:var(--red);padding:2px 8px;border-radius:10px;font-weight:700;font-size:9px;white-space:nowrap">🔴 COMPRAR</span>`;
+  if (a.includes('SUFICIENTE')) return `<span style="background:rgba(74,222,128,.15);color:var(--green);padding:2px 8px;border-radius:10px;font-weight:700;font-size:9px;white-space:nowrap">🟢 OK</span>`;
+  return `<span style="color:var(--muted);font-size:9px">${a || '—'}</span>`;
+}
+
+function _proyFillTrimestreSel() {
+  const sel = document.getElementById('proy-trimestre-sel');
+  if (!sel || sel.options.length) return;
+  const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
+  const keys = Object.keys(P.trimestres || {}).sort().reverse();   // más reciente primero
+  keys.forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k;
+    opt.textContent = k.replace('_', ' ').replace('Q', 'Q');
+    sel.appendChild(opt);
+  });
+}
+
+function renderProyeccion() {
+  const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
+  const trimestres = P.trimestres || {};
+  const tbody = document.getElementById('proy-tbody');
+  const keys = Object.keys(trimestres);
+
+  if (!keys.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Sin datos — actualizar el tablero para cargar la hoja FORECAST.</td></tr>';
+    document.getElementById('proy-kpi-trimestre').textContent = '—';
+    return;
+  }
+
+  _proyFillTrimestreSel();
+  const sel = document.getElementById('proy-trimestre-sel');
+  const trimestreKey = sel.value || Object.keys(trimestres).sort().reverse()[0];
+  sel.value = trimestreKey;
+
+  const vistaSel = document.getElementById('proy-vista-sel').value;
+  const T = trimestres[trimestreKey] || {};
+  let productos = (vistaSel === 'objetivo' ? T.objetivo : T.resultado) || T.objetivo || [];
+
+  document.getElementById('proy-kpi-trimestre').textContent = trimestreKey.replace('_', ' ');
+  document.getElementById('proy-kpi-subtitulo').textContent =
+    vistaSel === 'objetivo' ? 'Forecast original' : `Última de ${(T.revisiones || []).length} revisión(es)`;
+
+  // ── KPIs ──
+  const enAlerta = productos.filter(p => (p.alerta || '').toUpperCase().includes('COMPRAR'));
+  const totalUnidades = enAlerta.reduce((a, p) => a + (p.comprar || 0), 0);
+  const totalPallets = enAlerta.reduce((a, p) => a + (p.cantidad_pallets || 0), 0);
+  const sumObjetivo = productos.reduce((a, p) => a + (p.total_objetivo_ventas || 0), 0);
+  const sumActual = productos.reduce((a, p) => {
+    return a + Object.values(p.mensual || {}).reduce((s, m) => s + (m.venta_actual || 0), 0);
+  }, 0);
+  const cumplPct = sumObjetivo > 0 ? Math.round(sumActual / sumObjetivo * 100) : null;
+
+  document.getElementById('proy-kpi-alertas').textContent = enAlerta.length;
+  document.getElementById('proy-kpi-unidades').textContent = Math.round(totalUnidades).toLocaleString('es-AR');
+  document.getElementById('proy-kpi-pallets').textContent = totalPallets.toFixed(1) + ' pallets';
+  document.getElementById('proy-kpi-cumplimiento').textContent = cumplPct !== null ? cumplPct + '%' : '—';
+
+  // ── Orden: alerta COMPRAR primero, luego por columna elegida ──
+  const col = window.proyCol, asc = window.proyAsc;
+  const getVal = (p) => {
+    if (col === 'venta_prom') return p.venta_prom_mensual_anterior || 0;
+    return p[col];
+  };
+  const sorted = productos.slice().sort((a, b) => {
+    const aCompra = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
+    const bCompra = (b.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
+    if (aCompra !== bCompra) return aCompra - bCompra;
+    const av = getVal(a), bv = getVal(b);
+    if (typeof av === 'string') return asc ? av.localeCompare(bv, 'es') : bv.localeCompare(av, 'es');
+    return asc ? (av - bv) : (bv - av);
+  });
+
+  tbody.innerHTML = sorted.map(p => `
+    <tr style="cursor:pointer" onclick="proySelectProducto('${trimestreKey}','${vistaSel}','${p.cod}')">
+      <td style="padding:6px 8px">${_proyAlertaBadge(p.alerta)}</td>
+      <td style="padding:6px 8px"><code>${p.cod}</code></td>
+      <td style="padding:6px 8px;font-size:10px">${p.art}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:${p.meses_stock < 1 ? 'var(--red)' : p.meses_stock < 2 ? 'var(--yellow)' : 'var(--green)'}">${(p.meses_stock||0).toFixed(1)}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(p.stock_actual||0).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(p.venta_prom_mensual_anterior||0).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700">${p.comprar > 0 ? Math.round(p.comprar).toLocaleString('es-AR') : '—'}</td>
+      <td style="padding:6px 8px;text-align:right">${p.cantidad_pallets > 0 ? p.cantidad_pallets.toFixed(1) : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Sin productos</td></tr>';
+
+  // Actualizar iconos de orden en headers
+  document.querySelectorAll('#proy-thead-row th[data-proy-col]').forEach(th => {
+    const icon = th.querySelector('.proy-sort-icon');
+    if (!icon) return;
+    icon.textContent = th.dataset.proyCol === col ? (asc ? '▲' : '▼') : '⇅';
+  });
+
+  if (window.proySelectedCod) proySelectProducto(trimestreKey, vistaSel, window.proySelectedCod);
+}
+
+function proySelectProducto(trimestreKey, vistaSel, cod) {
+  window.proySelectedCod = cod;
+  const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
+  const T = P.trimestres[trimestreKey] || {};
+  const productos = (vistaSel === 'objetivo' ? T.objetivo : T.resultado) || T.objetivo || [];
+  const p = productos.find(x => x.cod === cod);
+  const card = document.getElementById('proy-detalle-card');
+  if (!p) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  document.getElementById('proy-detalle-title').textContent = `📆 Detalle mensual — ${p.cod} · ${p.art}`;
+
+  const meses = Object.keys(p.mensual || {});
+  const thead = document.getElementById('proy-detalle-thead');
+  thead.innerHTML = '<th style="text-align:left;padding:6px 8px">Mes</th>' +
+    '<th style="text-align:right;padding:6px 8px">Proyección abastec.</th>' +
+    '<th style="text-align:right;padding:6px 8px">Pendiente retiro</th>' +
+    '<th style="text-align:right;padding:6px 8px">Venta objetivo</th>' +
+    '<th style="text-align:right;padding:6px 8px">Venta actual</th>' +
+    '<th style="text-align:right;padding:6px 8px">% Cumplido</th>' +
+    '<th style="text-align:right;padding:6px 8px">Saldo stock</th>';
+
+  const tbody = document.getElementById('proy-detalle-tbody');
+  tbody.innerHTML = meses.map(mk => {
+    const m = p.mensual[mk];
+    const pctColor = m.objetivo_cumplido_pct >= 90 ? 'var(--green)' : m.objetivo_cumplido_pct >= 60 ? 'var(--yellow)' : 'var(--red)';
+    return `<tr>
+      <td style="padding:6px 8px;font-weight:700">${m.label}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(m.proyeccion_abastecimiento).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(m.pendiente_retiro).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(m.venta_objetivo).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(m.venta_actual).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct)}%</td>
+      <td style="padding:6px 8px;text-align:right">${Math.round(m.saldo_stock).toLocaleString('es-AR')}</td>
+    </tr>`;
+  }).join('');
+}
+
+
 // ── DESTILERÍA ──────────────────────────────────────────────────────────
 let chartDest = null;
 let chartCerv = null;
@@ -4637,6 +4788,81 @@ function renderCervezas() {
       ⓘ <strong>Meses/90d</strong> = stock ÷ demanda mensual (últimos 90 días) &nbsp;|&nbsp;
       <strong>Meses/365d</strong> = stock ÷ demanda mensual (últimos 365 días) &nbsp;|&nbsp;
       <strong>Mín ud/mes</strong> = (demanda mensual 90d + demanda mensual 365d) ÷ 2 &nbsp;|&nbsp; <strong>KLOZER MKT</strong> usa la misma velocidad de ventas que KLOZER
+    </div>
+  </div>
+
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!--  PROYECCIÓN TRIMESTRAL (FORECAST)              -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="proyeccion" class="section">
+
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-label">Trimestre</div>
+      <div class="kpi-value" id="proy-kpi-trimestre" style="font-size:20px">—</div>
+      <div class="kpi-change" id="proy-kpi-subtitulo">—</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Productos en alerta</div>
+      <div class="kpi-value" id="proy-kpi-alertas">—</div>
+      <div class="kpi-change down">Requieren compra</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">Unidades a comprar</div>
+      <div class="kpi-value" id="proy-kpi-unidades">—</div>
+      <div class="kpi-change" id="proy-kpi-pallets">— pallets</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Cumplimiento objetivo</div>
+      <div class="kpi-value" id="proy-kpi-cumplimiento">—</div>
+      <div class="kpi-change" id="proy-kpi-cumplimiento-sub">venta actual vs. objetivo</div>
+    </div>
+  </div>
+
+  <div class="table-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="table-title">🔮 Proyección de compra/venta trimestral</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="proy-trimestre-sel" onchange="renderProyeccion()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px"></select>
+        <select id="proy-vista-sel" onchange="renderProyeccion()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
+          <option value="resultado">Última revisión</option>
+          <option value="objetivo">Objetivo original</option>
+        </select>
+      </div>
+    </div>
+    <div style="font-size:9px;color:var(--muted);margin-bottom:10px">
+      ⓘ <strong>Objetivo original</strong> = forecast hecho al inicio del trimestre. <strong>Última revisión</strong> = reevaluación más reciente con ventas reales ya incorporadas — es la más confiable para decidir qué comprar ahora.
+    </div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead>
+        <tr id="proy-thead-row">
+          <th style="cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="alerta" onclick="proySetSort('alerta')">Alerta <span class="proy-sort-icon">⇅</span></th>
+          <th style="cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="cod" onclick="proySetSort('cod')">Código <span class="proy-sort-icon">⇅</span></th>
+          <th style="cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="art" onclick="proySetSort('art')">Artículo <span class="proy-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="meses_stock" onclick="proySetSort('meses_stock')">Meses stock <span class="proy-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="stock_actual" onclick="proySetSort('stock_actual')">Stock actual <span class="proy-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="venta_prom" onclick="proySetSort('venta_prom')">Venta prom/mes <span class="proy-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="comprar" onclick="proySetSort('comprar')">A comprar (un) <span class="proy-sort-icon">⇅</span></th>
+          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap" data-proy-col="cantidad_pallets" onclick="proySetSort('cantidad_pallets')">Pallets <span class="proy-sort-icon">⇅</span></th>
+        </tr>
+      </thead>
+      <tbody id="proy-tbody">
+        <tr><td colspan="8" style="text-align:center;color:var(--muted);padding:20px">Cargando…</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="table-card" id="proy-detalle-card" style="display:none">
+    <div class="table-title" id="proy-detalle-title">📆 Detalle mensual</div>
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr id="proy-detalle-thead"></tr></thead>
+        <tbody id="proy-detalle-tbody"></tbody>
+      </table>
     </div>
   </div>
 
