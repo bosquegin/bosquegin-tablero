@@ -3762,7 +3762,10 @@ function renderRotacionMensual() {
   for (const it of INV_DATA) {
     if (EXCLUIDOS.has(String(it.cod))) continue;
     const rub = (it.rub || 'OTROS').toUpperCase().trim();
-    const stk = (it.klozer||0) + (it.ofi||0);
+    // Bebidas: KLOZER + OFICINA. Resto de rubros: + KLOZER MKT también.
+    const stk = rub === 'BEBIDAS'
+      ? (it.klozer||0) + (it.ofi||0)
+      : (it.klozer||0) + (it.ofi||0) + (it.klozer_mkt||0);
     if (stk === 0) continue;
     stockByRub[rub] = (stockByRub[rub] || 0) + stk;
     if (!stockItems[rub]) stockItems[rub] = [];
