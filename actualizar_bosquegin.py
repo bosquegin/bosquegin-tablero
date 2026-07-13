@@ -1,19 +1,38 @@
 #!/usr/bin/env python3
 """
-actualizar_bosquegin.py  —  v3.0  (2026-06-29)
+actualizar_bosquegin.py  —  v3.1  (2026-07-13)
 Reconstruye bosquegin_data.js leyendo:
-  - Stock:  descargado automaticamente desde Gestion Cervecera via gc_descargar_via_browser.js
-              Stock de Productos Simplificado*.xlsx  (envases por deposito)
-              Stock Productos Comp.*.xlsx            (complementarios por deposito)
-  - Ventas: Tablero operativo/Ventas/Bosque ventas.xlsx (hoja DATOS)
+  - Stock:  EN VIVO desde la API REST de Contabilium (contabilium_api.py)
+  - Salidas: Salidas_consolidado.xlsx (Bosque salidas + GC histórico + Contabilium)
+             + correcciones manuales (Salidas_consolidado correcciones.xlsx)
   - Destileria: conserva la seccion existente en bosquegin_data.js
+
+Cambios v3.1 (2026-07-13):
+  - Stock en vivo vía API REST de Contabilium (contabilium_api.py), filtra inactivos
+  - Historial de salidas de Contabilium automatizado vía CDP (contabilium_downloader.py)
+  - Correcciones manuales de Salidas_consolidado persisten a través de cada reconstrucción
+  - Descarga de Gestión Cervecera deshabilitada (obsoleta, reemplazada por Contabilium)
+  - Fix de encoding UTF-8 que crasheaba secciones silenciosamente (cervezas, etc.)
+  - Guardado seguro de Salidas_consolidado.xlsx (reintentos si está abierto en Excel)
+  - Insumos vía CDP (fallback cuando la hoja no está publicada públicamente)
+  - Resumen de salud al final de cada corrida (_ok/_fail por paso)
+  - CLIENT_DATA separado en data_clientes.js (data_ventas.js: 4.9MB -> 631KB)
+  - Cache-busting del dashboard usa meta.generado en vez de Date.now()
 
 Cambios v2.0:
   - Stock se toma automaticamente de GC (reemplaza archivos manuales diarios)
   - update_consolidado() reconoce formato GC Simplificado y GC Comp
 """
-import os, json, re, glob
+import os, json, re, glob, time, sys
 from datetime import datetime, date, timedelta, timezone
+
+# Evita que un print con tildes/emojis/flechas (p.ej. "→") crashee la corrida
+# cuando la consola de Windows no está en UTF-8 (cp1252 por defecto).
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 # Zona horaria Argentina (UTC-3, sin DST)
 _AR = timezone(timedelta(hours=-3))
@@ -32,10 +51,14 @@ _SKIP_GIT_PUSH = False
 DATA_DIR        = os.path.join(BASE, "Data")
 INV_DIR         = os.path.join(DATA_DIR, "Inventario")
 VENTAS_F        = os.path.join(DATA_DIR, "Salidas", "Bosque salidas.xlsx")
-GC_SALIDAS_DIR  = os.path.join(DATA_DIR, "Salidas", "GC")
+GC_SALIDAS_DIR       = os.path.join(DATA_DIR, "Salidas", "GC")
+CONTABILIUM_DIR      = os.path.join(DATA_DIR, "Salidas", "Contabilium")
+CONTABILIUM_STOCK_DIR = os.path.join(INV_DIR, "Contabilium")
+CONTABILIUM_CUTOVER  = "2026-06-29"   # desde esta fecha, salidas y stock vienen de Contabilium
 COSTOS_CSV      = os.path.join(DATA_DIR, "Costos y PVP", "Analisis de costos y PVP - COSTOS.csv")
 INSUMOS_CSV     = os.path.join(DATA_DIR, "Insumos", "Stock insumos.csv")
 SALIDAS_CONS    = os.path.join(DATA_DIR, "Salidas", "Salidas_consolidado.xlsx")
+SALIDAS_CORR    = os.path.join(DATA_DIR, "Salidas", "Salidas_consolidado correcciones.xlsx")
 SALIDAS_CONS_HEADERS = ["FECHA", "RAZON SOCIAL", "CODIGO", "CANTIDAD", "DEPOSITO", "NOMBRE FANTASIA", "FUENTE"]
 INSUMOS_GVIZ    = (
     "https://docs.google.com/spreadsheets/d/"
@@ -520,6 +543,76 @@ def parse_stock(inv_dir):
     return inv_data, stock_hasta
 
 
+# Mapeo nombre de depósito en Contabilium -> clave de dep_grp usada en INV_DATA
+_CONT_DEP_GRP = {
+    "KLOZER":       "klozer",
+    "KLOZER MKT":   "klozer_mkt",
+    "OFICINA":      "ofi",
+    "SHOP GALLERY": "shop_gallery",
+    "AVOLTA":       "avolta",
+}
+
+
+def apply_stock_contabilium_vivo(inv_data, inv_gen=None):
+    """
+    Sobreescribe el stock de INV_DATA con los valores EN VIVO de la API de
+    Contabilium para los depósitos mapeados en _CONT_DEP_GRP. Agrega productos
+    nuevos que no estaban en el consolidado. Devuelve (inv_data, stock_hasta).
+    """
+    import contabilium_api as _cont_api
+    inv_gen = inv_gen or {}
+    hoy = date.today().strftime("%Y-%m-%d")
+
+    stock_vivo = _cont_api.get_stock_todos_depositos(list(_CONT_DEP_GRP.keys()))
+    activos = _cont_api.get_active_codigos()
+
+    # cod -> {dep_grp: qty}   (solo productos activos en Contabilium)
+    por_cod = {}
+    for dep_nombre, items in stock_vivo.items():
+        dep_grp = _CONT_DEP_GRP.get(dep_nombre)
+        if not dep_grp: continue
+        for cod, qty in items.items():
+            if cod not in activos: continue
+            por_cod.setdefault(cod, {})[dep_grp] = qty
+
+    # Sacar del inventario cualquier producto que Contabilium marca inactivo
+    inv_data = [it for it in inv_data if it["cod"] in activos]
+
+    by_cod_idx = {item["cod"]: item for item in inv_data}
+
+    for cod, deps_qty in por_cod.items():
+        item = by_cod_idx.get(cod)
+        if item is None:
+            if not any(q > 0 for q in deps_qty.values()):
+                continue   # no crear filas nuevas para conceptos/servicios sin stock
+            info = inv_gen.get(cod, {})
+            item = {
+                "cod": cod, "art": info.get("art", ""), "rub": info.get("rub", "OTROS"),
+                "sub": info.get("sub", ""),
+                "klozer": 0, "klozer_mkt": 0, "ofi": 0, "shop_gallery": 0, "avolta": 0, "both": 0,
+                "k_fecha": "", "km_fecha": "", "o_fecha": "", "sg_fecha": "", "av_fecha": "",
+                "k90": 0.0, "k365": 0.0, "min_k": 0.0, "min_k90": 0.0, "min_k365": 0.0,
+                "o90": 0.0, "o365": 0.0, "min_o": 0.0, "min_o90": 0.0, "min_o365": 0.0,
+                "b90": 0.0, "b365": 0.0, "min_b": 0.0,
+                "pk": 0.0, "pk90": 0.0, "pk365": 0.0, "pk_dep": 0.0, "pk_mkt": 0.0, "pk_mkt90": 0.0, "pk_mkt365": 0.0,
+                "po": 0.0, "po90": 0.0, "po365": 0.0, "pb": 0.0,
+            }
+            inv_data.append(item)
+            by_cod_idx[cod] = item
+
+        for dep_grp, qty in deps_qty.items():
+            item[dep_grp] = round(qty)
+            fecha_key = {"klozer": "k_fecha", "klozer_mkt": "km_fecha", "ofi": "o_fecha",
+                         "shop_gallery": "sg_fecha", "avolta": "av_fecha"}[dep_grp]
+            item[fecha_key] = hoy
+
+        item["both"] = (item["klozer"] + item["klozer_mkt"] + item["ofi"]
+                         + item["shop_gallery"] + item["avolta"])
+
+    inv_data.sort(key=lambda x: x["art"])
+    return inv_data, hoy
+
+
 # ─── 2. VENTAS ────────────────────────────────────────────────────────────────
 DEP_MAP = {
     "KLOZER": "KLOZER", "KLOZER MKT": "KLOZER_MKT",
@@ -576,6 +669,45 @@ def _last_ventas_date():
         return None
 
 
+def _aplicar_correcciones_salidas(rows_out):
+    """
+    Sobreescribe filas de rows_out con los valores de
+    Data/Salidas/Salidas_consolidado correcciones.xlsx (hoja "Correcciones"),
+    matcheando por (FECHA exacta, CODIGO). Se llama en cada corrida de
+    update_salidas_consolidado() ANTES de guardar — así las correcciones
+    sobreviven a la reconstrucción completa del consolidado en cada Actualizar.
+    Columnas esperadas: FECHA | RAZON SOCIAL | CODIGO | CANTIDAD | DEPOSITO | NOMBRE FANTASIA
+    """
+    if not os.path.exists(SALIDAS_CORR):
+        return 0
+    try:
+        import openpyxl
+        wb_c = openpyxl.load_workbook(SALIDAS_CORR, read_only=True, data_only=True)
+        ws_c = wb_c["Correcciones"] if "Correcciones" in wb_c.sheetnames else wb_c.active
+        corr_rows = list(ws_c.iter_rows(values_only=True))[1:]
+        wb_c.close()
+    except Exception as e:
+        print(f"    Advertencia leyendo correcciones: {e}")
+        return 0
+
+    # Índice rows_out por (fecha, codigo) -> lista de indices
+    idx = {}
+    for i, r in enumerate(rows_out):
+        idx.setdefault((r[0], str(r[2]).strip()), []).append(i)
+
+    aplicadas = 0
+    for cr in corr_rows:
+        if not cr or cr[0] is None: continue
+        fecha, rs, cod, cant, dep, fan = cr[0], cr[1], cr[2], cr[3], cr[4], cr[5]
+        cod = str(cod).strip()
+        for i in idx.get((fecha, cod), []):
+            r = rows_out[i]
+            if r[1] != (rs or "") or r[3] != cant or r[4] != dep or r[5] != (fan or ""):
+                rows_out[i] = [fecha, rs or "", cod, cant, dep, fan or "", r[6]]
+                aplicadas += 1
+    return aplicadas
+
+
 def update_salidas_consolidado():
     """
     Reconstruye Data/Salidas/Salidas_consolidado.xlsx combinando:
@@ -601,6 +733,19 @@ def update_salidas_consolidado():
         if not f or f in ("NAN", "NONE", ""):
             f = "SIN CLIENTE"
         return f
+
+    def _fantasia_obs(obs):
+        """Extrae nombre de cliente del campo Observaciones de Contabilium.
+        'FCA 00000012 LOS TEMPLOS S.R.L.' -> 'LOS TEMPLOS S.R.L.'
+        """
+        if not obs:
+            return "SIN CLIENTE"
+        s = str(obs).strip()
+        import re as _re
+        m = _re.match(r'^FCA\s+\S+\s+(.+)', s, _re.IGNORECASE)
+        if m:
+            return m.group(1).strip().upper()
+        return "SIN CLIENTE"
 
     def _parse_fecha(raw):
         if hasattr(raw, "year"):
@@ -695,7 +840,54 @@ def update_salidas_consolidado():
             gc_count += 1
     print(f"    Remitos GC: {gc_count} filas nuevas (despues de {last_ventas_date})")
 
-    # ─ 3. Escribir consolidado ───────────────────────────────────────────────
+    # ─ 3. Contabilium (desde CONTABILIUM_CUTOVER, reemplaza GC) ─────────────
+    os.makedirs(CONTABILIUM_DIR, exist_ok=True)
+    cont_files = sorted(glob.glob(os.path.join(CONTABILIUM_DIR, "_tmp_HistorialStock_*.xlsx")))
+    cont_count = 0
+    _OBS_EXCL = {"Transferencia Stock", "Anulación venta stock", "Anulacion venta stock"}
+    for fpath in cont_files:
+        fname = os.path.basename(fpath)
+        try:
+            wb = openpyxl.load_workbook(fpath, read_only=True, data_only=True)
+        except Exception as e:
+            print(f"    Salteo {fname}: {e}"); continue
+        ws = wb.active
+        rows_c = list(ws.iter_rows(values_only=True))
+        wb.close()
+        if len(rows_c) < 2: continue
+        for row in rows_c[1:]:
+            if not row or len(row) < 6: continue
+            # Columnas: Fecha(0)|Deposito(1)|Detalle(2)|Codigo(3)|Nombre(4)|Cantidad(5)|...|Observaciones(7)
+            fecha_dt, fecha_str = _parse_fecha(row[0])
+            if fecha_dt is None: continue
+            if fecha_str <= last_ventas_date: continue      # cubierto por BOSQUE_SALIDAS
+            if fecha_str < CONTABILIUM_CUTOVER: continue    # antes del corte — no mezclar con GC
+            obs = str(row[7]).strip() if len(row) > 7 and row[7] not in (None, "", "nan", "None") else ""
+            if obs in _OBS_EXCL: continue
+            cant_raw = row[5]
+            if cant_raw is None: continue
+            try: cant = float(cant_raw)
+            except: continue
+            if cant >= 0: continue      # solo salidas (negativos)
+            cod_raw = row[3]
+            if cod_raw is None: continue
+            try: cod = str(int(float(str(cod_raw).strip())))
+            except: cod = str(cod_raw).strip()
+            if not cod or cod in ("nan", "None", ""): continue
+            dep_raw = row[1]
+            dep_str = str(dep_raw).strip().upper() if dep_raw not in (None, "", "nan", "None") else ""
+            dep = DEP_MAP.get(dep_str, dep_str or "SIN DEPOSITO")
+            fantasia = _fantasia_obs(obs)
+            rows_out.append([fecha_dt, "", cod, abs(cant), dep, fantasia, "CONTABILIUM"])
+            cont_count += 1
+    print(f"    Contabilium: {cont_count} filas nuevas (desde {CONTABILIUM_CUTOVER})")
+
+    # ─ 4. Aplicar correcciones manuales (persisten a través de reconstrucciones) ─
+    n_corr = _aplicar_correcciones_salidas(rows_out)
+    if n_corr:
+        print(f"    Correcciones aplicadas: {n_corr} fila(s) desde {os.path.basename(SALIDAS_CORR)}")
+
+    # ─ 5. Escribir consolidado ───────────────────────────────────────────────
     if not rows_out:
         print("    Sin datos para el consolidado.")
         return "?"
@@ -710,11 +902,30 @@ def update_salidas_consolidado():
     for r in rows_out:
         ws3.append(r)
     ws3.freeze_panes = "A2"
-    wb3.save(SALIDAS_CONS)
+
+    # Guardado seguro: si SALIDAS_CONS está abierto en Excel, wb3.save() falla con
+    # PermissionError. Reintentamos unas veces; si sigue bloqueado, escribimos a un
+    # archivo alternativo para NO perder los datos frescos silenciosamente.
+    saved = False
+    for intento in range(5):
+        try:
+            wb3.save(SALIDAS_CONS)
+            saved = True
+            break
+        except PermissionError:
+            if intento == 0:
+                print(f"    Aviso: {os.path.basename(SALIDAS_CONS)} está abierto (¿Excel?). Reintentando...")
+            time.sleep(3)
+    if not saved:
+        fallback = SALIDAS_CONS.replace(".xlsx", "_PENDIENTE_GUARDAR.xlsx")
+        wb3.save(fallback)
+        print(f"    *** ERROR: no se pudo guardar {os.path.basename(SALIDAS_CONS)} (archivo abierto). "
+              f"Datos frescos guardados en {os.path.basename(fallback)} — "
+              f"cerrar Excel y reemplazar manualmente, o correr de nuevo. ***")
     wb3.close()
     max_date = max((str(r[0])[:10] for r in rows_out if r[0]), default=last_ventas_date)
     print(f"    Consolidado salidas: {len(rows_out)} filas -> {SALIDAS_CONS} (hasta {max_date})")
-    return max_date
+    return max_date if saved else last_ventas_date
 
 
 def fetch_insumos():
@@ -743,7 +954,7 @@ def fetch_insumos():
         except Exception as e:
             print(f"  Advertencia insumos CSV local: {e}")
 
-    # 2. Google Sheets gviz (requiere que la hoja este publicada)
+    # 2. Google Sheets gviz publico (solo funciona si la hoja esta publicada)
     if all_rows is None:
         try:
             req = urllib.request.Request(INSUMOS_GVIZ, headers={"User-Agent": "Mozilla/5.0"})
@@ -751,8 +962,21 @@ def fetch_insumos():
                 all_rows = list(csv.reader(io.StringIO(resp.read().decode("utf-8-sig"))))
             print(f"  Insumos: Google Sheets leido ({len(all_rows)} filas)")
         except Exception as e:
-            print(f"  Advertencia insumos Google Sheets: {e}")
-            return {"items": [], "meses": [], "error": str(e)}
+            print(f"  Advertencia insumos Google Sheets (publico): {e}")
+
+    # 3. Google Sheets via CDP (usa la sesion de una pestana de Brave ya logueada,
+    #    funciona aunque la hoja no este publicada)
+    if all_rows is None:
+        try:
+            content = _download_costos_via_cdp(INSUMOS_GVIZ)
+            if content and not content.lstrip().startswith(("<", "{")):
+                all_rows = list(csv.reader(io.StringIO(content)))
+                print(f"  Insumos: leido via CDP ({len(all_rows)} filas)")
+        except Exception as e:
+            print(f"  Advertencia insumos via CDP: {e}")
+
+    if all_rows is None:
+        return {"items": [], "meses": [], "error": "No se pudo leer (ni local, ni publico, ni CDP)"}
 
     if not all_rows or len(all_rows) < 3:
         return {"items": [], "meses": [], "error": "Hoja vacia o sin datos"}
@@ -864,11 +1088,18 @@ def _download_costos_via_cdp(url, port=9222):
     except Exception:
         return None
 
-    # Buscar pestana con dominio Google, o cualquier pestana page como fallback
+    # Preferir una pestaña de Google Sheets (docs.google.com/spreadsheets) —
+    # el fetch a gviz/tq falla por CORS si se ejecuta desde otro origen Google
+    # (mail.google.com, chat.google.com, etc.)
     ws_url = None
     for t in targets:
-        if t.get("type") == "page" and "google" in t.get("url", "") and t.get("webSocketDebuggerUrl"):
+        if t.get("type") == "page" and "docs.google.com/spreadsheets" in t.get("url", "") \
+           and t.get("webSocketDebuggerUrl"):
             ws_url = t["webSocketDebuggerUrl"]; break
+    if not ws_url:
+        for t in targets:
+            if t.get("type") == "page" and "google" in t.get("url", "") and t.get("webSocketDebuggerUrl"):
+                ws_url = t["webSocketDebuggerUrl"]; break
     if not ws_url:
         ws_url = next((t.get("webSocketDebuggerUrl") for t in targets
                        if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
@@ -2480,6 +2711,22 @@ def update_stock_cierre_mes():
 
     wb.close()
 
+    # ── Contabilium stock EN VIVO (vía API REST) ────────────────────────────
+    try:
+        import contabilium_api as _cont_api
+        _hoy = date.today().strftime("%Y-%m-%d")
+        _stock_vivo = _cont_api.get_stock_todos_depositos(["KLOZER", "OFICINA"])
+        _cont_count = 0
+        for dep_nombre, items in _stock_vivo.items():
+            for cod, qty in items.items():
+                if qty <= 0: continue
+                if not (5 <= len(cod) <= 6): continue
+                raw_rows.append((_hoy, cod, int(qty)))
+                _cont_count += 1
+        print(f"  Contabilium stock EN VIVO: {_cont_count} filas ({_hoy})")
+    except Exception as e:
+        print(f"  Advertencia Contabilium API stock: {e}")
+
     if not raw_rows:
         print("  update_stock_cierre_mes: sin filas KLOZER+OFI válidas")
         return
@@ -2560,6 +2807,14 @@ def main():
     print(f"Actualizando Bosque Gin Dashboard — {datetime.now(_AR):%Y-%m-%d %H:%M} (AR)")
     print("=" * 60)
 
+    # Resumen de salud: cada paso se registra acá para que los problemas se vean
+    # de inmediato al final, en vez de quedar enterrados en 100 líneas de log.
+    _health = []
+    def _ok(nombre, detalle=""):
+        _health.append((nombre, True, detalle))
+    def _fail(nombre, err):
+        _health.append((nombre, False, str(err)))
+
     # Configurar CDP en Brave (una vez; si ya está configurado no hace nada)
     try:
         import subprocess
@@ -2573,28 +2828,49 @@ def main():
     except Exception:
         pass
 
-    print("\n[0/5] Descargando archivos de Gestión Cervecera...")
+    # Gestión Cervecera (GC) fue reemplazada por Contabilium desde 2026-06-29.
+    # La descarga automática de GC falla siempre (sesión/acceso dado de baja) —
+    # deshabilitada para no perder tiempo ni ensuciar el log en cada corrida.
+    # Los archivos GC históricos en Data/Salidas/GC siguen usándose igual
+    # (ver update_salidas_consolidado()). Para reactivar: GC_DOWNLOAD_ENABLED = True.
+    GC_DOWNLOAD_ENABLED = False
+    if GC_DOWNLOAD_ENABLED:
+        print("\n[0/5] Descargando archivos de Gestión Cervecera...")
+        try:
+            from gc_downloader import descargar_todo
+            _last_d = _last_ventas_date()
+            if _last_d:
+                _gc_desde = date.fromisoformat(_last_d) + timedelta(days=1)
+                print(f"  Bosque salidas hasta {_last_d} -> GC descarga desde {_gc_desde}")
+            else:
+                _gc_desde = None
+            descargar_todo(verbose=True, fecha_desde_date=_gc_desde)
+        except Exception as e:
+            print(f"  Advertencia GC downloader: {e}")
+            print("  Continuando con los archivos existentes...")
+
+    print("\n[0d/5] Descargando historial de salidas de Contabilium...")
     try:
-        from gc_downloader import descargar_todo
-        # Detectar ultima fecha de Bosque salidas para que GC cubra desde ahi
-        _last_d = _last_ventas_date()
-        if _last_d:
-            _gc_desde = date.fromisoformat(_last_d) + timedelta(days=1)
-            print(f"  Bosque salidas hasta {_last_d} -> GC descarga desde {_gc_desde}")
-        else:
-            _gc_desde = None
-        descargar_todo(verbose=True, fecha_desde_date=_gc_desde)
+        from contabilium_downloader import descargar_historial as _cont_descargar_historial
+        _fpath = _cont_descargar_historial(verbose=True)
+        _ok("Historial Contabilium", os.path.basename(_fpath) if _fpath else "sin novedades")
     except Exception as e:
-        print(f"  Advertencia GC downloader: {e}")
+        print(f"  Advertencia Contabilium downloader: {e}")
         print("  Continuando con los archivos existentes...")
+        _fail("Historial Contabilium", e)
+    # Nota: el stock ya NO se descarga por CDP/export — update_stock_cierre_mes()
+    # lo trae en vivo desde contabilium_api.get_stock_todos_depositos()
 
     # Destilería desde hoja RESUMEN PRODUCTOS X DESTILERIA (Google Sheets)
     print("\n[0b/5] Descargando resumen destilería/cervezas...")
     destileria = {}
     try:
         destileria = fetch_resumen_destileria()
+        _n_per = len(destileria.get("periods", destileria.get("months", [])))
+        _ok("Destilería resumen", f"{_n_per} períodos")
     except Exception as e:
         print("  Advertencia destilería resumen: %s" % e)
+        _fail("Destilería resumen", e)
         # Fallback: conservar datos anteriores si existen
         if os.path.exists(OUT_JS):
             try:
@@ -2610,8 +2886,10 @@ def main():
     cervezas = {}
     try:
         cervezas = fetch_cervezas()
+        _ok("Costos cervezas", f"{len(cervezas.get('periodos', cervezas.get('periods', [])))} períodos")
     except Exception as e:
         print(f"  Advertencia cervezas: {e}")
+        _fail("Costos cervezas", e)
         if os.path.exists(OUT_JS):
             try:
                 raw = open(OUT_JS, encoding="utf-8").read()
@@ -2624,21 +2902,27 @@ def main():
     print("\n[1/5] Actualizando consolidado de inventario...")
     try:
         update_consolidado()
+        _ok("Consolidado inventario")
     except Exception as e:
         print("  Advertencia consolidado: %s" % e)
+        _fail("Consolidado inventario", e)
 
     print("\n[1b/5] Actualizando STOCK_CIERRE_MES en dashboard...")
     try:
         update_stock_cierre_mes()
+        _ok("Stock cierre mes")
     except Exception as e:
         print("  Advertencia stock cierre mes: %s" % e)
+        _fail("Stock cierre mes", e)
 
     print("\n[2/5] Cargando productos (rubro/subrubro)...")
     try:
         inv_gen = load_productos()
         print("  -> %d productos cargados desde PRODUCTOS.xlsx" % len(inv_gen))
+        _ok("Productos", f"{len(inv_gen)} productos")
     except Exception as e:
         print("  Advertencia productos: %s" % e)
+        _fail("Productos", e)
         inv_gen = {}
 
     print("\n[3/5] Leyendo inventario desde consolidado...")
@@ -2652,37 +2936,66 @@ def main():
                     if gen["art"]: item["art"] = gen["art"]
                     if gen["rub"]: item["rub"] = gen["rub"]
                     if gen["sub"]: item["sub"] = gen["sub"]
+        _ok("Stock consolidado (histórico)", f"{len(inv_data)} artículos al {stock_hasta}")
     except Exception as e:
         print("  ERROR stock: %s" % e)
+        _fail("Stock consolidado (histórico)", e)
         inv_data, stock_hasta = [], date.today().strftime("%Y-%m-%d")
+
+    print("\n[3b/5] Sobreescribiendo stock EN VIVO desde Contabilium...")
+    try:
+        inv_data, stock_hasta = apply_stock_contabilium_vivo(inv_data, inv_gen)
+        print("  -> stock actualizado al %s (vía API Contabilium)" % stock_hasta)
+        _ok("Stock EN VIVO (API)", f"al {stock_hasta}")
+    except Exception as e:
+        print("  Advertencia stock vivo Contabilium: %s" % e)
+        _fail("Stock EN VIVO (API)", e)
 
     print("\n[4/5] Actualizando costos desde Google Sheets...")
     try:
         costos, costos_data = fetch_costos_completo()   # descarga automática incluida
+        _ok("Costos")
     except Exception as e:
         print("  Advertencia costos: %s" % e)
+        _fail("Costos", e)
         costos, costos_data = {}, {"periodos": [], "productos": [], "actualizacion": "", "error": str(e)}
 
     print("\n[4b/5] Actualizando consolidado de salidas...")
     try:
-        update_salidas_consolidado()
+        _max_fecha_salidas = update_salidas_consolidado()
+        if _max_fecha_salidas and _max_fecha_salidas != "0":
+            _dias_atraso = (date.today() - date.fromisoformat(_max_fecha_salidas)).days
+            if _dias_atraso > 1:
+                _fail("Consolidado salidas", f"desactualizado — última fecha {_max_fecha_salidas} ({_dias_atraso} días atrás, ¿archivo bloqueado?)")
+            else:
+                _ok("Consolidado salidas", f"hasta {_max_fecha_salidas}")
+        else:
+            _ok("Consolidado salidas")
     except Exception as e:
         print("  Advertencia consolidado salidas: %s" % e)
+        _fail("Consolidado salidas", e)
 
     print("\n[4c/5] Leyendo salidas desde consolidado...")
     salidas_src = SALIDAS_CONS if os.path.exists(SALIDAS_CONS) else VENTAS_F
     try:
         ventas, ventas_hasta, monthly_raw = parse_ventas(salidas_src, prod_lookup=inv_gen, costos=costos)
         print("  -> Datos hasta %s (fuente: %s)" % (ventas_hasta, os.path.basename(salidas_src)))
+        _ok("Ventas/salidas", f"hasta {ventas_hasta}")
     except Exception as e:
         print("  ERROR ventas: %s" % e)
+        _fail("Ventas/salidas", e)
         ventas, ventas_hasta, monthly_raw = {"VD": {}, "MONTHLY_DATA": {}, "PROD_DATA": {}}, "?", {}
 
     print("\n[4d/5] Cargando inventario insumos...")
     try:
         insumos_data = fetch_insumos()
+        if insumos_data.get("error"):
+            _fail("Insumos", insumos_data["error"])
+        else:
+            _ok("Insumos", f"{len(insumos_data.get('items', []))} items")
     except Exception as e:
         print(f"  Advertencia insumos: {e}")
+        _fail("Insumos", e)
         insumos_data = {"items": [], "meses": [], "error": str(e)}
 
     print("\n[5/5] Calculando velocidad de ventas por deposito...")
@@ -2692,8 +3005,10 @@ def main():
         inv_data = apply_velocity(inv_data, vel)
         con_vel = sum(1 for x in inv_data if x["min_k"] > 0 or x["min_o"] > 0)
         print("  -> %d articulos con velocidad calculada" % con_vel)
+        _ok("Velocidad de ventas", f"{con_vel} artículos")
     except Exception as e:
         print("  ERROR velocidad: %s" % e)
+        _fail("Velocidad de ventas", e)
 
     new_data = {
         "meta": {
@@ -2718,14 +3033,22 @@ def main():
     print("  Ventas:  hasta %s" % ventas_hasta)
 
     # ── Archivos por sección (lazy loading) ───────────────────────────────────
+    # CLIENT_DATA se separa de data_ventas.js: pesa ~85% del archivo (4+ MB) y solo
+    # lo usa la pestaña Ventas al filtrar por cliente — overview/calendario/logistica
+    # no lo necesitan nunca. Separarlo evita bajar 4+ MB de más en cada visita.
+    _ventas_liviano = {k: v for k, v in new_data["ventas"].items() if k != "CLIENT_DATA"}
+    _client_data    = new_data["ventas"].get("CLIENT_DATA", {})
+
     _b = "window.BOSQUE_DATA=window.BOSQUE_DATA||{};"
+    _bv = _b + "window.BOSQUE_DATA.ventas=window.BOSQUE_DATA.ventas||{};"
     _section_files = {
-        "data_meta.js":       _b + "window.BOSQUE_DATA.meta="       + json.dumps(new_data["meta"],       ensure_ascii=False) + ";",
-        "data_ventas.js":     _b + "window.BOSQUE_DATA.ventas="     + json.dumps(new_data["ventas"],     ensure_ascii=False) + ";",
-        "data_stock.js":      _b + "window.BOSQUE_DATA.stock="      + json.dumps(new_data["stock"],      ensure_ascii=False) + ";",
-        "data_destileria.js": _b + "window.BOSQUE_DATA.destileria=" + json.dumps(new_data["destileria"], ensure_ascii=False) + ";window.BOSQUE_DATA.cervezas=" + json.dumps(new_data["cervezas"], ensure_ascii=False) + ";",
-        "data_costos.js":     _b + "window.BOSQUE_DATA.costos="     + json.dumps(new_data["costos"],     ensure_ascii=False) + ";",
-        "data_insumos.js":    _b + "window.BOSQUE_DATA.insumos="    + json.dumps(new_data["insumos"],    ensure_ascii=False) + ";",
+        "data_meta.js":       _b  + "window.BOSQUE_DATA.meta="       + json.dumps(new_data["meta"],       ensure_ascii=False) + ";",
+        "data_ventas.js":     _bv + "Object.assign(window.BOSQUE_DATA.ventas," + json.dumps(_ventas_liviano, ensure_ascii=False) + ");",
+        "data_clientes.js":   _bv + "window.BOSQUE_DATA.ventas.CLIENT_DATA=" + json.dumps(_client_data, ensure_ascii=False) + ";",
+        "data_stock.js":      _b  + "window.BOSQUE_DATA.stock="      + json.dumps(new_data["stock"],      ensure_ascii=False) + ";",
+        "data_destileria.js": _b  + "window.BOSQUE_DATA.destileria=" + json.dumps(new_data["destileria"], ensure_ascii=False) + ";window.BOSQUE_DATA.cervezas=" + json.dumps(new_data["cervezas"], ensure_ascii=False) + ";",
+        "data_costos.js":     _b  + "window.BOSQUE_DATA.costos="     + json.dumps(new_data["costos"],     ensure_ascii=False) + ";",
+        "data_insumos.js":    _b  + "window.BOSQUE_DATA.insumos="    + json.dumps(new_data["insumos"],    ensure_ascii=False) + ";",
     }
     print("\nArchivos por sección:")
     for fname, content in _section_files.items():
@@ -2742,36 +3065,72 @@ def main():
 
     print("Recarga el dashboard para ver los cambios.")
 
+    def _print_health_summary():
+        fails = [h for h in _health if not h[1]]
+        oks   = [h for h in _health if h[1]]
+        print("\n" + "=" * 60)
+        if fails:
+            print("RESUMEN: %d de %d pasos OK — %d con problemas:" % (len(oks), len(_health), len(fails)))
+            for nombre, _, detalle in fails:
+                print("  ❌ %s — %s" % (nombre, str(detalle)[:150]))
+        else:
+            print("RESUMEN: %d/%d pasos OK — todo en orden." % (len(oks), len(_health)))
+        print("=" * 60)
+
     # ── Auto-publicar en bosquegin.com via GitHub Pages ──────────────────────
     print("\n[7/7] Publicando datos en bosquegin.com...")
 
     if _SKIP_GIT_PUSH:
         print("  [cloud] Git push omitido — lo maneja el servidor cloud")
+        _print_health_summary()
         return
 
     try:
         import subprocess
-        git_cmds = [
-            ["git", "add", "bosquegin_data.js", "data_meta.js", "data_ventas.js", "data_stock.js",
-              "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
+
+        def _run(cmd):
+            r = subprocess.run(cmd, cwd=BASE, capture_output=True, text=True)
+            return r.returncode, (r.stdout + r.stderr)
+
+        for cmd in [
+            ["git", "add", "bosquegin_data.js", "data_meta.js", "data_ventas.js", "data_clientes.js",
+              "data_stock.js", "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
               "auth_static.js", "bosquegin_dashboard.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
-            ["git", "pull", "--rebase", "origin", "main"],
-            ["git", "push", "origin", "main"],
-        ]
-        for cmd in git_cmds:
-            r = subprocess.run(cmd, cwd=BASE, capture_output=True, text=True)
-            out = r.stdout + r.stderr
-            if r.returncode != 0 and "nothing to commit" not in out and "Current branch main is up to date" not in out:
-                print("  Advertencia git (%s): %s" % (" ".join(cmd[1:2]), r.stderr.strip()[:120]))
+        ]:
+            code, out = _run(cmd)
+            if code != 0 and "nothing to commit" not in out:
+                print("  Advertencia git (%s): %s" % (" ".join(cmd[1:2]), out.strip()[:120]))
             else:
                 print("  OK: %s" % " ".join(cmd[1:2]))
+
+        # Push directo primero (repo de un solo operador — casi nunca diverge).
+        # Sólo si el remoto avanzó de verdad se intenta pull --rebase y reintenta.
+        # Antes se hacía pull --rebase SIEMPRE, y fallaba cada vez por los cambios
+        # sin commitear de Data/*.xlsx (que este script no agrega) — puro ruido.
+        code, out = _run(["git", "push", "origin", "main"])
+        if code != 0 and ("rejected" in out or "non-fast-forward" in out):
+            print("  Remoto avanzó — haciendo pull --rebase y reintentando push...")
+            code2, out2 = _run(["git", "pull", "--rebase", "origin", "main"])
+            if code2 != 0:
+                print("  Advertencia git (pull --rebase): %s" % out2.strip()[:200])
+            code, out = _run(["git", "push", "origin", "main"])
+
+        if code != 0:
+            print("  Advertencia git (push): %s" % out.strip()[:200])
+            _fail("Publicación (git push)", out.strip()[:200])
+        else:
+            print("  OK: push")
+            _ok("Publicación (git push)")
         print("  -> bosquegin.com se actualiza en ~60 segundos")
     except Exception as e:
         print("  Advertencia publicacion: %s" % e)
+        _fail("Publicación (git push)", e)
 
     # ── Sincronizar código con Google Drive ───────────────────────────────────
     _sync_to_drive()
+
+    _print_health_summary()
 
 
 def _sync_to_drive():
