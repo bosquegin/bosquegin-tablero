@@ -1039,6 +1039,8 @@ COSTOS_SHEET_ID  = "12Ln3lXaWDqpx5hYndJcGH1QDlPaTab3yyEX8j_ahDyY"
 COSTOS_SHEET_GID = "173195948"   # pestaña con costos actualizados (3 filas header)
 DEST_SHEET_GID   = "1954024258"  # pestaña RESUMEN PRODUCTOS X DESTILERIA
 DEST_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_resumen_dest.csv")
+PROYECCION_SHEET_GID = "1879268030"  # pestaña FORECAST (proyección de compra/venta trimestral)
+PROYECCION_CSV       = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion.csv")
 CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
 CERV_SHEET_GID   = "2130605343"
 CERV_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_cervezas.csv")
@@ -2269,6 +2271,174 @@ def generate_proyecciones(inv_data):
     print(f"    Proyecciones: {len(alerta)} productos con < 3 meses de stock KLOZER -> {PROY_FILE}")
 
 
+# ─── 5b. PROYECCIÓN TRIMESTRAL (FORECAST compra/venta) ────────────────────────
+_PROY_MESES_COLS = [
+    # (nombre, col_proyeccion_abastecimiento, col_pendiente_retiro,
+    #  col_venta_objetivo, col_venta_actual, col_objetivo_cumplido_pct, col_saldo_stock)
+    ("mes1", 3, 4, 11, 12, 13, 16),
+    ("mes2", 5, 6, 17, 18, 19, 22),
+    ("mes3", 7, 8, 23, 24, 25, 28),
+]
+
+
+def _proy_num(s):
+    if s is None: return 0.0
+    s = str(s).strip().replace("%", "").replace(",", "")
+    if not s: return 0.0
+    try: return float(s)
+    except Exception: return 0.0
+
+
+def _proy_parse_tabla(data_rows, nombres_meses):
+    productos = []
+    for r in data_rows:
+        if not r or not r[0] or not str(r[0]).strip():
+            continue
+        cod = str(r[0]).strip()
+        try: cod = str(int(float(cod)))
+        except Exception: pass
+        mensual = {}
+        for (nombre, c_proy, c_pend, c_vobj, c_vact, c_cump, c_saldo), lbl in zip(_PROY_MESES_COLS, nombres_meses):
+            mensual[nombre] = {
+                "label": lbl,
+                "proyeccion_abastecimiento": _proy_num(r[c_proy]) if len(r) > c_proy else 0,
+                "pendiente_retiro":          _proy_num(r[c_pend]) if len(r) > c_pend else 0,
+                "venta_objetivo":            _proy_num(r[c_vobj]) if len(r) > c_vobj else 0,
+                "venta_actual":              _proy_num(r[c_vact]) if len(r) > c_vact else 0,
+                "objetivo_cumplido_pct":     _proy_num(r[c_cump]) if len(r) > c_cump else 0,
+                "saldo_stock":               _proy_num(r[c_saldo]) if len(r) > c_saldo else 0,
+            }
+        productos.append({
+            "cod": cod, "art": r[1].strip() if len(r) > 1 else "",
+            "stock_actual": _proy_num(r[2]) if len(r) > 2 else 0,
+            "stock_total":  _proy_num(r[9]) if len(r) > 9 else 0,
+            "venta_prom_mensual_anterior": _proy_num(r[10]) if len(r) > 10 else 0,
+            "mensual": mensual,
+            "total_objetivo_ventas": _proy_num(r[29]) if len(r) > 29 else 0,
+            "meses_stock": _proy_num(r[30]) if len(r) > 30 else 0,
+            "alerta": r[31].strip() if len(r) > 31 else "",
+            "comprar": _proy_num(r[32]) if len(r) > 32 else 0,
+            "pallet": _proy_num(r[33]) if len(r) > 33 else 0,
+            "cantidad_pallets": _proy_num(r[34]) if len(r) > 34 else 0,
+        })
+    return productos
+
+
+def fetch_proyeccion_trimestral():
+    """
+    Descarga la hoja FORECAST (Data/Costos y PVP -> Google Sheets gid=PROYECCION_SHEET_GID)
+    con la proyección trimestral de compra/venta por producto.
+
+    Estructura de la hoja (detectada 2026-07-13, trimestre Q2 2026):
+      Fila 0: header. col[0] tiene el título "FORECAST Q<N> <AAAA> - OBJETIVO ...".
+      Bloque 1 ("objetivo"): filas de producto hasta la primera fila vacía.
+      Luego una fila con "RESULTADO" en col 31 (título de sección) y una fila de
+      sub-header, seguidas del bloque 2 ("resultado" — revisión posterior del
+      mismo trimestre, ya con datos reales del primer mes incorporados).
+      35 columnas de datos por producto (ver _PROY_MESES_COLS / _proy_parse_tabla).
+
+    Devuelve {"trimestre": "2026_Q2", "meses": [...], "objetivo": [...], "resultado": [...], "error": None|str}
+    Cachea el CSV crudo en PROYECCION_CSV (se refresca 1x/día, igual que costos/cervezas).
+    """
+    import csv
+    today = date.today()
+    if os.path.exists(PROYECCION_CSV) and date.fromtimestamp(os.path.getmtime(PROYECCION_CSV)) >= today:
+        print("  Proyección trimestral al día, usando local")
+    else:
+        url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/"
+               f"gviz/tq?tqx=out:csv&gid={PROYECCION_SHEET_GID}")
+        content = _download_costos_via_cdp(url)
+        if content and len(content.splitlines()) >= 3:
+            os.makedirs(os.path.dirname(PROYECCION_CSV), exist_ok=True)
+            with open(PROYECCION_CSV, "w", encoding="utf-8-sig", newline="") as f:
+                f.write(content)
+            print(f"  Proyección trimestral descargada ({len(content.splitlines())} filas)")
+        else:
+            print("  Proyección trimestral: CDP no disponible, usando local si existe")
+
+    if not os.path.exists(PROYECCION_CSV):
+        return {"trimestre": "?", "meses": [], "objetivo": [], "resultado": [], "error": "Sin datos"}
+
+    with open(PROYECCION_CSV, encoding="utf-8-sig") as f:
+        rows = list(csv.reader(f))
+    if len(rows) < 3:
+        return {"trimestre": "?", "meses": [], "objetivo": [], "resultado": [], "error": "CSV incompleto"}
+
+    m_q = re.search(r'Q\s*(\d)\D+(\d{4})', rows[0][0] if rows[0] else "")
+    trimestre = f"{m_q.group(2)}_Q{m_q.group(1)}" if m_q else "?"
+    meses_labels = []
+    # Nombres de mes reales desde los headers "...RETIRO <MES>" (col 4,6,8)
+    for c in (4, 6, 8):
+        h = rows[0][c] if len(rows[0]) > c else ""
+        mm = re.search(r'RETIRO\s+(\w+)', h, re.IGNORECASE)
+        meses_labels.append(mm.group(1).title() if mm else f"Mes{len(meses_labels)+1}")
+
+    # Bloque "objetivo": desde fila 1 hasta la primera fila vacía
+    fin_obj = 1
+    while fin_obj < len(rows) and rows[fin_obj] and str(rows[fin_obj][0]).strip():
+        fin_obj += 1
+    objetivo = _proy_parse_tabla(rows[1:fin_obj], meses_labels)
+
+    # Bloques "resultado": la hoja puede tener VARIAS revisiones apiladas (una
+    # por cada vez que se re-evaluó el trimestre con datos reales más recientes).
+    # Se capturan TODAS, no sólo la primera, para ver cómo evolucionó la alerta.
+    revisiones = []
+    i = fin_obj
+    while i < len(rows):
+        row = rows[i]
+        if row and len(row) > 31 and str(row[31]).strip().upper() == "RESULTADO":
+            inicio = i + 2   # saltar fila "RESULTADO" y la fila de sub-header
+            fin = inicio
+            while fin < len(rows) and rows[fin] and str(rows[fin][0]).strip():
+                fin += 1
+            productos = _proy_parse_tabla(rows[inicio:fin], meses_labels)
+            if productos:
+                revisiones.append(productos)
+            i = fin
+        else:
+            i += 1
+
+    resultado = revisiones[-1] if revisiones else []
+    print(f"  Proyección trimestral: {trimestre} — {len(objetivo)} objetivo, "
+          f"{len(revisiones)} revisión(es) (última: {len(resultado)} productos)")
+    return {"trimestre": trimestre, "meses": meses_labels, "objetivo": objetivo,
+            "resultado": resultado, "revisiones": revisiones, "error": None}
+
+
+def cargar_proyeccion_trimestral_historica():
+    """
+    Combina el snapshot ACTUAL de la hoja FORECAST (fetch_proyeccion_trimestral())
+    con el histórico ya guardado en data_proyeccion.js. La hoja de origen se
+    reescribe cada trimestre (no guarda historial propio), así que el archivo
+    JS local es la única fuente de verdad para trimestres pasados: cada
+    corrida agrega/actualiza el trimestre vigente y preserva los anteriores.
+    Devuelve {"trimestres": {"2025_Q1": {...}, "2026_Q2": {...}, ...}, "error": None|str}
+    """
+    js_path = os.path.join(BASE, "data_proyeccion.js")
+    historico = {}
+    if os.path.exists(js_path):
+        try:
+            raw = open(js_path, encoding="utf-8").read()
+            marker = "window.BOSQUE_DATA.proyeccion="
+            idx = raw.find(marker)
+            if idx >= 0:
+                js_body = raw[idx + len(marker):].rstrip(";\n ")
+                historico = json.loads(js_body).get("trimestres", {})
+        except Exception as e:
+            print(f"  Advertencia leyendo histórico de proyección: {e}")
+
+    actual = fetch_proyeccion_trimestral()
+    if actual.get("error"):
+        return {"trimestres": historico, "error": actual["error"] if not historico else None}
+
+    if actual["trimestre"] != "?":
+        historico[actual["trimestre"]] = {
+            "meses": actual["meses"], "objetivo": actual["objetivo"],
+            "resultado": actual["resultado"], "revisiones": actual["revisiones"],
+        }
+    return {"trimestres": historico, "error": None}
+
+
 # ─── 6a. RESUMEN DESTILERÍA / CERVEZAS ────────────────────────────────────────
 def fetch_resumen_destileria():
     """
@@ -2899,6 +3069,18 @@ def main():
             except Exception:
                 pass
 
+    print("\n[0e/5] Actualizando proyección trimestral (FORECAST)...")
+    proyeccion = {"trimestres": {}}
+    try:
+        proyeccion = cargar_proyeccion_trimestral_historica()
+        if proyeccion.get("error"):
+            _fail("Proyección trimestral", proyeccion["error"])
+        else:
+            _ok("Proyección trimestral", f"{len(proyeccion['trimestres'])} trimestre(s)")
+    except Exception as e:
+        print(f"  Advertencia proyección trimestral: {e}")
+        _fail("Proyección trimestral", e)
+
     print("\n[1/5] Actualizando consolidado de inventario...")
     try:
         update_consolidado()
@@ -3023,6 +3205,7 @@ def main():
         "cervezas":  cervezas,
         "costos":    costos_data,
         "insumos":   insumos_data,
+        "proyeccion": proyeccion,
     }
 
     js_str = "var BOSQUE_DATA=" + json.dumps(new_data, ensure_ascii=False) + ";"
@@ -3049,6 +3232,7 @@ def main():
         "data_destileria.js": _b  + "window.BOSQUE_DATA.destileria=" + json.dumps(new_data["destileria"], ensure_ascii=False) + ";window.BOSQUE_DATA.cervezas=" + json.dumps(new_data["cervezas"], ensure_ascii=False) + ";",
         "data_costos.js":     _b  + "window.BOSQUE_DATA.costos="     + json.dumps(new_data["costos"],     ensure_ascii=False) + ";",
         "data_insumos.js":    _b  + "window.BOSQUE_DATA.insumos="    + json.dumps(new_data["insumos"],    ensure_ascii=False) + ";",
+        "data_proyeccion.js": _b  + "window.BOSQUE_DATA.proyeccion=" + json.dumps(new_data["proyeccion"], ensure_ascii=False) + ";",
     }
     print("\nArchivos por sección:")
     for fname, content in _section_files.items():
@@ -3095,7 +3279,7 @@ def main():
         for cmd in [
             ["git", "add", "bosquegin_data.js", "data_meta.js", "data_ventas.js", "data_clientes.js",
               "data_stock.js", "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
-              "auth_static.js", "bosquegin_dashboard.html"],
+              "data_proyeccion.js", "auth_static.js", "bosquegin_dashboard.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
         ]:
             code, out = _run(cmd)
