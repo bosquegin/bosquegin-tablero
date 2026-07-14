@@ -4208,8 +4208,10 @@ function scSetSort(table, col) {
 
 
 // ── PROYECCIÓN TRIMESTRAL (FORECAST) — un cuadro por trimestre, como en la hoja ──
-window.proySort = {};       // "<trimestre>_<vista>" -> {col, asc}
-window.proySelected = {};   // <trimestre> -> {vista, cod}
+window.proySort = {};         // "<trimestre>_<vista>" -> {col, asc}
+window.proySelected = {};     // <trimestre> -> {vista, cod}
+window.proyExpanded = {};     // <trimestre> -> bool (acordeón; sólo el más reciente abierto por defecto)
+window.proyObjetivoOpen = {}; // <trimestre> -> bool (Objetivo plegado cuando ya hay Resultado)
 
 function _proyAlertaBadge(alerta) {
   const a = (alerta || '').toUpperCase();
@@ -4323,13 +4325,37 @@ function proySelectProducto(trimestreKey, vista, cod) {
   renderProyeccion();
 }
 
-function _proyCuadroHtml(trimestreKey, T) {
+function proyToggleTrimestre(key) {
+  window.proyExpanded[key] = !window.proyExpanded[key];
+  renderProyeccion();
+}
+
+function proyToggleObjetivo(key) {
+  window.proyObjetivoOpen[key] = !window.proyObjetivoOpen[key];
+  renderProyeccion();
+}
+
+function _proyCuadroHtml(trimestreKey, T, expanded) {
   const label = trimestreKey.replace('_', ' ');
   const tieneResultado = (T.resultado || []).length > 0;
   const objetivoK = _proyKpis(T.objetivo || []);
   const resultadoK = tieneResultado ? _proyKpis(T.resultado) : null;
   const kpisMostrar = resultadoK || objetivoK;
   const nRev = (T.revisiones || []).length;
+  const arrow = expanded ? '▾' : '▸';
+
+  const headerRow = `
+    <div class="table-title" style="font-size:14px;margin-bottom:${expanded?'12px':'0'};cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px" onclick="proyToggleTrimestre('${trimestreKey}')">
+      <span style="color:var(--muted);font-size:11px">${arrow}</span> 🔮 ${label}
+      ${!expanded ? `<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">
+        ${kpisMostrar.nAlerta} en alerta · ${Math.round(kpisMostrar.totalUnidades).toLocaleString('es-AR')} un. a comprar
+        ${tieneResultado ? ` · ${nRev} revisión(es)` : ' · sin revisión aún'}
+      </span>` : ''}
+    </div>`;
+
+  if (!expanded) {
+    return `<div class="table-card" style="margin-bottom:10px;border-left:3px solid var(--border)">${headerRow}</div>`;
+  }
 
   const kpiRow = `
     <div class="kpi-grid" style="margin-bottom:14px">
@@ -4346,11 +4372,17 @@ function _proyCuadroHtml(trimestreKey, T) {
   const selVista = (window.proySelected[trimestreKey] || {}).vista;
   const detalleHtml = _proyDetalleHtml(trimestreKey);
 
+  // Si ya hay una revisión, el Objetivo original queda plegado por defecto
+  // (lo que importa para decidir es la última revisión, no el forecast inicial).
+  const objetivoOpen = !tieneResultado || !!window.proyObjetivoOpen[trimestreKey];
   const objetivoBlock = `
     <div class="table-card" style="margin-top:0">
-      <div class="table-title">📋 Objetivo (inicio de trimestre)</div>
-      ${_proyTablaHtml(trimestreKey, 'objetivo', T.objetivo || [])}
-      ${selVista === 'objetivo' ? detalleHtml : ''}
+      <div class="table-title" style="${tieneResultado ? 'cursor:pointer;user-select:none' : ''}" ${tieneResultado ? `onclick="proyToggleObjetivo('${trimestreKey}')"` : ''}>
+        ${tieneResultado ? `<span style="color:var(--muted);font-size:11px">${objetivoOpen ? '▾' : '▸'}</span> ` : ''}📋 Objetivo (inicio de trimestre)
+        ${tieneResultado && !objetivoOpen ? '<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">ver forecast original</span>' : ''}
+      </div>
+      ${objetivoOpen ? _proyTablaHtml(trimestreKey, 'objetivo', T.objetivo || []) : ''}
+      ${objetivoOpen && selVista === 'objetivo' ? detalleHtml : ''}
     </div>`;
 
   const resultadoBlock = tieneResultado ? `
@@ -4362,7 +4394,7 @@ function _proyCuadroHtml(trimestreKey, T) {
 
   return `
     <div class="table-card" style="margin-bottom:20px;border-left:3px solid var(--accent)">
-      <div class="table-title" style="font-size:14px;margin-bottom:12px">🔮 ${label}</div>
+      ${headerRow}
       ${kpiRow}
       ${objetivoBlock}
       ${resultadoBlock}
@@ -4380,7 +4412,13 @@ function renderProyeccion() {
     return;
   }
 
-  cont.innerHTML = keys.map(k => _proyCuadroHtml(k, trimestres[k])).join('');
+  // Por defecto: sólo el trimestre más reciente arranca expandido.
+  if (!window._proyExpandedInit) {
+    window.proyExpanded = { [keys[0]]: true };
+    window._proyExpandedInit = true;
+  }
+
+  cont.innerHTML = keys.map(k => _proyCuadroHtml(k, trimestres[k], !!window.proyExpanded[k])).join('');
 }
 
 
