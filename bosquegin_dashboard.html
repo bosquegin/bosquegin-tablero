@@ -4291,9 +4291,34 @@ function _proyDetalleHtml(trimestreKey) {
   const p = productos.find(x => x.cod === sel.cod);
   if (!p) return '';
   const meses = Object.keys(p.mensual || {});
-  const rows = meses.map(mk => {
+  // Distribuir "a comprar" (total del trimestre) entre los meses, en proporción
+  // a la venta objetivo de cada mes — así se sabe cuánto pedir cada mes, no sólo
+  // el total del trimestre.
+  const totalObjetivo = p.total_objetivo_ventas || 0;
+  const comprarTotal = p.comprar || 0;
+  // Reparto por resto mayor: redondea hacia abajo y asigna las unidades que
+  // faltan a los meses con mayor parte fraccionaria, para que la suma mensual
+  // coincida exactamente con el total a comprar del trimestre (sin esto,
+  // redondear cada mes por separado puede dar una suma distinta al total).
+  const pedidoExacto = meses.map(mk => {
+    const m = p.mensual[mk];
+    return (comprarTotal > 0 && totalObjetivo > 0)
+      ? comprarTotal * (m.venta_objetivo || 0) / totalObjetivo
+      : 0;
+  });
+  const pedidoPorMes = pedidoExacto.map(v => Math.floor(v));
+  let faltante = Math.round(comprarTotal) - pedidoPorMes.reduce((a, b) => a + b, 0);
+  const ordenResto = pedidoExacto
+    .map((v, i) => ({ i, resto: v - Math.floor(v) }))
+    .sort((a, b) => b.resto - a.resto);
+  for (let k = 0; k < ordenResto.length && faltante > 0; k++, faltante--) {
+    pedidoPorMes[ordenResto[k].i]++;
+  }
+
+  const rows = meses.map((mk, i) => {
     const m = p.mensual[mk];
     const pctColor = m.objetivo_cumplido_pct >= 90 ? 'var(--green)' : m.objetivo_cumplido_pct >= 60 ? 'var(--yellow)' : 'var(--red)';
+    const pedido = pedidoPorMes[i];
     return `<tr>
       <td style="padding:6px 8px;font-weight:700">${m.label}</td>
       <td style="padding:6px 8px;text-align:right">${Math.round(m.proyeccion_abastecimiento).toLocaleString('es-AR')}</td>
@@ -4302,8 +4327,15 @@ function _proyDetalleHtml(trimestreKey) {
       <td style="padding:6px 8px;text-align:right">${Math.round(m.venta_actual).toLocaleString('es-AR')}</td>
       <td style="padding:6px 8px;text-align:right;font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct)}%</td>
       <td style="padding:6px 8px;text-align:right">${Math.round(m.saldo_stock).toLocaleString('es-AR')}</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent2)">${pedido > 0 ? pedido.toLocaleString('es-AR') : '—'}</td>
     </tr>`;
   }).join('');
+
+  const totalRow = comprarTotal > 0 ? `<tr style="border-top:1px solid var(--border)">
+      <td colspan="7" style="padding:6px 8px;text-align:right;font-weight:700;color:var(--muted)">Total a comprar (trimestre)</td>
+      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent2)">${Math.round(comprarTotal).toLocaleString('es-AR')}</td>
+    </tr>` : '';
+
   return `
     <div class="table-card" style="margin-top:10px;background:rgba(99,102,241,.05)">
       <div class="table-title" style="font-size:10px">📆 Detalle mensual — ${p.cod} · ${p.art}</div>
@@ -4315,7 +4347,9 @@ function _proyDetalleHtml(trimestreKey) {
         <th style="text-align:right;padding:6px 8px">Venta actual</th>
         <th style="text-align:right;padding:6px 8px">% Cumplido</th>
         <th style="text-align:right;padding:6px 8px">Saldo stock</th>
-      </tr></thead><tbody>${rows}</tbody></table></div>
+        <th style="text-align:right;padding:6px 8px;color:var(--accent2)">A pedir este mes</th>
+      </tr></thead><tbody>${rows}${totalRow}</tbody></table></div>
+      ${comprarTotal > 0 ? `<div style="font-size:8px;color:var(--muted);margin-top:6px">ⓘ "A pedir este mes" distribuye el total a comprar del trimestre en proporción a la venta objetivo de cada mes.</div>` : ''}
     </div>`;
 }
 
