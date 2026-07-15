@@ -2373,6 +2373,12 @@ def fetch_proyeccion_trimestral():
         mm = re.search(r'RETIRO\s+(\w+)', h, re.IGNORECASE)
         meses_labels.append(mm.group(1).title() if mm else f"Mes{len(meses_labels)+1}")
 
+    # Etiqueta del período de referencia para "venta promedio mensual" (col 10),
+    # ej. "VENTA PROMEDIO MENSUAL Q2 2026" -> "Q2 2026"
+    h10 = rows[0][10] if len(rows[0]) > 10 else ""
+    mm10 = re.search(r'VENTA\s+PROMEDIO\s+MENSUAL\s+(.+)', h10, re.IGNORECASE)
+    venta_prom_label = mm10.group(1).strip().title() if mm10 else ""
+
     # Bloque "objetivo": desde fila 1 hasta la primera fila vacía
     fin_obj = 1
     while fin_obj < len(rows) and rows[fin_obj] and str(rows[fin_obj][0]).strip():
@@ -2401,8 +2407,8 @@ def fetch_proyeccion_trimestral():
     resultado = revisiones[-1] if revisiones else []
     print(f"  Proyección trimestral: {trimestre} — {len(objetivo)} objetivo, "
           f"{len(revisiones)} revisión(es) (última: {len(resultado)} productos)")
-    return {"trimestre": trimestre, "meses": meses_labels, "objetivo": objetivo,
-            "resultado": resultado, "revisiones": revisiones, "error": None}
+    return {"trimestre": trimestre, "meses": meses_labels, "venta_prom_label": venta_prom_label,
+            "objetivo": objetivo, "resultado": resultado, "revisiones": revisiones, "error": None}
 
 
 def cargar_proyeccion_trimestral_historica():
@@ -2433,7 +2439,8 @@ def cargar_proyeccion_trimestral_historica():
 
     if actual["trimestre"] != "?":
         historico[actual["trimestre"]] = {
-            "meses": actual["meses"], "objetivo": actual["objetivo"],
+            "meses": actual["meses"], "venta_prom_label": actual.get("venta_prom_label", ""),
+            "objetivo": actual["objetivo"],
             "resultado": actual["resultado"], "revisiones": actual["revisiones"],
         }
     return {"trimestres": historico, "error": None}
