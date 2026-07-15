@@ -4394,24 +4394,43 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
     </div>`;
 }
 
+// Plantilla fija de trimestres a mostrar siempre, tengan datos o no todavía.
+// El más reciente (2026 Q3) va primero, y el resto en orden descendente.
+// Cuando aparezca un trimestre más nuevo (2026 Q4, etc.), agregarlo acá arriba.
+const _PROY_TEMPLATE = [
+  '2026_Q3', '2026_Q2', '2026_Q1',
+  '2025_Q4', '2025_Q3', '2025_Q2', '2025_Q1',
+];
+
+function _proyPlaceholderHtml(trimestreKey) {
+  const label = trimestreKey.replace('_', ' ');
+  return `<div class="table-card" style="margin-bottom:10px;border-left:3px solid var(--border);opacity:.55">
+    <div class="table-title" style="font-size:14px;display:flex;align-items:center;gap:8px">
+      🔮 ${label} <span style="font-weight:400;color:var(--muted);font-size:9px">— sin datos todavía</span>
+    </div>
+  </div>`;
+}
+
 function renderProyeccion() {
   const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
   const trimestres = P.trimestres || {};
   const cont = document.getElementById('proy-container');
-  const keys = Object.keys(trimestres).sort().reverse();   // más reciente primero
 
-  if (!keys.length) {
-    cont.innerHTML = '<div class="table-card" style="text-align:center;color:var(--muted);padding:20px">Sin datos — actualizar el tablero para cargar la hoja FORECAST.</div>';
-    return;
-  }
+  // Unión de la plantilla fija + cualquier trimestre con datos que no esté
+  // en la plantilla (ej. si aparece uno más nuevo antes de actualizarla).
+  const keys = Array.from(new Set([..._PROY_TEMPLATE, ...Object.keys(trimestres)]))
+    .sort().reverse();
 
-  // Por defecto: sólo el trimestre más reciente arranca expandido.
+  // Por defecto: sólo el trimestre más reciente con datos arranca expandido.
   if (!window._proyExpandedInit) {
-    window.proyExpanded = { [keys[0]]: true };
+    const primeroConDatos = keys.find(k => trimestres[k]) || keys[0];
+    window.proyExpanded = { [primeroConDatos]: true };
     window._proyExpandedInit = true;
   }
 
-  cont.innerHTML = keys.map(k => _proyCuadroHtml(k, trimestres[k], !!window.proyExpanded[k])).join('');
+  cont.innerHTML = keys.map(k =>
+    trimestres[k] ? _proyCuadroHtml(k, trimestres[k], !!window.proyExpanded[k]) : _proyPlaceholderHtml(k)
+  ).join('');
 }
 
 
