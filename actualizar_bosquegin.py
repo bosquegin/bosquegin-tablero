@@ -1040,7 +1040,7 @@ COSTOS_SHEET_GID = "173195948"   # pestaña con costos actualizados (3 filas hea
 DEST_SHEET_GID   = "1954024258"  # pestaña RESUMEN PRODUCTOS X DESTILERIA
 DEST_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_resumen_dest.csv")
 PROYECCION_SHEET_GID = "1879268030"  # pestaña FORECAST (proyección de compra/venta trimestral)
-PROYECCION_CSV       = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion.csv")
+PROYECCION_CACHE     = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion_cache.json")
 CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
 CERV_SHEET_GID   = "2130605343"
 CERV_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_cervezas.csv")
@@ -2324,126 +2324,141 @@ def _proy_parse_tabla(data_rows, nombres_meses):
     return productos
 
 
+def _proy_leer_celda(row, col_letra="A"):
+    """
+    Lee UNA celda puntual (ej. A15) de la hoja FORECAST. gviz trunca los
+    rangos multi-fila en el primer hueco en blanco "grande" (confirmado
+    empíricamente 2026-07-15: un pedido de la hoja completa o de rangos
+    amplios se corta después del primer bloque de trimestre y no sigue con
+    los siguientes) — por eso hay que leer celda por celda para descubrir
+    dónde empieza cada trimestre, y sólo usar rangos multi-fila DENTRO de
+    un bloque ya delimitado (eso sí es confiable).
+    """
+    url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/gviz/tq"
+           f"?tqx=out:csv&gid={PROYECCION_SHEET_GID}&range={col_letra}{row}:{col_letra}{row}")
+    content = _download_costos_via_cdp(url)
+    if content is None:
+        return None
+    return content.strip().strip('"')
+
+
+def _proy_descubrir_headers(max_row=400, salto_esperado=15, tolerancia=25):
+    """
+    Descubre todas las filas "FORECAST Q# AAAA - OBJETIVO..." de la hoja,
+    sondeando celda por celda en columna A. Empieza en la fila 1 y, tras cada
+    hallazgo, salta ~salto_esperado filas adelante (los bloques suelen medir
+    12-18 filas) y sondea ventana por ventana hasta encontrar el siguiente o
+    agotar la tolerancia (asume que no hay más trimestres).
+    Devuelve lista [(fila_1indexada, "AAAA_Q#"), ...] en orden ascendente.
+    """
+    encontrados = []
+    row = 1
+    ultimo_hallazgo = 0
+    while row <= max_row:
+        val = _proy_leer_celda(row) or ""
+        m_q = re.search(r'FORECAST\s+Q\s*(\d)\D+(\d{4})', val, re.IGNORECASE)
+        if m_q:
+            trimestre = f"{m_q.group(2)}_Q{m_q.group(1)}"
+            encontrados.append((row, trimestre))
+            ultimo_hallazgo = row
+            row += max(salto_esperado - 5, 1)   # saltar cerca del próximo esperado
+        else:
+            row += 1
+            if encontrados and (row - ultimo_hallazgo) > tolerancia:
+                break   # sin hallazgos nuevos en un buen tramo -> se acabaron los trimestres
+    return encontrados
+
+
 def fetch_proyeccion_trimestral():
     """
-    Descarga la hoja FORECAST (Data/Costos y PVP -> Google Sheets gid=PROYECCION_SHEET_GID)
-    con la proyección trimestral de compra/venta por producto.
+    Descubre y descarga TODOS los trimestres "FORECAST Q# AAAA - OBJETIVO"
+    presentes en la hoja FORECAST (Data/Costos y PVP -> Google Sheets).
+    Cada bloque es una tabla plana de productos (código, stock, proyección de
+    abastecimiento/venta por mes, alerta) — NO hay una sub-sección "resultado"
+    separada; eso fue un malentendido de una versión anterior de este parser
+    causado por leer un export truncado que mezclaba fragmentos de distintos
+    trimestres (ver commit 2026-07-15).
 
-    Estructura de la hoja (detectada 2026-07-13, trimestre Q2 2026):
-      Fila 0: header. col[0] tiene el título "FORECAST Q<N> <AAAA> - OBJETIVO ...".
-      Bloque 1 ("objetivo"): filas de producto hasta la primera fila vacía.
-      Luego una fila con "RESULTADO" en col 31 (título de sección) y una fila de
-      sub-header, seguidas del bloque 2 ("resultado" — revisión posterior del
-      mismo trimestre, ya con datos reales del primer mes incorporados).
-      35 columnas de datos por producto (ver _PROY_MESES_COLS / _proy_parse_tabla).
-
-    Devuelve {"trimestre": "2026_Q2", "meses": [...], "objetivo": [...], "resultado": [...], "error": None|str}
-    Cachea el CSV crudo en PROYECCION_CSV (se refresca 1x/día, igual que costos/cervezas).
+    Devuelve {"trimestres": {"2025_Q1": {...}, "2026_Q3": {...}, ...}, "error": None|str}
+    donde cada entrada tiene {"meses": [...], "venta_prom_label": "...", "productos": [...]}.
+    El descubrimiento sondea celda por celda (lento, ~1-2 min con 7+ trimestres)
+    así que el resultado se cachea 1x/día en PROYECCION_CACHE, igual que
+    costos/cervezas/destilería.
     """
-    import csv
-    today = date.today()
-    if os.path.exists(PROYECCION_CSV) and date.fromtimestamp(os.path.getmtime(PROYECCION_CSV)) >= today:
-        print("  Proyección trimestral al día, usando local")
-    else:
+    import csv, io
+
+    if os.path.exists(PROYECCION_CACHE) and date.fromtimestamp(os.path.getmtime(PROYECCION_CACHE)) >= date.today():
+        try:
+            with open(PROYECCION_CACHE, encoding="utf-8") as f:
+                cache = json.load(f)
+            print(f"  Proyección trimestral al día (caché), {len(cache.get('trimestres', {}))} trimestre(s)")
+            return cache
+        except Exception:
+            pass   # caché corrupto -> recalcular
+
+    headers = _proy_descubrir_headers()
+    if not headers:
+        return {"trimestres": {}, "error": "No se encontró ningún encabezado FORECAST en la hoja"}
+
+    trimestres = {}
+    for i, (fila_inicio, trimestre) in enumerate(headers):
+        fila_fin = (headers[i + 1][0] - 1) if i + 1 < len(headers) else (fila_inicio + 20)
+        rango = f"A{fila_inicio}:BO{fila_fin}"
         url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/"
-               f"gviz/tq?tqx=out:csv&gid={PROYECCION_SHEET_GID}")
+               f"gviz/tq?tqx=out:csv&gid={PROYECCION_SHEET_GID}&range={rango}")
         content = _download_costos_via_cdp(url)
-        if content and len(content.splitlines()) >= 3:
-            os.makedirs(os.path.dirname(PROYECCION_CSV), exist_ok=True)
-            with open(PROYECCION_CSV, "w", encoding="utf-8-sig", newline="") as f:
-                f.write(content)
-            print(f"  Proyección trimestral descargada ({len(content.splitlines())} filas)")
-        else:
-            print("  Proyección trimestral: CDP no disponible, usando local si existe")
+        if not content:
+            print(f"  Proyección trimestral: {trimestre} — sin contenido ({rango})")
+            continue
+        rows = list(csv.reader(io.StringIO(content)))
+        if not rows:
+            continue
 
-    if not os.path.exists(PROYECCION_CSV):
-        return {"trimestre": "?", "meses": [], "objetivo": [], "resultado": [], "error": "Sin datos"}
+        header_row = rows[0]
+        meses_labels = []
+        for c in (4, 6, 8):
+            h = header_row[c] if len(header_row) > c else ""
+            mm = re.search(r'RETIRO\s+(\w+)', h, re.IGNORECASE)
+            meses_labels.append(mm.group(1).title() if mm else f"Mes{len(meses_labels)+1}")
+        h10 = header_row[10] if len(header_row) > 10 else ""
+        mm10 = re.search(r'VENTA\s+PROMEDIO\s+MENSUAL\s+(.+)', h10, re.IGNORECASE)
+        venta_prom_label = mm10.group(1).strip().title() if mm10 else ""
 
-    with open(PROYECCION_CSV, encoding="utf-8-sig") as f:
-        rows = list(csv.reader(f))
-    if len(rows) < 3:
-        return {"trimestre": "?", "meses": [], "objetivo": [], "resultado": [], "error": "CSV incompleto"}
+        productos = _proy_parse_tabla(rows[1:], meses_labels)
+        trimestres[trimestre] = {
+            "meses": meses_labels, "venta_prom_label": venta_prom_label,
+            "productos": productos,
+        }
+        print(f"  Proyección trimestral: {trimestre} (fila {fila_inicio}) — {len(productos)} productos")
 
-    m_q = re.search(r'Q\s*(\d)\D+(\d{4})', rows[0][0] if rows[0] else "")
-    trimestre = f"{m_q.group(2)}_Q{m_q.group(1)}" if m_q else "?"
-    meses_labels = []
-    # Nombres de mes reales desde los headers "...RETIRO <MES>" (col 4,6,8)
-    for c in (4, 6, 8):
-        h = rows[0][c] if len(rows[0]) > c else ""
-        mm = re.search(r'RETIRO\s+(\w+)', h, re.IGNORECASE)
-        meses_labels.append(mm.group(1).title() if mm else f"Mes{len(meses_labels)+1}")
+    resultado = {"trimestres": trimestres, "error": None if trimestres else "Ningún bloque con datos"}
 
-    # Etiqueta del período de referencia para "venta promedio mensual" (col 10),
-    # ej. "VENTA PROMEDIO MENSUAL Q2 2026" -> "Q2 2026"
-    h10 = rows[0][10] if len(rows[0]) > 10 else ""
-    mm10 = re.search(r'VENTA\s+PROMEDIO\s+MENSUAL\s+(.+)', h10, re.IGNORECASE)
-    venta_prom_label = mm10.group(1).strip().title() if mm10 else ""
+    # Cachear el resultado completo (evita repetir el sondeo celda por celda,
+    # que es lento, en cada corrida del día).
+    if trimestres:
+        try:
+            os.makedirs(os.path.dirname(PROYECCION_CACHE), exist_ok=True)
+            with open(PROYECCION_CACHE, "w", encoding="utf-8") as f:
+                json.dump(resultado, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"  Advertencia guardando caché de proyección: {e}")
 
-    # Bloque "objetivo": desde fila 1 hasta la primera fila vacía
-    fin_obj = 1
-    while fin_obj < len(rows) and rows[fin_obj] and str(rows[fin_obj][0]).strip():
-        fin_obj += 1
-    objetivo = _proy_parse_tabla(rows[1:fin_obj], meses_labels)
-
-    # Bloques "resultado": la hoja puede tener VARIAS revisiones apiladas (una
-    # por cada vez que se re-evaluó el trimestre con datos reales más recientes).
-    # Se capturan TODAS, no sólo la primera, para ver cómo evolucionó la alerta.
-    revisiones = []
-    i = fin_obj
-    while i < len(rows):
-        row = rows[i]
-        if row and len(row) > 31 and str(row[31]).strip().upper() == "RESULTADO":
-            inicio = i + 2   # saltar fila "RESULTADO" y la fila de sub-header
-            fin = inicio
-            while fin < len(rows) and rows[fin] and str(rows[fin][0]).strip():
-                fin += 1
-            productos = _proy_parse_tabla(rows[inicio:fin], meses_labels)
-            if productos:
-                revisiones.append(productos)
-            i = fin
-        else:
-            i += 1
-
-    resultado = revisiones[-1] if revisiones else []
-    print(f"  Proyección trimestral: {trimestre} — {len(objetivo)} objetivo, "
-          f"{len(revisiones)} revisión(es) (última: {len(resultado)} productos)")
-    return {"trimestre": trimestre, "meses": meses_labels, "venta_prom_label": venta_prom_label,
-            "objetivo": objetivo, "resultado": resultado, "revisiones": revisiones, "error": None}
+    return resultado
 
 
 def cargar_proyeccion_trimestral_historica():
     """
-    Combina el snapshot ACTUAL de la hoja FORECAST (fetch_proyeccion_trimestral())
-    con el histórico ya guardado en data_proyeccion.js. La hoja de origen se
-    reescribe cada trimestre (no guarda historial propio), así que el archivo
-    JS local es la única fuente de verdad para trimestres pasados: cada
-    corrida agrega/actualiza el trimestre vigente y preserva los anteriores.
-    Devuelve {"trimestres": {"2025_Q1": {...}, "2026_Q2": {...}, ...}, "error": None|str}
+    Descubre y descarga TODOS los trimestres presentes en la hoja FORECAST.
+    (Antes esta función mezclaba el snapshot actual con un histórico guardado
+    en data_proyeccion.js, partiendo de la premisa de que la hoja se
+    reescribía cada trimestre. Esa premisa era falsa: la hoja siempre tuvo
+    todos los trimestres apilados — lo que pasaba es que el export de gviz se
+    truncaba en el primer hueco en blanco y sólo devolvía uno por vez, dando
+    la impresión de que el contenido "cambiaba" entre corridas. Corregido
+    2026-07-15 — ver fetch_proyeccion_trimestral().)
+    Devuelve {"trimestres": {"2025_Q1": {...}, "2026_Q3": {...}, ...}, "error": None|str}
     """
-    js_path = os.path.join(BASE, "data_proyeccion.js")
-    historico = {}
-    if os.path.exists(js_path):
-        try:
-            raw = open(js_path, encoding="utf-8").read()
-            marker = "window.BOSQUE_DATA.proyeccion="
-            idx = raw.find(marker)
-            if idx >= 0:
-                js_body = raw[idx + len(marker):].rstrip(";\n ")
-                historico = json.loads(js_body).get("trimestres", {})
-        except Exception as e:
-            print(f"  Advertencia leyendo histórico de proyección: {e}")
-
-    actual = fetch_proyeccion_trimestral()
-    if actual.get("error"):
-        return {"trimestres": historico, "error": actual["error"] if not historico else None}
-
-    if actual["trimestre"] != "?":
-        historico[actual["trimestre"]] = {
-            "meses": actual["meses"], "venta_prom_label": actual.get("venta_prom_label", ""),
-            "objetivo": actual["objetivo"],
-            "resultado": actual["resultado"], "revisiones": actual["revisiones"],
-        }
-    return {"trimestres": historico, "error": None}
+    return fetch_proyeccion_trimestral()
 
 
 # ─── 6a. RESUMEN DESTILERÍA / CERVEZAS ────────────────────────────────────────
