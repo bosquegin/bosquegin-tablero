@@ -4208,8 +4208,10 @@ function scSetSort(table, col) {
 
 
 // ── PROYECCIÓN TRIMESTRAL (FORECAST) — grilla fiel a la hoja, un cuadro por trimestre ──
+// Cada trimestre es UNA tabla plana de productos (T.productos) — no hay
+// distinción "objetivo/resultado" (eso fue un malentendido de una versión
+// anterior causado por un export truncado; ver actualizar_bosquegin.py).
 window.proyExpanded = {};     // <trimestre> -> bool (acordeón; sólo el más reciente abierto por defecto)
-window.proyObjetivoOpen = {}; // <trimestre> -> bool (Objetivo plegado cuando ya hay Resultado)
 
 function _proyKpis(productos) {
   const enAlerta = productos.filter(p => (p.alerta || '').toUpperCase().includes('COMPRAR'));
@@ -4243,8 +4245,9 @@ const _P = 'background:rgba(248,113,113,.12)';  // salmón — venta promedio, c
 const _TD = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:10px';
 const _TH = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em';
 
-function _proyGridHtml(trimestreKey, vista, T, productos) {
+function _proyGridHtml(T) {
   const meses = T.meses || [];
+  const productos = T.productos || [];
   const ventaPromLabel = T.venta_prom_label || 'período anterior';
   const nCols = 3 + 5 + 8 + 5;
 
@@ -4328,26 +4331,17 @@ function proyToggleTrimestre(key) {
   renderProyeccion();
 }
 
-function proyToggleObjetivo(key) {
-  window.proyObjetivoOpen[key] = !window.proyObjetivoOpen[key];
-  renderProyeccion();
-}
-
 function _proyCuadroHtml(trimestreKey, T, expanded) {
   const label = trimestreKey.replace('_', ' ');
-  const tieneResultado = (T.resultado || []).length > 0;
-  const objetivoK = _proyKpis(T.objetivo || []);
-  const resultadoK = tieneResultado ? _proyKpis(T.resultado) : null;
-  const kpisMostrar = resultadoK || objetivoK;
-  const nRev = (T.revisiones || []).length;
+  const productos = T.productos || [];
+  const kpis = _proyKpis(productos);
   const arrow = expanded ? '▾' : '▸';
 
   const headerRow = `
     <div class="table-title" style="font-size:14px;margin-bottom:${expanded?'12px':'0'};cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px" onclick="proyToggleTrimestre('${trimestreKey}')">
       <span style="color:var(--muted);font-size:11px">${arrow}</span> 🔮 ${label}
       ${!expanded ? `<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">
-        ${kpisMostrar.nAlerta} en alerta · ${Math.round(kpisMostrar.totalUnidades).toLocaleString('es-AR')} un. a comprar
-        ${tieneResultado ? ` · ${nRev} revisión(es)` : ' · sin revisión aún'}
+        ${kpis.nAlerta} en alerta · ${Math.round(kpis.totalUnidades).toLocaleString('es-AR')} un. a comprar
       </span>` : ''}
     </div>`;
 
@@ -4358,39 +4352,20 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
   const kpiRow = `
     <div class="kpi-grid" style="margin-bottom:14px">
       <div class="kpi-card blue"><div class="kpi-label">Trimestre</div><div class="kpi-value" style="font-size:18px">${label}</div>
-        <div class="kpi-change">${tieneResultado ? `${nRev} revisión(es) registradas` : 'Forecast inicial, sin revisión aún'}</div></div>
-      <div class="kpi-card red"><div class="kpi-label">Productos en alerta</div><div class="kpi-value">${kpisMostrar.nAlerta}</div>
+        <div class="kpi-change">${productos.length} productos</div></div>
+      <div class="kpi-card red"><div class="kpi-label">Productos en alerta</div><div class="kpi-value">${kpis.nAlerta}</div>
         <div class="kpi-change down">Requieren compra</div></div>
-      <div class="kpi-card yellow"><div class="kpi-label">Unidades a comprar</div><div class="kpi-value">${Math.round(kpisMostrar.totalUnidades).toLocaleString('es-AR')}</div>
-        <div class="kpi-change">${kpisMostrar.totalPallets.toFixed(1)} pallets</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Cumplimiento objetivo</div><div class="kpi-value">${kpisMostrar.cumplPct !== null ? kpisMostrar.cumplPct + '%' : '—'}</div>
+      <div class="kpi-card yellow"><div class="kpi-label">Unidades a comprar</div><div class="kpi-value">${Math.round(kpis.totalUnidades).toLocaleString('es-AR')}</div>
+        <div class="kpi-change">${kpis.totalPallets.toFixed(1)} pallets</div></div>
+      <div class="kpi-card green"><div class="kpi-label">Cumplimiento objetivo</div><div class="kpi-value">${kpis.cumplPct !== null ? kpis.cumplPct + '%' : '—'}</div>
         <div class="kpi-change">venta actual vs. objetivo</div></div>
     </div>`;
-
-  // Si ya hay una revisión, el Objetivo original queda plegado por defecto
-  // (lo que importa para decidir es la última revisión, no el forecast inicial).
-  const objetivoOpen = !tieneResultado || !!window.proyObjetivoOpen[trimestreKey];
-  const objetivoBlock = `
-    <div class="table-card" style="margin-top:0">
-      <div class="table-title" style="${tieneResultado ? 'cursor:pointer;user-select:none' : ''}" ${tieneResultado ? `onclick="proyToggleObjetivo('${trimestreKey}')"` : ''}>
-        ${tieneResultado ? `<span style="color:var(--muted);font-size:11px">${objetivoOpen ? '▾' : '▸'}</span> ` : ''}📋 Objetivo (inicio de trimestre)
-        ${tieneResultado && !objetivoOpen ? '<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">ver forecast original</span>' : ''}
-      </div>
-      ${objetivoOpen ? _proyGridHtml(trimestreKey, 'objetivo', T, T.objetivo || []) : ''}
-    </div>`;
-
-  const resultadoBlock = tieneResultado ? `
-    <div class="table-card" style="margin-top:12px">
-      <div class="table-title">✅ Última revisión (resultado) <span style="font-weight:400;color:var(--muted);font-size:9px">— ventas reales ya incorporadas</span></div>
-      ${_proyGridHtml(trimestreKey, 'resultado', T, T.resultado)}
-    </div>` : '';
 
   return `
     <div class="table-card" style="margin-bottom:20px;border-left:3px solid var(--accent)">
       ${headerRow}
       ${kpiRow}
-      ${objetivoBlock}
-      ${resultadoBlock}
+      ${_proyGridHtml(T)}
     </div>`;
 }
 
