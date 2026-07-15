@@ -4207,18 +4207,9 @@ function scSetSort(table, col) {
 
 
 
-// ── PROYECCIÓN TRIMESTRAL (FORECAST) — un cuadro por trimestre, como en la hoja ──
-window.proySort = {};         // "<trimestre>_<vista>" -> {col, asc}
-window.proySelected = {};     // <trimestre> -> {vista, cod}
+// ── PROYECCIÓN TRIMESTRAL (FORECAST) — grilla fiel a la hoja, un cuadro por trimestre ──
 window.proyExpanded = {};     // <trimestre> -> bool (acordeón; sólo el más reciente abierto por defecto)
 window.proyObjetivoOpen = {}; // <trimestre> -> bool (Objetivo plegado cuando ya hay Resultado)
-
-function _proyAlertaBadge(alerta) {
-  const a = (alerta || '').toUpperCase();
-  if (a.includes('COMPRAR')) return `<span style="background:rgba(248,113,113,.15);color:var(--red);padding:2px 8px;border-radius:10px;font-weight:700;font-size:9px;white-space:nowrap">🔴 COMPRAR</span>`;
-  if (a.includes('SUFICIENTE')) return `<span style="background:rgba(74,222,128,.15);color:var(--green);padding:2px 8px;border-radius:10px;font-weight:700;font-size:9px;white-space:nowrap">🟢 OK</span>`;
-  return `<span style="color:var(--muted);font-size:9px">${a || '—'}</span>`;
-}
 
 function _proyKpis(productos) {
   const enAlerta = productos.filter(p => (p.alerta || '').toUpperCase().includes('COMPRAR'));
@@ -4231,132 +4222,105 @@ function _proyKpis(productos) {
   return { nAlerta: enAlerta.length, totalUnidades, totalPallets, cumplPct };
 }
 
-function _proyOrdenar(productos, sortKey) {
-  const s = window.proySort[sortKey] || { col: 'meses_stock', asc: true };
-  const getVal = (p) => s.col === 'venta_prom' ? (p.venta_prom_mensual_anterior || 0) : p[s.col];
-  return productos.slice().sort((a, b) => {
-    const aCompra = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
-    const bCompra = (b.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
-    if (aCompra !== bCompra) return aCompra - bCompra;
-    const av = getVal(a), bv = getVal(b);
-    if (typeof av === 'string') return s.asc ? av.localeCompare(bv, 'es') : bv.localeCompare(av, 'es');
-    return s.asc ? (av - bv) : (bv - av);
-  });
-}
-
-function proySetSort(trimestreKey, vista, col) {
-  const sortKey = trimestreKey + '_' + vista;
-  const s = window.proySort[sortKey] || { col: 'meses_stock', asc: true };
-  if (s.col === col) s.asc = !s.asc;
-  else { s.col = col; s.asc = ['art', 'cod'].includes(col); }
-  window.proySort[sortKey] = s;
-  renderProyeccion();
-}
-
-const _PROY_COLS = [
-  ['alerta', 'Alerta', false], ['cod', 'Código', false], ['art', 'Artículo', false],
-  ['meses_stock', 'Meses stock', true], ['stock_actual', 'Stock actual', true],
-  ['venta_prom', 'Venta prom/mes', true], ['comprar', 'A comprar (un)', true],
-  ['cantidad_pallets', 'Pallets', true],
-];
-
-function _proyTablaHtml(trimestreKey, vista, productos) {
-  const sortKey = trimestreKey + '_' + vista;
-  const s = window.proySort[sortKey] || { col: 'meses_stock', asc: true };
-  const sorted = _proyOrdenar(productos, sortKey);
-  const theadCells = _PROY_COLS.map(([col, label, right]) => {
-    const ico = s.col === col ? (s.asc ? '▲' : '▼') : '⇅';
-    return `<th style="cursor:pointer;user-select:none;white-space:nowrap;${right?'text-align:right':''}" onclick="proySetSort('${trimestreKey}','${vista}','${col}')">${label} <span style="font-size:8px">${ico}</span></th>`;
-  }).join('');
-  const rows = sorted.map(p => `
-    <tr style="cursor:pointer" onclick="proySelectProducto('${trimestreKey}','${vista}','${p.cod}')">
-      <td style="padding:6px 8px">${_proyAlertaBadge(p.alerta)}</td>
-      <td style="padding:6px 8px"><code>${p.cod}</code></td>
-      <td style="padding:6px 8px;font-size:10px">${p.art}</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:700;color:${p.meses_stock < 1 ? 'var(--red)' : p.meses_stock < 2 ? 'var(--yellow)' : 'var(--green)'}">${(p.meses_stock||0).toFixed(1)}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(p.stock_actual||0).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(p.venta_prom_mensual_anterior||0).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:700">${p.comprar > 0 ? Math.round(p.comprar).toLocaleString('es-AR') : '—'}</td>
-      <td style="padding:6px 8px;text-align:right">${p.cantidad_pallets > 0 ? p.cantidad_pallets.toFixed(1) : '—'}</td>
-    </tr>`).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
-  return `<div style="overflow-x:auto"><table><thead><tr>${theadCells}</tr></thead><tbody id="proy-tbody-${trimestreKey}-${vista}">${rows}</tbody></table></div>`;
-}
-
-function _proyDetalleHtml(trimestreKey) {
-  const sel = window.proySelected[trimestreKey];
-  if (!sel) return '';
-  const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
-  const T = P.trimestres[trimestreKey] || {};
-  const productos = (sel.vista === 'objetivo' ? T.objetivo : T.resultado) || T.objetivo || [];
-  const p = productos.find(x => x.cod === sel.cod);
-  if (!p) return '';
-  const meses = Object.keys(p.mensual || {});
-  // Distribuir "a comprar" (total del trimestre) entre los meses, en proporción
-  // a la venta objetivo de cada mes — así se sabe cuánto pedir cada mes, no sólo
-  // el total del trimestre.
+// Reparto por resto mayor: la cantidad "a comprar" del trimestre se distribuye
+// entre los meses en proporción a la venta objetivo de cada uno, redondeando de
+// forma que la suma mensual coincida exactamente con el total (no cada mes por
+// separado, que puede desviar la suma en ±1).
+function _proyPedidoPorMes(p, meses) {
   const totalObjetivo = p.total_objetivo_ventas || 0;
   const comprarTotal = p.comprar || 0;
-  // Reparto por resto mayor: redondea hacia abajo y asigna las unidades que
-  // faltan a los meses con mayor parte fraccionaria, para que la suma mensual
-  // coincida exactamente con el total a comprar del trimestre (sin esto,
-  // redondear cada mes por separado puede dar una suma distinta al total).
-  const pedidoExacto = meses.map(mk => {
-    const m = p.mensual[mk];
-    return (comprarTotal > 0 && totalObjetivo > 0)
-      ? comprarTotal * (m.venta_objetivo || 0) / totalObjetivo
-      : 0;
-  });
-  const pedidoPorMes = pedidoExacto.map(v => Math.floor(v));
-  let faltante = Math.round(comprarTotal) - pedidoPorMes.reduce((a, b) => a + b, 0);
-  const ordenResto = pedidoExacto
-    .map((v, i) => ({ i, resto: v - Math.floor(v) }))
-    .sort((a, b) => b.resto - a.resto);
-  for (let k = 0; k < ordenResto.length && faltante > 0; k++, faltante--) {
-    pedidoPorMes[ordenResto[k].i]++;
-  }
-
-  const rows = meses.map((mk, i) => {
-    const m = p.mensual[mk];
-    const pctColor = m.objetivo_cumplido_pct >= 90 ? 'var(--green)' : m.objetivo_cumplido_pct >= 60 ? 'var(--yellow)' : 'var(--red)';
-    const pedido = pedidoPorMes[i];
-    return `<tr>
-      <td style="padding:6px 8px;font-weight:700">${m.label}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(m.proyeccion_abastecimiento).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(m.pendiente_retiro).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(m.venta_objetivo).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(m.venta_actual).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct)}%</td>
-      <td style="padding:6px 8px;text-align:right">${Math.round(m.saldo_stock).toLocaleString('es-AR')}</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent2)">${pedido > 0 ? pedido.toLocaleString('es-AR') : '—'}</td>
-    </tr>`;
-  }).join('');
-
-  const totalRow = comprarTotal > 0 ? `<tr style="border-top:1px solid var(--border)">
-      <td colspan="7" style="padding:6px 8px;text-align:right;font-weight:700;color:var(--muted)">Total a comprar (trimestre)</td>
-      <td style="padding:6px 8px;text-align:right;font-weight:700;color:var(--accent2)">${Math.round(comprarTotal).toLocaleString('es-AR')}</td>
-    </tr>` : '';
-
-  return `
-    <div class="table-card" style="margin-top:10px;background:rgba(99,102,241,.05)">
-      <div class="table-title" style="font-size:10px">📆 Detalle mensual — ${p.cod} · ${p.art}</div>
-      <div style="overflow-x:auto"><table><thead><tr>
-        <th style="text-align:left;padding:6px 8px">Mes</th>
-        <th style="text-align:right;padding:6px 8px">Proyección abastec.</th>
-        <th style="text-align:right;padding:6px 8px">Pendiente retiro</th>
-        <th style="text-align:right;padding:6px 8px">Venta objetivo</th>
-        <th style="text-align:right;padding:6px 8px">Venta actual</th>
-        <th style="text-align:right;padding:6px 8px">% Cumplido</th>
-        <th style="text-align:right;padding:6px 8px">Saldo stock</th>
-        <th style="text-align:right;padding:6px 8px;color:var(--accent2)">A pedir este mes</th>
-      </tr></thead><tbody>${rows}${totalRow}</tbody></table></div>
-      ${comprarTotal > 0 ? `<div style="font-size:8px;color:var(--muted);margin-top:6px">ⓘ "A pedir este mes" distribuye el total a comprar del trimestre en proporción a la venta objetivo de cada mes.</div>` : ''}
-    </div>`;
+  const exacto = meses.map(mk => (comprarTotal > 0 && totalObjetivo > 0)
+    ? comprarTotal * ((p.mensual[mk] || {}).venta_objetivo || 0) / totalObjetivo : 0);
+  const piso = exacto.map(v => Math.floor(v));
+  let faltante = Math.round(comprarTotal) - piso.reduce((a, b) => a + b, 0);
+  const orden = exacto.map((v, i) => ({ i, resto: v - Math.floor(v) })).sort((a, b) => b.resto - a.resto);
+  for (let k = 0; k < orden.length && faltante > 0; k++, faltante--) piso[orden[k].i]++;
+  return piso;
 }
 
-function proySelectProducto(trimestreKey, vista, cod) {
-  const prev = window.proySelected[trimestreKey];
-  window.proySelected[trimestreKey] = (prev && prev.vista === vista && prev.cod === cod) ? null : { vista, cod };
-  renderProyeccion();
+const _Y = 'background:rgba(250,204,21,.14)';   // amarillo — columnas de stock, como en la hoja
+const _P = 'background:rgba(248,113,113,.12)';  // salmón — venta promedio, como en la hoja
+const _TD = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:10px';
+const _TH = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em';
+
+function _proyGridHtml(trimestreKey, vista, T, productos) {
+  const meses = T.meses || [];
+  const ventaPromLabel = T.venta_prom_label || 'período anterior';
+  const nCols = 3 + 5 + 8 + 5;
+
+  const sorted = productos.slice().sort((a, b) => {
+    const ac = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
+    const bc = (b.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
+    if (ac !== bc) return ac - bc;
+    return (a.meses_stock || 0) - (b.meses_stock || 0);
+  });
+
+  const groupRow = `<tr>
+    <th colspan="3" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Situación actual</th>
+    <th colspan="5" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección abastecimiento</th>
+    <th colspan="8" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección ventas</th>
+    <th colspan="5" style="${_TH};background:rgba(56,189,248,.18);text-align:center">Pedido sugerido</th>
+  </tr>`;
+  const headRow = `<tr>
+    <th style="${_TH};text-align:left">Código</th>
+    <th style="${_TH};text-align:left">Descripción</th>
+    <th style="${_TH};${_Y}">Stock actual</th>
+    <th style="${_TH}">Proy. ${meses[0]||'Mes1'}</th>
+    <th style="${_TH}">Proy. ${meses[1]||'Mes2'}</th>
+    <th style="${_TH}">Proy. ${meses[2]||'Mes3'}</th>
+    <th style="${_TH};${_Y}">Stock + proy.</th>
+    <th style="${_TH};${_P}">Venta prom. ${ventaPromLabel}</th>
+    <th style="${_TH}">Venta obj. ${meses[0]||'Mes1'}</th>
+    <th style="${_TH};${_Y}">Saldo ${meses[0]||'Mes1'}</th>
+    <th style="${_TH}">Venta obj. ${meses[1]||'Mes2'}</th>
+    <th style="${_TH};${_Y}">Saldo ${meses[1]||'Mes2'}</th>
+    <th style="${_TH}">Venta obj. ${meses[2]||'Mes3'}</th>
+    <th style="${_TH};${_Y}">Saldo ${meses[2]||'Mes3'}</th>
+    <th style="${_TH}">Total obj. ventas</th>
+    <th style="${_TH}">Meses stock</th>
+    <th style="${_TH}">Pedir ${meses[0]||'Mes1'}</th>
+    <th style="${_TH}">Pedir ${meses[1]||'Mes2'}</th>
+    <th style="${_TH}">Pedir ${meses[2]||'Mes3'}</th>
+    <th style="${_TH}">Total a comprar</th>
+    <th style="${_TH}">Pallets</th>
+  </tr>`;
+
+  const rows = sorted.map(p => {
+    const mk = Object.keys(p.mensual || {});
+    const m1 = p.mensual[mk[0]] || {}, m2 = p.mensual[mk[1]] || {}, m3 = p.mensual[mk[2]] || {};
+    const pedido = _proyPedidoPorMes(p, mk);
+    const esCompra = (p.alerta || '').toUpperCase().includes('COMPRAR');
+    const puntoAlerta = esCompra
+      ? `<span title="Alerta: comprar" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:5px"></span>`
+      : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px"></span>`;
+    const mesesStkColor = p.meses_stock < 1 ? 'var(--red)' : p.meses_stock < 2 ? 'var(--yellow)' : 'var(--text)';
+    const n = v => Math.round(v || 0).toLocaleString('es-AR');
+    return `<tr>
+      <td style="${_TD};text-align:left">${puntoAlerta}<code>${p.cod}</code></td>
+      <td style="${_TD};text-align:left;white-space:normal;min-width:180px">${p.art}</td>
+      <td style="${_TD};${_Y};font-weight:700">${n(p.stock_actual)}</td>
+      <td style="${_TD}">${n(m1.proyeccion_abastecimiento)}</td>
+      <td style="${_TD}">${n(m2.proyeccion_abastecimiento)}</td>
+      <td style="${_TD}">${n(m3.proyeccion_abastecimiento)}</td>
+      <td style="${_TD};${_Y};font-weight:700">${n(p.stock_total)}</td>
+      <td style="${_TD};${_P}">${n(p.venta_prom_mensual_anterior)}</td>
+      <td style="${_TD}">${n(m1.venta_objetivo)}</td>
+      <td style="${_TD};${_Y}">${n(m1.saldo_stock)}</td>
+      <td style="${_TD}">${n(m2.venta_objetivo)}</td>
+      <td style="${_TD};${_Y}">${n(m2.saldo_stock)}</td>
+      <td style="${_TD}">${n(m3.venta_objetivo)}</td>
+      <td style="${_TD};${_Y}">${n(m3.saldo_stock)}</td>
+      <td style="${_TD}">${n(p.total_objetivo_ventas)}</td>
+      <td style="${_TD};font-weight:700;color:${mesesStkColor}">${(p.meses_stock||0).toFixed(1)}</td>
+      <td style="${_TD};color:var(--accent2)">${pedido[0] > 0 ? n(pedido[0]) : '—'}</td>
+      <td style="${_TD};color:var(--accent2)">${pedido[1] > 0 ? n(pedido[1]) : '—'}</td>
+      <td style="${_TD};color:var(--accent2)">${pedido[2] > 0 ? n(pedido[2]) : '—'}</td>
+      <td style="${_TD};font-weight:700;color:var(--accent2)">${p.comprar > 0 ? n(p.comprar) : '—'}</td>
+      <td style="${_TD}">${p.cantidad_pallets > 0 ? p.cantidad_pallets.toFixed(1) : '—'}</td>
+    </tr>`;
+  }).join('') || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
+
+  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead>${groupRow}${headRow}</thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function proyToggleTrimestre(key) {
@@ -4403,9 +4367,6 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
         <div class="kpi-change">venta actual vs. objetivo</div></div>
     </div>`;
 
-  const selVista = (window.proySelected[trimestreKey] || {}).vista;
-  const detalleHtml = _proyDetalleHtml(trimestreKey);
-
   // Si ya hay una revisión, el Objetivo original queda plegado por defecto
   // (lo que importa para decidir es la última revisión, no el forecast inicial).
   const objetivoOpen = !tieneResultado || !!window.proyObjetivoOpen[trimestreKey];
@@ -4415,15 +4376,13 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
         ${tieneResultado ? `<span style="color:var(--muted);font-size:11px">${objetivoOpen ? '▾' : '▸'}</span> ` : ''}📋 Objetivo (inicio de trimestre)
         ${tieneResultado && !objetivoOpen ? '<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">ver forecast original</span>' : ''}
       </div>
-      ${objetivoOpen ? _proyTablaHtml(trimestreKey, 'objetivo', T.objetivo || []) : ''}
-      ${objetivoOpen && selVista === 'objetivo' ? detalleHtml : ''}
+      ${objetivoOpen ? _proyGridHtml(trimestreKey, 'objetivo', T, T.objetivo || []) : ''}
     </div>`;
 
   const resultadoBlock = tieneResultado ? `
     <div class="table-card" style="margin-top:12px">
       <div class="table-title">✅ Última revisión (resultado) <span style="font-weight:400;color:var(--muted);font-size:9px">— ventas reales ya incorporadas</span></div>
-      ${_proyTablaHtml(trimestreKey, 'resultado', T.resultado)}
-      ${selVista === 'resultado' ? detalleHtml : ''}
+      ${_proyGridHtml(trimestreKey, 'resultado', T, T.resultado)}
     </div>` : '';
 
   return `
