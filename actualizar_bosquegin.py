@@ -2764,6 +2764,44 @@ def aplicar_venta_prom_desde_salidas(trimestres, monthly_raw):
             ]
 
 
+def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
+    """
+    Para el MES EN CURSO específicamente (dentro del trimestre actual),
+    reemplaza "venta_actual" y "objetivo_cumplido_pct" por la venta real
+    del mes (a la fecha, parcial) tomada de Salidas_consolidado.xlsx —
+    igual que el resto de los overrides de este trimestre —, en vez del
+    valor de la hoja FORECAST (que para el trimestre en curso copia
+    venta_objetivo tal cual, dando la falsa impresión de 100% cumplido).
+    Los otros 2 meses del trimestre actual (todavía no transcurridos) no
+    se tocan acá.
+    """
+    hoy = date.today()
+    qn = (hoy.month - 1) // 3 + 1
+    trimestre_actual = f"{hoy.year}_Q{qn}"
+    T = trimestres.get(trimestre_actual)
+    if not T or not T.get("productos"):
+        return
+
+    mes_inicio = (qn - 1) * 3 + 1
+    idx_actual = hoy.month - mes_inicio   # 0, 1 o 2
+    prods_mes = monthly_raw.get(str(hoy.year), {}).get(str(hoy.month), {}).get("prods", {})
+
+    n_actualizados = 0
+    for p in T["productos"]:
+        cod = str(p["cod"])
+        meses_keys = list(p.get("mensual", {}).keys())
+        if idx_actual >= len(meses_keys):
+            continue
+        m = p["mensual"][meses_keys[idx_actual]]
+        u = prods_mes.get(cod, {}).get("u", 0.0)
+        m["venta_actual"] = round(u, 1)
+        vobj = m.get("venta_objetivo") or 0
+        m["objetivo_cumplido_pct"] = round(u / vobj * 100, 1) if vobj > 0 else 0.0
+        n_actualizados += 1
+
+    print(f"  Proyección {trimestre_actual}: venta real del mes en curso aplicada a {n_actualizados} producto(s)")
+
+
 def aplicar_correcciones_abastecimiento(trimestres):
     """
     Sobreescribe "proyeccion_abastecimiento" con los valores editados a mano
@@ -3539,6 +3577,7 @@ def main():
         ventas, ventas_hasta, monthly_raw = parse_ventas(salidas_src, prod_lookup=inv_gen, costos=costos)
         print("  -> Datos hasta %s (fuente: %s)" % (ventas_hasta, os.path.basename(salidas_src)))
         aplicar_venta_prom_desde_salidas(proyeccion.get("trimestres", {}), monthly_raw)
+        aplicar_venta_real_mes_actual(proyeccion.get("trimestres", {}), monthly_raw)
         _ok("Ventas/salidas", f"hasta {ventas_hasta}")
     except Exception as e:
         print("  ERROR ventas: %s" % e)
