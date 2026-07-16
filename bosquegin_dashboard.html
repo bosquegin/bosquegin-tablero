@@ -4289,29 +4289,60 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
 }
 
 // Mini gráfico de barras (SVG inline, sin dependencias) con la venta real
-// mensual de los últimos 12 meses de un producto, para ver la tendencia
-// de un vistazo. El último mes se resalta con el color de acento.
+// mensual de los últimos 12 meses de un producto: cantidad vendida en cada
+// mes (etiqueta arriba de cada barra), el último mes resaltado, y una línea
+// de tendencia (regresión lineal simple) que indica si la venta viene
+// subiendo o bajando.
 function _proyTrendChart(historial) {
   if (!historial || !historial.length) return '';
-  const W = 480, H = 58, PAD = 4, BOTTOM = 12;
+  const W = 480, H = 80, PAD = 4, BOTTOM = 12, TOP = 12;
+  const chartH = H - BOTTOM - TOP;
   const vals = historial.map(h => h.unidades || 0);
+  const nMeses = vals.length;
   const max = Math.max.apply(null, vals.concat([1]));
-  const bw = (W - PAD * 2) / vals.length;
+  const bw = (W - PAD * 2) / nMeses;
+
+  // Regresión lineal (mínimos cuadrados) sobre índice de mes -> unidades,
+  // para saber si la tendencia es ascendente, descendente o estable.
+  const meanX = (nMeses - 1) / 2;
+  const meanY = vals.reduce((a, b) => a + b, 0) / nMeses;
+  let num = 0, den = 0;
+  vals.forEach((v, i) => { num += (i - meanX) * (v - meanY); den += (i - meanX) * (i - meanX); });
+  const slope = den !== 0 ? num / den : 0;
+  const intercept = meanY - slope * meanX;
+  const umbral = max * 0.02;   // variación mensual mínima para no considerarla "estable"
+  const tendColor = slope > umbral ? 'var(--green)' : slope < -umbral ? 'var(--red)' : 'var(--muted)';
+  const tendTexto = slope > umbral ? 'ascendente' : slope < -umbral ? 'descendente' : 'estable';
+  const tendFlecha = slope > umbral ? '↑' : slope < -umbral ? '↓' : '→';
+
+  const yFor = v => TOP + chartH - Math.max(0, Math.min(chartH, (v / max) * chartH));
+
   const bars = historial.map((h, i) => {
-    const bh = Math.max(1, (vals[i] / max) * (H - BOTTOM - 6));
+    const bh = Math.max(1, (vals[i] / max) * chartH);
     const bx = PAD + i * bw;
-    const by = H - BOTTOM - bh;
-    const isLast = i === vals.length - 1;
-    return `<rect x="${(bx + bw * 0.15).toFixed(1)}" y="${by.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${isLast ? 'var(--accent2)' : 'var(--border)'}"><title>${h.mes}: ${Math.round(vals[i]).toLocaleString('es-AR')}</title></rect>`;
+    const by = TOP + chartH - bh;
+    const isLast = i === nMeses - 1;
+    const valTxt = Math.round(vals[i]).toLocaleString('es-AR');
+    return `<rect x="${(bx + bw * 0.15).toFixed(1)}" y="${by.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${isLast ? 'var(--accent2)' : 'var(--border)'}"><title>${h.mes}: ${valTxt}</title></rect>
+      <text x="${(bx + bw / 2).toFixed(1)}" y="${Math.max(7, by - 2).toFixed(1)}" font-size="6.2" fill="var(--muted)" text-anchor="middle">${valTxt}</text>`;
   }).join('');
+
   const labels = historial.map((h, i) => {
-    if (i % 3 !== 0 && i !== historial.length - 1) return '';
+    if (i % 3 !== 0 && i !== nMeses - 1) return '';
     const [yr, mo] = h.mes.split('-');
-    return `<text x="${(PAD + i * bw + bw / 2).toFixed(1)}" y="${H - 2}" font-size="7" fill="var(--muted)" text-anchor="middle">${mo}/${yr.slice(2)}</text>`;
+    return `<text x="${(PAD + i * bw + bw / 2).toFixed(1)}" y="${H - 1}" font-size="7" fill="var(--muted)" text-anchor="middle">${mo}/${yr.slice(2)}</text>`;
   }).join('');
+
+  const x0 = PAD + bw / 2, x1 = PAD + (nMeses - 1) * bw + bw / 2;
+  const y0 = yFor(intercept), y1 = yFor(intercept + slope * (nMeses - 1));
+  const trendLine = `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${tendColor}" stroke-width="1.5" stroke-dasharray="3,2"></line>`;
+
   return `<div style="margin-top:10px">
-    <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px">Tendencia de venta · últimos 12 meses</div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:52px;display:block">${bars}${labels}</svg>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+      <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Tendencia de venta · últimos 12 meses</div>
+      <div style="font-size:9px;font-weight:700;color:${tendColor}">${tendFlecha} ${tendTexto}</div>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:70px;display:block">${bars}${trendLine}${labels}</svg>
   </div>`;
 }
 
@@ -4329,6 +4360,13 @@ function _proyGridHtml(trimestreKey, T) {
   // "GIN BOSQUE NATIVO BOTELLA 500 ML") en vez de por urgencia de alerta.
   const sorted = productos.slice().sort((a, b) => (a.art || '').localeCompare(b.art || '', 'es'));
 
+  // Qué mes (0=mes1, 1=mes2, 2=mes3) es "el mes en curso" — sólo aplica si
+  // este cuadro es el del trimestre actual; el resto de los meses no tiene
+  // venta real todavía (son futuros) o ya se cerraron (son historia).
+  const hoyD = new Date();
+  const trimestreActualKey = `${hoyD.getFullYear()}_Q${Math.floor(hoyD.getMonth() / 3) + 1}`;
+  const mesActualIdx = trimestreKey === trimestreActualKey ? (hoyD.getMonth() % 3) : -1;
+
   const headRow = `<tr>
     <th style="${_TH};width:16px"></th>
     <th style="${_TH};text-align:left">Código</th>
@@ -4341,9 +4379,12 @@ function _proyGridHtml(trimestreKey, T) {
 
   const n = v => Math.round(v || 0).toLocaleString('es-AR');
 
-  const mesBloque = (lbl, m, cod, mk) => `
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:150px">
-      <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}</div>
+  const mesBloque = (lbl, m, cod, mk, esMesActual) => {
+    const pctColor = (m.objetivo_cumplido_pct || 0) >= 100 ? 'var(--green)'
+      : (m.objetivo_cumplido_pct || 0) >= 70 ? 'var(--yellow)' : 'var(--red)';
+    return `
+    <div style="background:var(--surface);border:1px solid ${esMesActual ? 'var(--accent2)' : 'var(--border)'};border-radius:8px;padding:8px 10px;min-width:150px">
+      <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}${esMesActual ? ' <span style="color:var(--accent2)">· en curso</span>' : ''}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0">
         <span style="color:var(--muted)">Proy. abast.</span>
         <input type="number" step="1" value="${Math.round(m.proyeccion_abastecimiento || 0)}"
@@ -4352,8 +4393,12 @@ function _proyGridHtml(trimestreKey, T) {
           style="width:62px;text-align:right;background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10.5px;padding:2px 5px;font-family:inherit">
       </div>
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta objetivo</span><span>${n(m.venta_objetivo)}</span></div>
+      ${esMesActual ? `
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta real</span><span>${n(m.venta_actual)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">% cumplido</span><span style="font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct || 0)}%</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo stock</span><span>${n(m.saldo_stock)}</span></div>
     </div>`;
+  };
 
   const rows = sorted.map(p => {
     const mk = Object.keys(p.mensual || {});
@@ -4375,9 +4420,9 @@ function _proyGridHtml(trimestreKey, T) {
           &nbsp;·&nbsp; Prom. 12 meses: <strong style="color:var(--text)">${p.venta_prom_12m != null ? n(p.venta_prom_12m) : '—'}</strong>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0])}
-          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1])}
-          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2])}
+          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0], mesActualIdx === 0)}
+          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1], mesActualIdx === 1)}
+          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2], mesActualIdx === 2)}
         </div>
         ${_proyTrendChart(p.venta_historial_12m)}
       </td>
