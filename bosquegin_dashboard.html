@@ -2094,34 +2094,17 @@ function renderOverview() {
     </div>
   </div>
 
-  <!-- TABLA RUBROS × SUBRUBROS — mismo formato que Detalle por artículo -->
+  <!-- TABLA RUBROS × SUBRUBROS — mismo formato que Rotación por rubro y subrubro -->
   <div class="table-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div class="table-title" id="v-rub-title">🏷️ Salidas por rubro y subrubro</div>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-        <select id="rub-table-filter" onchange="renderRubTable()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
-          <option value="">Todos los rubros</option>
-          <option>BEBIDAS</option><option>BOLSAS</option><option>BOTANICOS</option><option>CERVEZA</option><option>COMBO</option><option>ESTUCHE</option><option>FUNDA</option><option>INDUMENTARIA</option><option>MOBILIARIO</option><option>SIN RUBRO</option><option>VASOS</option></select>
-        <input id="rub-table-search" type="text" placeholder="Buscar artículo…" oninput="renderRubTable()"
-          style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:9px;width:160px">
-        <span id="rub-table-count" style="font-size:9px;color:var(--muted)"></span>
-      </div>
+      <button onclick="printSalidasRub()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;transition:background .15s" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--card)'">
+        🖨️ Imprimir
+      </button>
     </div>
     <div style="overflow-x:auto">
-    <table>
-      <thead>
-        <tr id="v-rub-thead">
-          <th class="sortable" onclick="setRubTableSort('rub')"  data-rcol="rub">Rubro <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('sub')"  data-rcol="sub">Subrubro <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('cod')"  data-rcol="cod">Cód <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('art')"  data-rcol="art">Artículo <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('u')"    data-rcol="u"    style="text-align:right">Salidas (un) <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('pct')"  data-rcol="pct"  style="text-align:right">Peso % <span class="sort-icon">⇅</span></th>
-          <th class="sortable" onclick="setRubTableSort('acum')" data-rcol="acum" style="text-align:right">Acum % <span class="sort-icon">⇅</span></th>
-          <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:9px;opacity:.7">un/mes</span></th>
-          <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:9px;opacity:.7">un/mes</span></th>
-        </tr>
-      </thead>
+    <table id="v-rub-table">
+      <thead></thead>
       <tbody id="v-rub-tbody"></tbody>
     </table>
     </div>
@@ -2960,26 +2943,44 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
   tbody.innerHTML = rows;
 }
 
-// ── SALIDAS POR RUBRO Y SUBRUBRO (mismo formato que Detalle por artículo) ─────
-let rubTableSortCol = 'u';
-let rubTableSortAsc = false;
+// ── SALIDAS POR RUBRO Y SUBRUBRO (mismo formato que Rotación por rubro y subrubro) ──
+// Grupos fijos por rubro (mismo mapeo/colores que renderRotRub), fila total
+// por grupo, encabezado de columnas repetido, artículos agrupados por
+// subrubro. Sin filtro/buscador ni orden por clic — igual que Rotación,
+// que tampoco los tiene (pensada para mirar/imprimir de un vistazo).
+const RUB_GRUPO_MAP = {
+  'BEBIDAS':      '🍾 Bebidas',
+  'CRISTALERIA':  '🥃 Cristalería',
+  'INDUMENTARIA': '👕 Indumentaria',
+  'COMBO':        '📦 Combo',
+  'ESTUCHE':      '🎁 Estuche',
+  'BOTELLAS':     '🍶 Botellas',
+  'BOTÁNICOS':    '🌿 Botánicos',
+  'MOBILIARIO':   '🪑 Mobiliario',
+  'OTROS':        '🪑 Mobiliario',
+};
+const RUB_GRUPO_ORDER  = ['🍾 Bebidas', '🥃 Cristalería', '👕 Indumentaria', '📦 Combo', '🎁 Estuche', '🍶 Botellas', '🌿 Botánicos', '🪑 Mobiliario'];
+const RUB_GRUPO_COLOR  = {
+  '🍾 Bebidas':      'rgba(74,222,128,.08)',
+  '🥃 Cristalería':  'rgba(56,189,248,.08)',
+  '👕 Indumentaria': 'rgba(167,139,250,.08)',
+  '📦 Combo':        'rgba(251,191,36,.08)',
+  '🎁 Estuche':      'rgba(251,113,133,.08)',
+  '🍶 Botellas':     'rgba(52,211,153,.08)',
+  '🌿 Botánicos':    'rgba(134,239,172,.08)',
+  '🪑 Mobiliario':   'rgba(245,158,11,.08)',
+};
+const RUB_GRUPO_ACCENT = {
+  '🍾 Bebidas':      '#4ade80',
+  '🥃 Cristalería':  '#38bdf8',
+  '👕 Indumentaria': '#a78bfa',
+  '📦 Combo':        '#fbbf24',
+  '🎁 Estuche':      '#fb7185',
+  '🍶 Botellas':     '#34d399',
+  '🌿 Botánicos':    '#86efac',
+  '🪑 Mobiliario':   '#f59e0b',
+};
 let _rubTableLastSuffix = '';   // suffix de cliente/filtro del título (viene de renderVentas)
-
-function setRubTableSort(col) {
-  if (rubTableSortCol === col) rubTableSortAsc = !rubTableSortAsc;
-  else { rubTableSortCol = col; rubTableSortAsc = ['cod', 'art', 'rub', 'sub'].includes(col); }
-  renderRubTable();
-}
-
-function updateRubTableSortIcons() {
-  document.querySelectorAll('#v-rub-thead th.sortable').forEach(th => {
-    const col  = th.dataset.rcol;
-    const icon = th.querySelector('.sort-icon');
-    if (!icon) return;
-    icon.textContent = col !== rubTableSortCol ? '⇅' : rubTableSortAsc ? '▲' : '▼';
-    th.style.color   = col === rubTableSortCol ? 'var(--accent)' : '';
-  });
-}
 
 function renderRubTable(_allSuffix) {
   if (_allSuffix !== undefined) _rubTableLastSuffix = _allSuffix;
@@ -2999,58 +3000,155 @@ function renderRubTable(_allSuffix) {
       ? ((MONTHLY_DATA[yr] || {}).prods || {})[String(mes2)] || []
       : PROD_DATA[yr] || [];
   }
-  const rub    = document.getElementById('rub-table-filter')?.value || '';
-  const search = (document.getElementById('rub-table-search')?.value || '').toLowerCase();
 
-  let filtered = items.filter(it => {
-    const rubD = invRub(it.cod, it.rub) || it.rub || '';
-    if (rub    && rubD !== rub) return false;
-    if (search && !it.art.toLowerCase().includes(search) && !String(it.cod).includes(search)) return false;
-    return true;
-  });
+  document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_rubTableLastSuffix}`;
 
-  const totU2 = filtered.reduce((s, it) => s + it.u, 0);
-  filtered = filtered
-    .map(it => ({ ...it, localPct: totU2 > 0 ? Math.round(it.u / totU2 * 1000) / 10 : 0 }))
-    .sort((a, b) => {
-      const va = a[rubTableSortCol] ?? 0, vb = b[rubTableSortCol] ?? 0;
-      return typeof va === 'string'
-        ? (rubTableSortAsc ? va.localeCompare(vb) : vb.localeCompare(va))
-        : (rubTableSortAsc ? va - vb : vb - va);
-    });
-
-  const sorted_by_u = [...filtered].sort((a, b) => b.u - a.u);
+  const totU2 = items.reduce((s, it) => s + it.u, 0);
+  const sorted_by_u = [...items].sort((a, b) => b.u - a.u);
   let cumMap = {};
   let c = 0;
   for (const it of sorted_by_u) { c += it.u; cumMap[it.cod] = totU2 > 0 ? Math.round(c / totU2 * 1000) / 10 : 0; }
-
-  document.getElementById('rub-table-count').textContent = `${filtered.length} artículos`;
-  document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_rubTableLastSuffix}`;
-
   const acumColor = (v) => v <= 80 ? 'var(--green)' : v <= 95 ? 'var(--accent2)' : 'var(--muted)';
 
-  let rows = '';
-  for (const it of filtered) {
-    const acum = cumMap[it.cod] ?? 0;
-    const rubD = invRub(it.cod, it.rub) || it.rub || '—';
-    const subD = invSub(it.cod, it.sub) || it.sub || '—';
-    const cod2 = String(it.cod);
-    const p90  = fmtAvg((TRAIL90[cod2]  || 0) / 3);
-    const p365 = fmtAvg((TRAIL365[cod2] || 0) / 12);
-    rows += `<tr>
-      <td style="font-size:9px;white-space:nowrap">${rubD}</td>
-      <td style="font-size:9px;color:var(--muted);white-space:nowrap">${subD}</td>
-      <td><code style="font-size:9px">${it.cod}</code></td>
-      <td style="font-size:9px;white-space:nowrap" title="${it.art}">${it.art}</td>
-      <td style="text-align:right;font-weight:700;white-space:nowrap">${it.u.toLocaleString('es-AR')}</td>
-      <td style="text-align:right;color:var(--muted)">${it.localPct.toFixed(1)}%</td>
-      <td style="text-align:right;font-weight:600;color:${acumColor(acum)}">${acum.toFixed(1)}%</td>
-      <td style="text-align:right;white-space:nowrap;color:var(--accent2)">${p90}</td>
-      <td style="text-align:right;white-space:nowrap;color:var(--accent2)">${p365}</td>
-    </tr>`;
+  // Árbol: grupo → subrubro → [artículos]
+  const tree = {};
+  for (const g of RUB_GRUPO_ORDER) tree[g] = {};
+  for (const it of items) {
+    if (!it.u) continue;
+    const rubD = invRub(it.cod, it.rub) || it.rub || 'OTROS';
+    const g    = RUB_GRUPO_MAP[rubD.toUpperCase().trim()] || '🪑 Mobiliario';
+    const sub  = invSub(it.cod, it.sub) || it.sub || '—';
+    if (!tree[g][sub]) tree[g][sub] = [];
+    tree[g][sub].push(it);
   }
+
+  const BL = 'border-left:1px solid var(--border);padding-left:12px';
+  const TH = 'font-size:9px;font-weight:700;color:var(--muted);padding:6px 10px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap';
+
+  let rows = '';
+  for (const grupo of RUB_GRUPO_ORDER) {
+    const subs = tree[grupo];
+    if (!Object.keys(subs).length) continue;
+
+    let gU = 0, gArts = 0, gP90 = 0, gP365 = 0;
+    for (const arts of Object.values(subs)) {
+      for (const it of arts) {
+        gU += it.u; gArts++;
+        const cod2 = String(it.cod);
+        gP90  += (TRAIL90[cod2]  || 0) / 3;
+        gP365 += (TRAIL365[cod2] || 0) / 12;
+      }
+    }
+    const accent = RUB_GRUPO_ACCENT[grupo];
+    const bgGrp  = RUB_GRUPO_COLOR[grupo];
+    const gPeso  = totU2 > 0 ? gU / totU2 * 100 : 0;
+
+    rows += `<tr class="salidas-grp-start" data-grupo="${grupo}" style="background:${bgGrp};border-top:2px solid ${accent}">
+      <td colspan="4" style="font-weight:700;font-size:9px;padding:8px 12px;color:${accent}">
+        ${grupo} <span style="font-weight:400;font-size:9px;color:var(--muted)">${gArts} artículos</span>
+      </td>
+      <td style="text-align:right;font-weight:700;${BL}">${Math.round(gU).toLocaleString('es-AR')}</td>
+      <td style="text-align:right;font-weight:700">${gPeso.toFixed(1)}%</td>
+      <td></td>
+      <td style="text-align:right;font-weight:700;color:var(--accent2)">${fmtAvg(gP90)}</td>
+      <td style="text-align:right;font-weight:700;color:var(--accent2)">${fmtAvg(gP365)}</td>
+    </tr>`;
+    rows += `<tr style="background:var(--card)">
+      <td style="${TH}">Rubro</td>
+      <td style="${TH}">Subrubro</td>
+      <td style="${TH}">Código</td>
+      <td style="${TH}">Artículo</td>
+      <td style="${TH};text-align:right;border-left:1px solid var(--border);padding-left:12px">Salidas (un)</td>
+      <td style="${TH};text-align:right">Peso %</td>
+      <td style="${TH};text-align:right">Acum %</td>
+      <td style="${TH};text-align:right">Prom 90d</td>
+      <td style="${TH};text-align:right">Prom 365d</td>
+    </tr>`;
+
+    const subList = Object.entries(subs).sort((a, b) =>
+      b[1].reduce((s, it) => s + it.u, 0) - a[1].reduce((s, it) => s + it.u, 0));
+
+    for (const [sub, arts] of subList) {
+      const artsSorted = [...arts].sort((a, b) => a.art.localeCompare(b.art, 'es'));
+      for (const it of artsSorted) {
+        const acum = cumMap[it.cod] ?? 0;
+        const rubD = invRub(it.cod, it.rub) || it.rub || '—';
+        const cod2 = String(it.cod);
+        const p90  = fmtAvg((TRAIL90[cod2]  || 0) / 3);
+        const p365 = fmtAvg((TRAIL365[cod2] || 0) / 12);
+        rows += `<tr style="border-bottom:1px solid rgba(45,55,72,.4)">
+          <td style="font-size:9px;color:var(--muted);white-space:nowrap">${rubD}</td>
+          <td style="font-size:9px;color:var(--muted);white-space:nowrap">${sub}</td>
+          <td><code style="font-size:9px">${it.cod}</code></td>
+          <td style="font-size:9px;white-space:nowrap" title="${it.art}">${it.art}</td>
+          <td style="text-align:right;font-size:9px;font-weight:700;${BL}">${it.u.toLocaleString('es-AR')}</td>
+          <td style="text-align:right;font-size:9px;color:var(--muted)">${(totU2 > 0 ? it.u / totU2 * 100 : 0).toFixed(1)}%</td>
+          <td style="text-align:right;font-size:9px;font-weight:600;color:${acumColor(acum)}">${acum.toFixed(1)}%</td>
+          <td style="text-align:right;font-size:9px;color:var(--accent2)">${p90}</td>
+          <td style="text-align:right;font-size:9px;color:var(--accent2)">${p365}</td>
+        </tr>`;
+      }
+    }
+  }
+
   document.getElementById('v-rub-tbody').innerHTML = rows || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Sin resultados</td></tr>';
-  updateRubTableSortIcons();
+}
+
+// ── Imprimir Salidas por rubro y subrubro (igual que printRotRub) ────────────
+function printSalidasRub() {
+  const tbody = document.getElementById('v-rub-tbody');
+  if (!tbody) return;
+  const allRows = Array.from(tbody.querySelectorAll('tr'));
+  const groups = [];
+  let current = null;
+  for (const tr of allRows) {
+    if (tr.classList.contains('salidas-grp-start')) {
+      current = { nombre: tr.dataset.grupo || 'Grupo', headRow: '', bodyRows: [] };
+      groups.push(current);
+    } else if (current) {
+      if (!current.headRow) current.headRow = tr.outerHTML;
+      else current.bodyRows.push(tr.outerHTML);
+    }
+  }
+  if (!groups.length) return;
+
+  const fecha = new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const CSS = `
+    @page { size: A4 landscape; margin: 1.2cm 1.5cm }
+    *  { box-sizing:border-box; margin:0; padding:0 }
+    body { font-family:Arial,sans-serif; font-size:11px; color:#111; background:#fff }
+    .page { padding:0; page-break-after:always }
+    .page:last-child { page-break-after:auto }
+    .page-header { border-bottom:2px solid #334155; padding-bottom:8px; margin-bottom:10px }
+    .page-title { font-size:1.45em; font-weight:700 }
+    .page-sub   { font-size:.9em; color:#64748b; margin-top:2px }
+    table  { width:100%; border-collapse:collapse; table-layout:auto }
+    thead  { display:table-header-group }
+    thead td { background:#f1f5f9; font-weight:700; font-size:.85em;
+               text-transform:uppercase; letter-spacing:.04em; color:#475569;
+               padding:6px 8px; border-bottom:2px solid #cbd5e1 }
+    tbody td { padding:4px 8px; border-bottom:1px solid #e2e8f0; font-size:1em; white-space:nowrap }
+    td:nth-child(5),td:nth-child(6),td:nth-child(7),td:nth-child(8),td:nth-child(9) { text-align:right }
+  `;
+
+  const pages = groups.map(g => `
+    <div class="page">
+      <div class="page-header">
+        <div class="page-title">${g.nombre}</div>
+        <div class="page-sub">Salidas por rubro y subrubro &nbsp;·&nbsp; Bosque Gin &nbsp;·&nbsp; ${fecha}</div>
+      </div>
+      <table>
+        <thead><tr>${g.headRow.replace(/^<tr[^>]*>/,'').replace(/<\/tr>$/,'')}</tr></thead>
+        <tbody>${g.bodyRows.join('')}</tbody>
+      </table>
+    </div>`).join('');
+
+  const win = window.open('', '_blank', 'width=1100,height=780');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Salidas por rubro — Bosque Gin</title>
+    <style>${CSS}</style></head><body>${pages}</body></html>`);
+  win.document.close();
+  win.onload = function() { win.focus(); win.print(); };
 }
 
 // ── PRODUCTOS ─────────────────────────────────────────────────────────────────
