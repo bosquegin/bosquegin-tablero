@@ -4278,7 +4278,7 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
 // subiendo o bajando.
 function _proyTrendChart(historial) {
   if (!historial || !historial.length) return '';
-  const W = 480, H = 80, PAD = 4, BOTTOM = 12, TOP = 12;
+  const W = 480, H = 130, PAD = 6, BOTTOM = 18, TOP = 18;
   const chartH = H - BOTTOM - TOP;
   const vals = historial.map(h => h.unidades || 0);
   const nMeses = vals.length;
@@ -4306,26 +4306,26 @@ function _proyTrendChart(historial) {
     const by = TOP + chartH - bh;
     const isLast = i === nMeses - 1;
     const valTxt = Math.round(vals[i]).toLocaleString('es-AR');
-    return `<rect x="${(bx + bw * 0.15).toFixed(1)}" y="${by.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${isLast ? 'var(--accent2)' : 'var(--border)'}"><title>${h.mes}: ${valTxt}</title></rect>
-      <text x="${(bx + bw / 2).toFixed(1)}" y="${Math.max(7, by - 2).toFixed(1)}" font-size="6.2" fill="var(--muted)" text-anchor="middle">${valTxt}</text>`;
+    return `<rect x="${(bx + bw * 0.15).toFixed(1)}" y="${by.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${isLast ? 'var(--accent2)' : 'var(--border)'}"><title>${h.mes}: ${valTxt}</title></rect>
+      <text x="${(bx + bw / 2).toFixed(1)}" y="${Math.max(10, by - 4).toFixed(1)}" font-size="9" fill="var(--muted)" text-anchor="middle">${valTxt}</text>`;
   }).join('');
 
   const labels = historial.map((h, i) => {
     if (i % 3 !== 0 && i !== nMeses - 1) return '';
     const [yr, mo] = h.mes.split('-');
-    return `<text x="${(PAD + i * bw + bw / 2).toFixed(1)}" y="${H - 1}" font-size="7" fill="var(--muted)" text-anchor="middle">${mo}/${yr.slice(2)}</text>`;
+    return `<text x="${(PAD + i * bw + bw / 2).toFixed(1)}" y="${H - 3}" font-size="9.5" fill="var(--muted)" text-anchor="middle">${mo}/${yr.slice(2)}</text>`;
   }).join('');
 
   const x0 = PAD + bw / 2, x1 = PAD + (nMeses - 1) * bw + bw / 2;
   const y0 = yFor(intercept), y1 = yFor(intercept + slope * (nMeses - 1));
-  const trendLine = `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${tendColor}" stroke-width="1.5" stroke-dasharray="3,2"></line>`;
+  const trendLine = `<line x1="${x0.toFixed(1)}" y1="${y0.toFixed(1)}" x2="${x1.toFixed(1)}" y2="${y1.toFixed(1)}" stroke="${tendColor}" stroke-width="2" stroke-dasharray="4,3"></line>`;
 
   return `<div style="margin-top:10px">
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
-      <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Tendencia de venta · últimos 12 meses</div>
-      <div style="font-size:9px;font-weight:700;color:${tendColor}">${tendFlecha} ${tendTexto}</div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+      <div style="font-size:9.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em">Tendencia de venta · últimos 12 meses</div>
+      <div style="font-size:11px;font-weight:700;color:${tendColor}">${tendFlecha} ${tendTexto}</div>
     </div>
-    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:70px;display:block">${bars}${trendLine}${labels}</svg>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:120px;display:block">${bars}${trendLine}${labels}</svg>
   </div>`;
 }
 
