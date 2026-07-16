@@ -631,7 +631,7 @@
     <span class="tab-icon">🛒</span> Compras
   </div>
   <div class="tab" data-section="proyeccion" onclick="showSection('proyeccion', this)">
-    <span class="tab-icon">🔮</span> Proyección
+    <span class="tab-icon">🔮</span> Proyección Producción
   </div>
   <div class="tab" data-section="calendario" onclick="showSection('calendario', this)">
     <span class="tab-icon">📅</span> Calendario
@@ -4224,6 +4224,27 @@ function _proyKpis(productos) {
   return { nAlerta: enAlerta.length, totalUnidades, totalPallets, cumplPct };
 }
 
+// Forecast Accuracy / Bias / MAPE del trimestre, en base a venta objetivo (forecast)
+// vs. venta actual (resultado) de cada producto y mes. Se usa el método ponderado
+// (WMAPE, sobre la suma de unidades) en vez de promediar % por producto, porque un
+// SKU de bajo volumen puede tener un error % enorme y distorsionar el promedio.
+// Si el trimestre todavía no tiene ventas reales cargadas (sumActual = 0), no hay
+// nada que medir todavía -> se muestra "—".
+function _proyForecastMetrics(productos) {
+  let sumForecast = 0, sumActual = 0, sumAbsErr = 0;
+  (productos || []).forEach(p => {
+    Object.values(p.mensual || {}).forEach(m => {
+      const f = m.venta_objetivo || 0, a = m.venta_actual || 0;
+      sumForecast += f; sumActual += a; sumAbsErr += Math.abs(f - a);
+    });
+  });
+  if (sumActual <= 0) return { mape: null, accuracy: null, bias: null };
+  const mape = sumAbsErr / sumActual * 100;
+  const accuracy = Math.max(0, 100 - mape);
+  const bias = (sumForecast - sumActual) / sumActual * 100;
+  return { mape, accuracy, bias };
+}
+
 // Reparto por resto mayor: la cantidad "a comprar" del trimestre se distribuye
 // entre los meses en proporción a la venta objetivo de cada uno, redondeando de
 // forma que la suma mensual coincida exactamente con el total (no cada mes por
@@ -4335,22 +4356,23 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
   const label = trimestreKey.replace('_', ' ');
   const productos = T.productos || [];
   const kpis = _proyKpis(productos);
+  const fm = _proyForecastMetrics(productos);
   const arrow = expanded ? '▾' : '▸';
 
   const headerRow = `
-    <div class="table-title" style="font-size:14px;margin-bottom:${expanded?'12px':'0'};cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px" onclick="proyToggleTrimestre('${trimestreKey}')">
+    <div class="table-title" style="font-size:14px;margin-bottom:12px;cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px" onclick="proyToggleTrimestre('${trimestreKey}')">
       <span style="color:var(--muted);font-size:11px">${arrow}</span> 🔮 ${label}
-      ${!expanded ? `<span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">
-        ${kpis.nAlerta} en alerta · ${Math.round(kpis.totalUnidades).toLocaleString('es-AR')} un. a comprar
-      </span>` : ''}
+      <span style="font-weight:400;color:var(--muted);font-size:9px;margin-left:6px">${productos.length} productos · clic para ${expanded ? 'ocultar' : 'ver'} el detalle</span>
     </div>`;
 
-  if (!expanded) {
-    return `<div class="table-card" style="margin-bottom:10px;border-left:3px solid var(--border)">${headerRow}</div>`;
-  }
+  const accColor = fm.accuracy === null ? 'var(--text)' : fm.accuracy >= 90 ? 'var(--green)' : fm.accuracy >= 75 ? 'var(--yellow)' : 'var(--red)';
+  const mapeColor = fm.mape === null ? 'var(--text)' : fm.mape <= 10 ? 'var(--green)' : fm.mape <= 25 ? 'var(--yellow)' : 'var(--red)';
+  const biasColor = fm.bias === null ? 'var(--text)' : Math.abs(fm.bias) <= 5 ? 'var(--green)' : Math.abs(fm.bias) <= 15 ? 'var(--yellow)' : 'var(--red)';
+  const biasTxt = fm.bias === null ? '—' : (fm.bias > 0 ? '+' : '') + fm.bias.toFixed(1) + '%';
 
+  // Encabezado de indicadores: siempre visible, sea cual sea el estado del desplegable.
   const kpiRow = `
-    <div class="kpi-grid" style="margin-bottom:14px">
+    <div class="kpi-grid" style="margin-bottom:${expanded ? '14px' : '0'}">
       <div class="kpi-card blue"><div class="kpi-label">Trimestre</div><div class="kpi-value" style="font-size:18px">${label}</div>
         <div class="kpi-change">${productos.length} productos</div></div>
       <div class="kpi-card red"><div class="kpi-label">Productos en alerta</div><div class="kpi-value">${kpis.nAlerta}</div>
@@ -4359,13 +4381,19 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
         <div class="kpi-change">${kpis.totalPallets.toFixed(1)} pallets</div></div>
       <div class="kpi-card green"><div class="kpi-label">Cumplimiento objetivo</div><div class="kpi-value">${kpis.cumplPct !== null ? kpis.cumplPct + '%' : '—'}</div>
         <div class="kpi-change">venta actual vs. objetivo</div></div>
+      <div class="kpi-card" style="border-top:3px solid ${accColor}"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-value" style="color:${accColor}">${fm.accuracy !== null ? Math.round(fm.accuracy) + '%' : '—'}</div>
+        <div class="kpi-change">${fm.accuracy !== null ? '100% − MAPE' : 'sin resultados aún'}</div></div>
+      <div class="kpi-card" style="border-top:3px solid ${biasColor}"><div class="kpi-label">Forecast Bias</div><div class="kpi-value" style="color:${biasColor}">${biasTxt}</div>
+        <div class="kpi-change">${fm.bias === null ? 'sin resultados aún' : fm.bias > 0 ? 'sobre-proyectado' : fm.bias < 0 ? 'sub-proyectado' : 'sin sesgo'}</div></div>
+      <div class="kpi-card" style="border-top:3px solid ${mapeColor}"><div class="kpi-label">MAPE</div><div class="kpi-value" style="color:${mapeColor}">${fm.mape !== null ? fm.mape.toFixed(1) + '%' : '—'}</div>
+        <div class="kpi-change">${fm.mape !== null ? 'error % ponderado' : 'sin resultados aún'}</div></div>
     </div>`;
 
   return `
-    <div class="table-card" style="margin-bottom:20px;border-left:3px solid var(--accent)">
+    <div class="table-card" style="margin-bottom:${expanded ? '20px' : '10px'};border-left:3px solid ${expanded ? 'var(--accent)' : 'var(--border)'}">
       ${headerRow}
       ${kpiRow}
-      ${_proyGridHtml(T)}
+      ${expanded ? _proyGridHtml(T) : ''}
     </div>`;
 }
 
@@ -4838,9 +4866,9 @@ function renderCervezas() {
 <section id="proyeccion" class="section">
 
   <div style="font-size:9px;color:var(--muted);margin-bottom:14px">
-    ⓘ Cada trimestre muestra el <strong>Objetivo</strong> (forecast hecho al inicio) y, si existe, la <strong>Última revisión</strong>
-    (reevaluación más reciente con ventas reales ya incorporadas — la más confiable para decidir qué comprar ahora).
-    Los trimestres se acumulan automáticamente en cada Actualizar; la hoja de origen sólo muestra el trimestre vigente.
+    ⓘ Cada trimestre muestra sus indicadores de precisión de forecast (Accuracy, Bias, MAPE) siempre visibles;
+    hacé clic en el título para desplegar/ocultar el detalle producto por producto.
+    Los trimestres se acumulan automáticamente en cada Actualizar.
   </div>
 
   <div id="proy-container"></div>
