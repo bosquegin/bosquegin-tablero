@@ -4288,15 +4288,42 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
     });
 }
 
-// Grilla resumen (Código, Descripción, Stock, Total obj. ventas, Meses stock);
-// el desglose mes a mes (proyección de abastecimiento, venta objetivo, saldo)
-// se despliega por producto al hacer clic en la fila, en vez de mostrarse
-// siempre para los 16 campos de los 3 meses.
+// Mini gráfico de barras (SVG inline, sin dependencias) con la venta real
+// mensual de los últimos 12 meses de un producto, para ver la tendencia
+// de un vistazo. El último mes se resalta con el color de acento.
+function _proyTrendChart(historial) {
+  if (!historial || !historial.length) return '';
+  const W = 480, H = 58, PAD = 4, BOTTOM = 12;
+  const vals = historial.map(h => h.unidades || 0);
+  const max = Math.max.apply(null, vals.concat([1]));
+  const bw = (W - PAD * 2) / vals.length;
+  const bars = historial.map((h, i) => {
+    const bh = Math.max(1, (vals[i] / max) * (H - BOTTOM - 6));
+    const bx = PAD + i * bw;
+    const by = H - BOTTOM - bh;
+    const isLast = i === vals.length - 1;
+    return `<rect x="${(bx + bw * 0.15).toFixed(1)}" y="${by.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${bh.toFixed(1)}" rx="1.5" fill="${isLast ? 'var(--accent2)' : 'var(--border)'}"><title>${h.mes}: ${Math.round(vals[i]).toLocaleString('es-AR')}</title></rect>`;
+  }).join('');
+  const labels = historial.map((h, i) => {
+    if (i % 3 !== 0 && i !== historial.length - 1) return '';
+    const [yr, mo] = h.mes.split('-');
+    return `<text x="${(PAD + i * bw + bw / 2).toFixed(1)}" y="${H - 2}" font-size="7" fill="var(--muted)" text-anchor="middle">${mo}/${yr.slice(2)}</text>`;
+  }).join('');
+  return `<div style="margin-top:10px">
+    <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px">Tendencia de venta · últimos 12 meses</div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:52px;display:block">${bars}${labels}</svg>
+  </div>`;
+}
+
+// Grilla resumen (Código, Descripción, Stock, Total obj. ventas, Stock+proy.,
+// Meses stock); el desglose mes a mes (proyección de abastecimiento, venta
+// objetivo, saldo) se despliega por producto al hacer clic en la fila, en
+// vez de mostrarse siempre para los 16 campos de los 3 meses.
 function _proyGridHtml(trimestreKey, T) {
   const meses = T.meses || [];
   const productos = T.productos || [];
   const ventaPromLabel = T.venta_prom_label || 'período anterior';
-  const nCols = 6;
+  const nCols = 7;
 
   // Orden por producto y tamaño (la descripción ya incluye ambos, ej.
   // "GIN BOSQUE NATIVO BOTELLA 500 ML") en vez de por urgencia de alerta.
@@ -4308,6 +4335,7 @@ function _proyGridHtml(trimestreKey, T) {
     <th style="${_TH};text-align:left">Descripción</th>
     <th style="${_TH};${_Y};text-align:center">Stock actual</th>
     <th style="${_TH};text-align:center">Total obj. ventas</th>
+    <th style="${_TH};${_Y};text-align:center">Stock + proy.</th>
     <th style="${_TH};text-align:center">Meses stock</th>
   </tr>`;
 
@@ -4343,13 +4371,15 @@ function _proyGridHtml(trimestreKey, T) {
       <td colspan="${nCols}" style="padding:10px 14px;background:var(--surface)">
         <div style="font-size:9.5px;color:var(--muted);margin-bottom:8px">
           Venta prom. mensual ${ventaPromLabel}: <strong style="color:var(--text)">${n(p.venta_prom_mensual_anterior)}</strong>
-          &nbsp;·&nbsp; Stock + proyección: <strong style="color:var(--text)">${n(p.stock_total)}</strong>
+          &nbsp;·&nbsp; Prom. 6 meses: <strong style="color:var(--text)">${p.venta_prom_6m != null ? n(p.venta_prom_6m) : '—'}</strong>
+          &nbsp;·&nbsp; Prom. 12 meses: <strong style="color:var(--text)">${p.venta_prom_12m != null ? n(p.venta_prom_12m) : '—'}</strong>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
           ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0])}
           ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1])}
           ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2])}
         </div>
+        ${_proyTrendChart(p.venta_historial_12m)}
       </td>
     </tr>` : '';
 
@@ -4359,6 +4389,7 @@ function _proyGridHtml(trimestreKey, T) {
       <td style="${_TD};text-align:left;white-space:normal;min-width:180px">${p.art}</td>
       <td style="${_TD};${_Y};font-weight:700;text-align:center">${n(p.stock_actual)}</td>
       <td style="${_TD};text-align:center">${n(p.total_objetivo_ventas)}</td>
+      <td style="${_TD};${_Y};font-weight:700;text-align:center">${n(p.stock_total)}</td>
       <td style="${_TD};font-weight:700;color:${mesesStkColor};text-align:center">${(p.meses_stock||0).toFixed(1)}</td>
     </tr>${detailRow}`;
   }).join('') || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
