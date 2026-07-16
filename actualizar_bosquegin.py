@@ -2772,8 +2772,15 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
     igual que el resto de los overrides de este trimestre —, en vez del
     valor de la hoja FORECAST (que para el trimestre en curso copia
     venta_objetivo tal cual, dando la falsa impresión de 100% cumplido).
-    Los otros 2 meses del trimestre actual (todavía no transcurridos) no
-    se tocan acá.
+
+    El "saldo_stock" del mes en curso también se recalcula, pero con la
+    venta REAL en vez de la objetivo: stock_actual (en vivo) - venta_actual,
+    en vez de la cascada proyectada con venta objetivo (que no refleja lo
+    que pasó de verdad este mes). Los meses siguientes del trimestre
+    (todavía no transcurridos) se re-cascadean a partir de ese saldo real
+    con la venta objetivo de cada uno, como antes — y con eso se recalculan
+    también "comprar"/"alerta"/"cantidad_pallets", para que no queden
+    desalineados con el nuevo saldo del mes en curso.
     """
     hoy = date.today()
     qn = (hoy.month - 1) // 3 + 1
@@ -2797,6 +2804,21 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         m["venta_actual"] = round(u, 1)
         vobj = m.get("venta_objetivo") or 0
         m["objetivo_cumplido_pct"] = round(u / vobj * 100, 1) if vobj > 0 else 0.0
+
+        saldo_prev = p["stock_actual"] - m["venta_actual"]
+        m["saldo_stock"] = saldo_prev
+        for mk in meses_keys[idx_actual + 1:]:
+            m2 = p["mensual"][mk]
+            proy2 = m2.get("proyeccion_abastecimiento") or 0
+            vobj2 = m2.get("venta_objetivo") or 0
+            saldo_prev = saldo_prev + proy2 - vobj2
+            m2["saldo_stock"] = saldo_prev
+
+        saldos = [p["mensual"][mk]["saldo_stock"] for mk in meses_keys]
+        p["comprar"] = max(0.0, -min(saldos))
+        p["alerta"] = "COMPRAR" if p["comprar"] > 0 else ""
+        p["cantidad_pallets"] = round(p["comprar"] / p["pallet"], 1) if p.get("pallet") else 0.0
+
         n_actualizados += 1
 
     print(f"  Proyección {trimestre_actual}: venta real del mes en curso aplicada a {n_actualizados} producto(s)")
