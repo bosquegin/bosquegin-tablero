@@ -2499,35 +2499,94 @@ def _proy_fetch_ventas_objetivo_2026():
     return productos
 
 
+def _leer_stock_cierre_mes():
+    """
+    Parsea data_stock_cierre.js (generado por update_stock_cierre_mes(), el
+    mismo dato histórico que usa "Rotación mensual por rubro") y devuelve
+    {"AAAA_M": {cod: cantidad}} — stock KLOZER+OFICINA al último día
+    disponible de cada mes.
+    """
+    path = os.path.join(BASE, "data_stock_cierre.js")
+    if not os.path.exists(path):
+        return {}
+    try:
+        js = open(path, encoding="utf-8").read()
+    except Exception:
+        return {}
+    out = {}
+    for mes_key, body in re.findall(r'"(\d{4}_\d{1,2})"\s*:\s*(\{[^}]*\})', js):
+        entradas = re.findall(r'"(\d+)"\s*:\s*(-?\d+)', body)
+        out[mes_key] = {cod: int(qty) for cod, qty in entradas}
+    return out
+
+
+def _proy_mes_referencia_trimestre(trimestre):
+    """
+    (año, mes) del mes INMEDIATAMENTE ANTERIOR al primer mes de ese
+    trimestre — el punto de partida de stock del que cascadea el saldo mes
+    a mes (stock_actual). Ej.: 2026_Q2 (abril) -> (2026, 3) marzo;
+    2026_Q1 (enero) -> (2025, 12) diciembre.
+    """
+    anio_s, qn_s = trimestre.split("_Q")
+    anio, qn = int(anio_s), int(qn_s)
+    mes_inicio = (qn - 1) * 3 + 1
+    mes_prev = mes_inicio - 1
+    if mes_prev < 1:
+        return anio - 1, 12
+    return anio, mes_prev
+
+
 def aplicar_stock_inventario_productos(trimestres, inv_data):
     """
-    Reemplaza stock_actual, en TODOS los trimestres (históricos incluido —
-    no sólo el actual), por KLOZER + OFICINA tomado del inventario real
-    consolidado (post Contabilium EN VIVO) — el mismo cálculo que usa por
-    defecto la pestaña "Inventario Productos" (getStock(item,'klozer_ofi')
-    en el dashboard: sin KLOZER MKT, sin Shop Gallery, sin Avolta), en vez
-    del valor de la hoja FORECAST, para que el stock coincida siempre
-    entre ambas vistas. Recalcula los campos derivados de cada producto
-    afectado (saldo por mes, stock+proyección, meses de stock, alerta y
-    unidades/pallets a comprar).
-    """
-    stock_por_cod = {str(d["cod"]): (d.get("klozer", 0) + d.get("ofi", 0)) for d in (inv_data or [])}
-    if not stock_por_cod:
-        return
+    El stock KLOZER+OFICINA "en vivo" (mismo cálculo que usa por defecto
+    Inventario Productos) sólo tiene sentido para el trimestre EN CURSO
+    en adelante — mostrarlo también en trimestres ya cerrados haría que
+    todos los históricos muestren "el stock de hoy", que no representa lo
+    que había en stock en ese momento.
 
-    n_actualizados = 0
-    for T in (trimestres or {}).values():
+    Por eso:
+      - Trimestre actual (y cualquier futuro): stock en vivo (inv_data).
+      - Trimestres ya cerrados: cierre de stock del mes anterior al inicio
+        de ese trimestre, tomado de STOCK_CIERRE_MES — el mismo histórico
+        mensual que usa "Rotación mensual por rubro" — en vez de mezclarlo
+        con el stock de hoy.
+
+    Recalcula los campos derivados de cada producto afectado (saldo por
+    mes, stock+proyección, meses de stock, alerta y unidades/pallets a
+    comprar).
+    """
+    hoy = date.today()
+    trimestre_actual = f"{hoy.year}_Q{(hoy.month - 1) // 3 + 1}"
+    anio_act, qn_act = hoy.year, (hoy.month - 1) // 3 + 1
+
+    stock_vivo = {str(d["cod"]): (d.get("klozer", 0) + d.get("ofi", 0)) for d in (inv_data or [])}
+    cierre_mes = _leer_stock_cierre_mes()
+
+    n_vivo = n_hist = 0
+    for trimestre, T in (trimestres or {}).items():
+        anio_s, qn_s = trimestre.split("_Q")
+        anio_t, qn_t = int(anio_s), int(qn_s)
+        es_pasado = (anio_t, qn_t) < (anio_act, qn_act)
+
+        if es_pasado:
+            anio_ref, mes_ref = _proy_mes_referencia_trimestre(trimestre)
+            fuente = cierre_mes.get(f"{anio_ref}_{mes_ref}", {})
+        else:
+            fuente = stock_vivo
+
         for p in T.get("productos", []):
             cod = str(p["cod"])
-            if cod not in stock_por_cod:
+            if cod not in fuente:
                 continue
-            p["stock_actual"] = stock_por_cod[cod]
+            p["stock_actual"] = fuente[cod]
             meses_keys = list(p.get("mensual", {}).keys())
             if meses_keys:
                 _proy_recalcular_derivados(p, meses_keys)
-            n_actualizados += 1
+            if es_pasado: n_hist += 1
+            else: n_vivo += 1
 
-    print(f"  Proyección: stock (KLOZER+OFICINA) actualizado en {n_actualizados} producto(s) x trimestre")
+    print(f"  Proyección: stock actualizado — {n_vivo} con inventario en vivo (trimestre {trimestre_actual} "
+          f"en adelante), {n_hist} con cierre de mes histórico")
 
 
 def aplicar_override_trimestre_actual(proyeccion, inv_data):
@@ -2637,7 +2696,11 @@ def aplicar_venta_prom_desde_salidas(trimestres, monthly_raw):
     de producto) por el promedio real de unidades vendidas en ese trimestre
     de referencia, tomado de Salidas_consolidado.xlsx (mismo agregado
     mensual por producto que usa el resto del tablero — parse_ventas()
-    devuelve monthly_raw), en vez del valor de la hoja FORECAST.
+    devuelve monthly_raw), en vez del valor de la hoja FORECAST. Además
+    agrega, con el mismo punto de referencia (el último mes del trimestre
+    anterior), el promedio de los últimos 6 y 12 meses
+    (venta_prom_6m / venta_prom_12m) y el historial mensual de esos 12
+    meses (venta_historial_12m, para graficar la tendencia).
 
     Se aplica a TODOS los trimestres con la misma lógica; no hace falta
     distinguir "trimestre actual" de "históricos" en el código, porque el
@@ -2648,6 +2711,22 @@ def aplicar_venta_prom_desde_salidas(trimestres, monthly_raw):
     puede variar si todavía se cargan correcciones tardías de ventas del
     trimestre de referencia.
     """
+    def _meses_hasta(anio_fin, mes_fin, n):
+        # Los n meses que terminan en (anio_fin, mes_fin) inclusive, ascendente.
+        meses = []
+        y, m = anio_fin, mes_fin
+        for _ in range(n):
+            meses.append((y, m))
+            m -= 1
+            if m < 1:
+                m = 12
+                y -= 1
+        return list(reversed(meses))
+
+    def _unidades(cod, yr, mo):
+        prods = monthly_raw.get(str(yr), {}).get(str(mo), {}).get("prods", {})
+        return prods.get(cod, {}).get("u", 0.0), (cod in prods)
+
     for trimestre, T in trimestres.items():
         anio_s, qn_s = trimestre.split("_Q")
         anio, qn = int(anio_s), int(qn_s)
@@ -2656,22 +2735,33 @@ def aplicar_venta_prom_desde_salidas(trimestres, monthly_raw):
         else:
             anio_prev, mes_prev = anio, (qn - 2) * 3 + 1
 
-        meses = []
-        for i in range(3):
-            total_mo = mes_prev - 1 + i
-            meses.append((anio_prev + total_mo // 12, total_mo % 12 + 1))
+        anio_fin_ref, mes_fin_ref = anio_prev, mes_prev + 2
+        if mes_fin_ref > 12:
+            mes_fin_ref -= 12
+            anio_fin_ref += 1
+
+        meses3  = _meses_hasta(anio_fin_ref, mes_fin_ref, 3)
+        meses6  = _meses_hasta(anio_fin_ref, mes_fin_ref, 6)
+        meses12 = _meses_hasta(anio_fin_ref, mes_fin_ref, 12)
 
         for p in T.get("productos", []):
             cod = str(p["cod"])
-            total = 0.0
-            tiene_datos = False
-            for yr, mo in meses:
-                prods = monthly_raw.get(str(yr), {}).get(str(mo), {}).get("prods", {})
-                if cod in prods:
-                    total += prods[cod].get("u", 0.0)
-                    tiene_datos = True
-            if tiene_datos:
-                p["venta_prom_mensual_anterior"] = round(total / 3, 1)
+
+            for meses, n, campo in ((meses3, 3, "venta_prom_mensual_anterior"),
+                                     (meses6, 6, "venta_prom_6m"),
+                                     (meses12, 12, "venta_prom_12m")):
+                total, tiene_datos = 0.0, False
+                for yr, mo in meses:
+                    u, ok = _unidades(cod, yr, mo)
+                    total += u
+                    tiene_datos = tiene_datos or ok
+                if tiene_datos:
+                    p[campo] = round(total / n, 1)
+
+            p["venta_historial_12m"] = [
+                {"mes": f"{yr}-{mo:02d}", "unidades": round(_unidades(cod, yr, mo)[0], 1)}
+                for yr, mo in meses12
+            ]
 
 
 def aplicar_correcciones_abastecimiento(trimestres):
