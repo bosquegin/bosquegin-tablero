@@ -1041,6 +1041,9 @@ DEST_SHEET_GID   = "1954024258"  # pestaña RESUMEN PRODUCTOS X DESTILERIA
 DEST_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_resumen_dest.csv")
 PROYECCION_SHEET_GID = "1879268030"  # pestaña FORECAST (proyección de compra/venta trimestral)
 PROYECCION_CACHE     = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion_cache.json")
+VENTAS_OBJ_2026_SHEET_GID = "702882960"  # pestaña "Rolling - Mensual x Etiqueta" (cuadro "Objetivo 2026")
+VENTAS_OBJ_2026_FILAS     = (50, 70)     # rango A50:P70 indicado por el usuario
+PROY_ABAST_CORR = os.path.join(DATA_DIR, "Costos y PVP", "Proyeccion_abastecimiento_correcciones.json")
 CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
 CERV_SHEET_GID   = "2130605343"
 CERV_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_cervezas.csv")
@@ -2391,6 +2394,7 @@ def fetch_proyeccion_trimestral():
         try:
             with open(PROYECCION_CACHE, encoding="utf-8") as f:
                 cache = json.load(f)
+            aplicar_correcciones_abastecimiento(cache.get("trimestres", {}))
             print(f"  Proyección trimestral al día (caché), {len(cache.get('trimestres', {}))} trimestre(s)")
             return cache
         except Exception:
@@ -2431,6 +2435,7 @@ def fetch_proyeccion_trimestral():
         }
         print(f"  Proyección trimestral: {trimestre} (fila {fila_inicio}) — {len(productos)} productos")
 
+    aplicar_correcciones_abastecimiento(trimestres)
     resultado = {"trimestres": trimestres, "error": None if trimestres else "Ningún bloque con datos"}
 
     # Cachear el resultado completo (evita repetir el sondeo celda por celda,
@@ -2459,6 +2464,173 @@ def cargar_proyeccion_trimestral_historica():
     Devuelve {"trimestres": {"2025_Q1": {...}, "2026_Q3": {...}, ...}, "error": None|str}
     """
     return fetch_proyeccion_trimestral()
+
+
+def _proy_fetch_ventas_objetivo_2026():
+    """
+    Lee el cuadro "Objetivo 2026" (venta objetivo mensual por producto, GIN +
+    FERIADO VERMÚ) de la pestaña "Rolling - Mensual x Etiqueta" (gid=702882960),
+    filas 50 a 70 indicadas por el usuario. Se lee FILA POR FILA (no en un solo
+    rango) porque un pedido
+    amplio (ej. A50:P70) corta/desalinea la tabla en el primer hueco en
+    blanco — el mismo bug de truncamiento de gviz ya visto en la hoja
+    FORECAST (ver _proy_leer_celda). Sólo 21 filas, así que el costo de
+    pedir una por una es insignificante.
+    Devuelve {cod: [ene, feb, ..., dic]} (12 floats, columnas C..N).
+    """
+    import csv, io
+    fila_ini, fila_fin = VENTAS_OBJ_2026_FILAS
+    productos = {}
+    for fila in range(fila_ini, fila_fin + 1):
+        url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/gviz/tq"
+               f"?tqx=out:csv&gid={VENTAS_OBJ_2026_SHEET_GID}&range=A{fila}:P{fila}")
+        content = _download_costos_via_cdp(url)
+        if not content:
+            continue
+        r = next(csv.reader(io.StringIO(content)), [])
+        if len(r) < 14 or not r[0]:
+            continue
+        cod = str(r[0]).strip()
+        try:
+            cod = str(int(float(cod)))
+        except Exception:
+            continue
+        productos[cod] = [_proy_num(r[c]) for c in range(2, 14)]  # C..N = enero..dic
+    return productos
+
+
+def aplicar_override_trimestre_actual(proyeccion, inv_data):
+    """
+    Para el trimestre EN CURSO (el único todavía "vivo"), la hoja FORECAST
+    trae stock y venta objetivo desactualizados (arrastran valores de
+    trimestres anteriores porque todavía no se revisó manualmente). Se
+    reemplazan esas dos entradas por fuentes más confiables:
+      - stock_actual: inventario real consolidado (mismo que usa el resto
+        del tablero — post Contabilium EN VIVO), en vez del de FORECAST.
+      - venta_objetivo mensual: cuadro "Objetivo 2026" por producto
+        (_proy_fetch_ventas_objetivo_2026), en vez del de FORECAST.
+    Con esos dos insumos nuevos se recalculan los campos derivados que
+    dependían de ellos (saldo por mes, stock+proyección, total objetivo de
+    ventas, meses de stock, alerta y unidades/pallets a comprar), para que
+    no queden mostrando una mezcla de números viejos y nuevos inconsistentes
+    entre sí. "pallet" (unidades por pallet) no cambia — es un dato físico
+    del producto, no una proyección.
+    """
+    hoy = date.today()
+    trimestre_actual = f"{hoy.year}_Q{(hoy.month - 1) // 3 + 1}"
+    T = (proyeccion or {}).get("trimestres", {}).get(trimestre_actual)
+    if not T or not T.get("productos"):
+        return proyeccion
+
+    stock_por_cod = {str(d["cod"]): d.get("both", 0) for d in (inv_data or [])}
+
+    try:
+        ventas_obj = _proy_fetch_ventas_objetivo_2026()
+    except Exception as e:
+        print(f"  Advertencia leyendo Objetivo 2026: {e}")
+        ventas_obj = {}
+
+    if not stock_por_cod and not ventas_obj:
+        return proyeccion
+
+    mes_inicio = (hoy.month - 1) // 3 * 3 + 1   # 1, 4, 7 o 10
+    n_actualizados = 0
+    for p in T["productos"]:
+        cod = str(p["cod"])
+        meses_keys = list(p.get("mensual", {}).keys())
+        if not meses_keys:
+            continue
+
+        if cod in stock_por_cod:
+            p["stock_actual"] = stock_por_cod[cod]
+
+        vo = ventas_obj.get(cod)
+        if vo:
+            for i, mk in enumerate(meses_keys):
+                p["mensual"][mk]["venta_objetivo"] = vo[mes_inicio - 1 + i]
+
+        if cod in stock_por_cod or vo:
+            n_actualizados += 1
+
+        _proy_recalcular_derivados(p, meses_keys)
+
+    print(f"  Proyección {trimestre_actual}: {n_actualizados}/{len(T['productos'])} productos "
+          f"con stock real y/o venta objetivo de Objetivo 2026")
+    return proyeccion
+
+
+def _proy_recalcular_derivados(p, meses_keys):
+    """
+    Recalcula, a partir de stock_actual + proyeccion_abastecimiento +
+    venta_objetivo de cada mes, todos los campos que dependen de esos tres
+    insumos: saldo por mes (balance corrido), stock+proyección, total
+    objetivo de ventas, meses de stock, alerta y unidades/pallets a
+    comprar. Se usa tanto al aplicar el override del trimestre en curso
+    como al aplicar una corrección manual de abastecimiento (editada desde
+    el tablero), para que esos campos derivados nunca queden desalineados
+    con los insumos que sí cambiaron. "pallet" (unidades por pallet) no se
+    toca — es un dato físico fijo del producto, no una proyección.
+    """
+    saldo_prev = p["stock_actual"]
+    total_obj = 0.0
+    proy_total = 0.0
+    for mk in meses_keys:
+        m = p["mensual"][mk]
+        proy = m.get("proyeccion_abastecimiento") or 0
+        vobj = m.get("venta_objetivo") or 0
+        saldo_prev = saldo_prev + proy - vobj
+        m["saldo_stock"] = saldo_prev
+        total_obj += vobj
+        proy_total += proy
+
+    p["stock_total"] = p["stock_actual"] + proy_total
+    p["total_objetivo_ventas"] = total_obj
+    p["meses_stock"] = (p["stock_total"] / (total_obj / 3)) if total_obj > 0 else 0.0
+    saldos = [p["mensual"][mk]["saldo_stock"] for mk in meses_keys]
+    p["comprar"] = max(0.0, -min(saldos))
+    p["alerta"] = "COMPRAR" if p["comprar"] > 0 else ""
+    p["cantidad_pallets"] = round(p["comprar"] / p["pallet"], 1) if p.get("pallet") else 0.0
+
+
+def aplicar_correcciones_abastecimiento(trimestres):
+    """
+    Sobreescribe "proyeccion_abastecimiento" con los valores editados a mano
+    desde el tablero (Proyección Producción -> detalle de producto -> campo
+    editable), guardados por el servidor en PROY_ABAST_CORR. Se vuelve a
+    aplicar en cada fetch_proyeccion_trimestral() para que la edición
+    persista a través de cada Actualizar (si no, la próxima descarga de la
+    hoja FORECAST la pisaría). Formato del archivo:
+      {"<trimestre>": {"<cod>": {"<mes1|mes2|mes3>": valor, ...}}}
+    Devuelve la cantidad de productos con al menos una corrección aplicada.
+    """
+    if not os.path.exists(PROY_ABAST_CORR):
+        return 0
+    try:
+        with open(PROY_ABAST_CORR, encoding="utf-8") as f:
+            correcciones = json.load(f)
+    except Exception as e:
+        print(f"  Advertencia leyendo correcciones de abastecimiento: {e}")
+        return 0
+
+    aplicadas = 0
+    for trimestre, por_cod in correcciones.items():
+        T = trimestres.get(trimestre)
+        if not T:
+            continue
+        for p in T.get("productos", []):
+            valores = por_cod.get(str(p["cod"]))
+            if not valores:
+                continue
+            meses_keys = list(p.get("mensual", {}).keys())
+            cambio = False
+            for mk, val in valores.items():
+                if mk in p.get("mensual", {}):
+                    p["mensual"][mk]["proyeccion_abastecimiento"] = float(val)
+                    cambio = True
+            if cambio:
+                _proy_recalcular_derivados(p, meses_keys)
+                aplicadas += 1
+    return aplicadas
 
 
 # ─── 6a. RESUMEN DESTILERÍA / CERVEZAS ────────────────────────────────────────
@@ -3154,6 +3326,14 @@ def main():
     except Exception as e:
         print("  Advertencia stock vivo Contabilium: %s" % e)
         _fail("Stock EN VIVO (API)", e)
+
+    print("\n[3c/5] Actualizando trimestre actual de Proyección con stock real y Objetivo 2026...")
+    try:
+        proyeccion = aplicar_override_trimestre_actual(proyeccion, inv_data)
+        _ok("Proyección trimestre actual")
+    except Exception as e:
+        print(f"  Advertencia override proyección trimestre actual: {e}")
+        _fail("Proyección trimestre actual", e)
 
     print("\n[4/5] Actualizando costos desde Google Sheets...")
     try:

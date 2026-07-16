@@ -4258,6 +4258,36 @@ function proyToggleRow(trimestreKey, cod) {
   renderProyeccion();
 }
 
+// Edita "Proyección de abastecimiento" desde el detalle de producto. Se guarda
+// en el servidor (persiste entre corridas del pipeline) y, si responde OK, se
+// actualiza el producto en memoria con los campos derivados ya recalculados
+// (saldo, stock+proyección, meses de stock, comprar, alerta) sin recargar la página.
+function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
+  const valor = parseFloat(inputEl.value) || 0;
+  inputEl.disabled = true;
+  fetch('/guardar_proyeccion_abastecimiento', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ trimestre: trimestreKey, cod: cod, mes: mk, valor: valor })
+  })
+    .then(function (r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function (d) {
+      inputEl.disabled = false;
+      if (!d.ok) { alert('No se pudo guardar: ' + (d.error || 'error desconocido')); return; }
+      const T = window.BOSQUE_DATA.proyeccion.trimestres[trimestreKey];
+      if (T && d.producto) {
+        const idx = T.productos.findIndex(function (p) { return String(p.cod) === String(cod); });
+        if (idx >= 0) T.productos[idx] = d.producto;
+      }
+      renderProyeccion();
+    })
+    .catch(function (e) {
+      inputEl.disabled = false;
+      if (e.message !== 'auth') alert('No se pudo guardar: ' + e.message);
+    });
+}
+
 // Grilla resumen (Código, Descripción, Stock, Total obj. ventas, Meses stock);
 // el desglose mes a mes (proyección de abastecimiento, venta objetivo, saldo)
 // se despliega por producto al hacer clic en la fila, en vez de mostrarse
@@ -4286,10 +4316,16 @@ function _proyGridHtml(trimestreKey, T) {
 
   const n = v => Math.round(v || 0).toLocaleString('es-AR');
 
-  const mesBloque = (lbl, m) => `
+  const mesBloque = (lbl, m, cod, mk) => `
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:150px">
       <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}</div>
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Proy. abast.</span><span>${n(m.proyeccion_abastecimiento)}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0">
+        <span style="color:var(--muted)">Proy. abast.</span>
+        <input type="number" step="1" value="${Math.round(m.proyeccion_abastecimiento || 0)}"
+          data-proy-abast="${trimestreKey}__${cod}__${mk}"
+          onchange="proyGuardarAbastecimiento('${trimestreKey}','${cod}','${mk}',this)"
+          style="width:62px;text-align:right;background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10.5px;padding:2px 5px;font-family:inherit">
+      </div>
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta objetivo</span><span>${n(m.venta_objetivo)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo</span><span>${n(m.saldo_stock)}</span></div>
     </div>`;
@@ -4313,9 +4349,9 @@ function _proyGridHtml(trimestreKey, T) {
           &nbsp;·&nbsp; Stock + proyección: <strong style="color:var(--text)">${n(p.stock_total)}</strong>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1)}
-          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2)}
-          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3)}
+          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0])}
+          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1])}
+          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2])}
         </div>
       </td>
     </tr>` : '';
