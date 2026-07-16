@@ -4245,23 +4245,7 @@ function _proyForecastMetrics(productos) {
   return { mape, accuracy, bias };
 }
 
-// Reparto por resto mayor: la cantidad "a comprar" del trimestre se distribuye
-// entre los meses en proporción a la venta objetivo de cada uno, redondeando de
-// forma que la suma mensual coincida exactamente con el total (no cada mes por
-// separado, que puede desviar la suma en ±1).
-function _proyPedidoPorMes(p, meses) {
-  const totalObjetivo = p.total_objetivo_ventas || 0;
-  const comprarTotal = p.comprar || 0;
-  const exacto = meses.map(mk => (comprarTotal > 0 && totalObjetivo > 0)
-    ? comprarTotal * ((p.mensual[mk] || {}).venta_objetivo || 0) / totalObjetivo : 0);
-  const piso = exacto.map(v => Math.floor(v));
-  let faltante = Math.round(comprarTotal) - piso.reduce((a, b) => a + b, 0);
-  const orden = exacto.map((v, i) => ({ i, resto: v - Math.floor(v) })).sort((a, b) => b.resto - a.resto);
-  for (let k = 0; k < orden.length && faltante > 0; k++, faltante--) piso[orden[k].i]++;
-  return piso;
-}
-
-const _Y = 'background:rgba(250,204,21,.14)';   // amarillo — columnas de stock, como en la hoja
+const _Y ='background:rgba(250,204,21,.14)';   // amarillo — columnas de stock, como en la hoja
 const _P = 'background:rgba(248,113,113,.12)';  // salmón — venta promedio, como en la hoja
 const _TD = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:10px';
 const _TH = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em';
@@ -4270,7 +4254,7 @@ function _proyGridHtml(T) {
   const meses = T.meses || [];
   const productos = T.productos || [];
   const ventaPromLabel = T.venta_prom_label || 'período anterior';
-  const nCols = 3 + 5 + 8 + 5;
+  const nCols = 3 + 5 + 8;
 
   const sorted = productos.slice().sort((a, b) => {
     const ac = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
@@ -4283,7 +4267,6 @@ function _proyGridHtml(T) {
     <th colspan="3" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Situación actual</th>
     <th colspan="5" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección abastecimiento</th>
     <th colspan="8" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección ventas</th>
-    <th colspan="5" style="${_TH};background:rgba(56,189,248,.18);text-align:center">Pedido sugerido</th>
   </tr>`;
   const headRow = `<tr>
     <th style="${_TH};text-align:left">Código</th>
@@ -4302,17 +4285,11 @@ function _proyGridHtml(T) {
     <th style="${_TH};${_Y}">Saldo ${meses[2]||'Mes3'}</th>
     <th style="${_TH}">Total obj. ventas</th>
     <th style="${_TH}">Meses stock</th>
-    <th style="${_TH}">Pedir ${meses[0]||'Mes1'}</th>
-    <th style="${_TH}">Pedir ${meses[1]||'Mes2'}</th>
-    <th style="${_TH}">Pedir ${meses[2]||'Mes3'}</th>
-    <th style="${_TH}">Total a comprar</th>
-    <th style="${_TH}">Pallets</th>
   </tr>`;
 
   const rows = sorted.map(p => {
     const mk = Object.keys(p.mensual || {});
     const m1 = p.mensual[mk[0]] || {}, m2 = p.mensual[mk[1]] || {}, m3 = p.mensual[mk[2]] || {};
-    const pedido = _proyPedidoPorMes(p, mk);
     const esCompra = (p.alerta || '').toUpperCase().includes('COMPRAR');
     const puntoAlerta = esCompra
       ? `<span title="Alerta: comprar" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:5px"></span>`
@@ -4336,11 +4313,6 @@ function _proyGridHtml(T) {
       <td style="${_TD};${_Y}">${n(m3.saldo_stock)}</td>
       <td style="${_TD}">${n(p.total_objetivo_ventas)}</td>
       <td style="${_TD};font-weight:700;color:${mesesStkColor}">${(p.meses_stock||0).toFixed(1)}</td>
-      <td style="${_TD};color:var(--accent2)">${pedido[0] > 0 ? n(pedido[0]) : '—'}</td>
-      <td style="${_TD};color:var(--accent2)">${pedido[1] > 0 ? n(pedido[1]) : '—'}</td>
-      <td style="${_TD};color:var(--accent2)">${pedido[2] > 0 ? n(pedido[2]) : '—'}</td>
-      <td style="${_TD};font-weight:700;color:var(--accent2)">${p.comprar > 0 ? n(p.comprar) : '—'}</td>
-      <td style="${_TD}">${p.cantidad_pallets > 0 ? p.cantidad_pallets.toFixed(1) : '—'}</td>
     </tr>`;
   }).join('') || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
 
