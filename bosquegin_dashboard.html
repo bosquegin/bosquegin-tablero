@@ -4306,9 +4306,9 @@ function _proyGridHtml(trimestreKey, T) {
     <th style="${_TH};width:16px"></th>
     <th style="${_TH};text-align:left">Código</th>
     <th style="${_TH};text-align:left">Descripción</th>
-    <th style="${_TH};${_Y}">Stock actual</th>
-    <th style="${_TH}">Total obj. ventas</th>
-    <th style="${_TH}">Meses stock</th>
+    <th style="${_TH};${_Y};text-align:center">Stock actual</th>
+    <th style="${_TH};text-align:center">Total obj. ventas</th>
+    <th style="${_TH};text-align:center">Meses stock</th>
   </tr>`;
 
   const n = v => Math.round(v || 0).toLocaleString('es-AR');
@@ -4357,9 +4357,9 @@ function _proyGridHtml(trimestreKey, T) {
       <td style="${_TD};text-align:left;color:var(--muted)">${caret}</td>
       <td style="${_TD};text-align:left">${puntoAlerta}<code>${p.cod}</code></td>
       <td style="${_TD};text-align:left;white-space:normal;min-width:180px">${p.art}</td>
-      <td style="${_TD};${_Y};font-weight:700">${n(p.stock_actual)}</td>
-      <td style="${_TD}">${n(p.total_objetivo_ventas)}</td>
-      <td style="${_TD};font-weight:700;color:${mesesStkColor}">${(p.meses_stock||0).toFixed(1)}</td>
+      <td style="${_TD};${_Y};font-weight:700;text-align:center">${n(p.stock_actual)}</td>
+      <td style="${_TD};text-align:center">${n(p.total_objetivo_ventas)}</td>
+      <td style="${_TD};font-weight:700;color:${mesesStkColor};text-align:center">${(p.meses_stock||0).toFixed(1)}</td>
     </tr>${detailRow}`;
   }).join('') || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
 
