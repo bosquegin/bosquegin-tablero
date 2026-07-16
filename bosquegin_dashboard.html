@@ -4298,12 +4298,9 @@ function _proyGridHtml(trimestreKey, T) {
   const ventaPromLabel = T.venta_prom_label || 'período anterior';
   const nCols = 6;
 
-  const sorted = productos.slice().sort((a, b) => {
-    const ac = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
-    const bc = (b.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
-    if (ac !== bc) return ac - bc;
-    return (a.meses_stock || 0) - (b.meses_stock || 0);
-  });
+  // Orden por producto y tamaño (la descripción ya incluye ambos, ej.
+  // "GIN BOSQUE NATIVO BOTELLA 500 ML") en vez de por urgencia de alerta.
+  const sorted = productos.slice().sort((a, b) => (a.art || '').localeCompare(b.art || '', 'es'));
 
   const headRow = `<tr>
     <th style="${_TH};width:16px"></th>
