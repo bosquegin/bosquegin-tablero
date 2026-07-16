@@ -4357,22 +4357,29 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
   const biasTxt = fm.bias === null ? '—' : (fm.bias > 0 ? '+' : '') + fm.bias.toFixed(1) + '%';
 
   // Encabezado de indicadores: siempre visible, sea cual sea el estado del desplegable.
+  // Barra compacta de una sola fila (en vez de kpi-cards grandes que se apilaban en 2 filas).
+  const _sep = `<div style="width:1px;align-self:stretch;background:var(--border);flex-shrink:0"></div>`;
+  const _chip = (lbl, val, color, sub) => `
+    <div style="flex:1;min-width:86px;padding:7px 10px;text-align:center">
+      <div style="font-size:7px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lbl}</div>
+      <div style="font-size:14px;font-weight:700;color:${color || 'var(--text)'};white-space:nowrap">${val}</div>
+      <div style="font-size:7px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+    </div>`;
   const kpiRow = `
-    <div class="kpi-grid" style="margin-bottom:${expanded ? '14px' : '0'}">
-      <div class="kpi-card blue"><div class="kpi-label">Trimestre</div><div class="kpi-value" style="font-size:18px">${label}</div>
-        <div class="kpi-change">${productos.length} productos</div></div>
-      <div class="kpi-card red"><div class="kpi-label">Productos en alerta</div><div class="kpi-value">${kpis.nAlerta}</div>
-        <div class="kpi-change down">Requieren compra</div></div>
-      <div class="kpi-card yellow"><div class="kpi-label">Unidades a comprar</div><div class="kpi-value">${Math.round(kpis.totalUnidades).toLocaleString('es-AR')}</div>
-        <div class="kpi-change">${kpis.totalPallets.toFixed(1)} pallets</div></div>
-      <div class="kpi-card green"><div class="kpi-label">Cumplimiento objetivo</div><div class="kpi-value">${kpis.cumplPct !== null ? kpis.cumplPct + '%' : '—'}</div>
-        <div class="kpi-change">venta actual vs. objetivo</div></div>
-      <div class="kpi-card" style="border-top:3px solid ${accColor}"><div class="kpi-label">Forecast Accuracy</div><div class="kpi-value" style="color:${accColor}">${fm.accuracy !== null ? Math.round(fm.accuracy) + '%' : '—'}</div>
-        <div class="kpi-change">${fm.accuracy !== null ? '100% − MAPE' : 'sin resultados aún'}</div></div>
-      <div class="kpi-card" style="border-top:3px solid ${biasColor}"><div class="kpi-label">Forecast Bias</div><div class="kpi-value" style="color:${biasColor}">${biasTxt}</div>
-        <div class="kpi-change">${fm.bias === null ? 'sin resultados aún' : fm.bias > 0 ? 'sobre-proyectado' : fm.bias < 0 ? 'sub-proyectado' : 'sin sesgo'}</div></div>
-      <div class="kpi-card" style="border-top:3px solid ${mapeColor}"><div class="kpi-label">MAPE</div><div class="kpi-value" style="color:${mapeColor}">${fm.mape !== null ? fm.mape.toFixed(1) + '%' : '—'}</div>
-        <div class="kpi-change">${fm.mape !== null ? 'error % ponderado' : 'sin resultados aún'}</div></div>
+    <div style="display:flex;align-items:stretch;background:var(--surface);border:1px solid var(--border);border-radius:9px;margin-bottom:${expanded ? '14px' : '0'};overflow-x:auto">
+      ${_chip('Trimestre', label, 'var(--accent2)', productos.length + ' productos')}
+      ${_sep}
+      ${_chip('En alerta', kpis.nAlerta, 'var(--red)', 'requieren compra')}
+      ${_sep}
+      ${_chip('A comprar', Math.round(kpis.totalUnidades).toLocaleString('es-AR'), 'var(--yellow)', kpis.totalPallets.toFixed(1) + ' pallets')}
+      ${_sep}
+      ${_chip('Cumplim. objetivo', kpis.cumplPct !== null ? kpis.cumplPct + '%' : '—', 'var(--green)', 'venta vs. objetivo')}
+      ${_sep}
+      ${_chip('Forecast Accuracy', fm.accuracy !== null ? Math.round(fm.accuracy) + '%' : '—', accColor, fm.accuracy !== null ? '100% − MAPE' : 'sin resultados')}
+      ${_sep}
+      ${_chip('Forecast Bias', biasTxt, biasColor, fm.bias === null ? 'sin resultados' : fm.bias > 0 ? 'sobre-proyectado' : fm.bias < 0 ? 'sub-proyectado' : 'sin sesgo')}
+      ${_sep}
+      ${_chip('MAPE', fm.mape !== null ? fm.mape.toFixed(1) + '%' : '—', mapeColor, fm.mape !== null ? 'error ponderado' : 'sin resultados')}
     </div>`;
 
   return `
