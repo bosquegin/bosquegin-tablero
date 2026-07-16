@@ -2592,6 +2592,67 @@ def _proy_recalcular_derivados(p, meses_keys):
     p["cantidad_pallets"] = round(p["comprar"] / p["pallet"], 1) if p.get("pallet") else 0.0
 
 
+def aplicar_descripciones_productos(proyeccion, inv_gen):
+    """
+    Sobreescribe la descripción de cada producto, en TODOS los trimestres,
+    con el nombre de Data/Productos/PRODUCTOS.xlsx (la hoja "Inventario
+    Productos" — mismo dato que usa el resto del tablero), en vez de la
+    descripción de la hoja FORECAST (que puede diferir en redacción,
+    mayúsculas o quedar desactualizada si el producto se renombró).
+    """
+    if not inv_gen:
+        return
+    for T in (proyeccion or {}).get("trimestres", {}).values():
+        for p in T.get("productos", []):
+            gen = inv_gen.get(str(p["cod"]))
+            if gen and gen.get("art"):
+                p["art"] = gen["art"]
+
+
+def aplicar_venta_prom_desde_salidas(trimestres, monthly_raw):
+    """
+    Reemplaza "venta_prom_mensual_anterior" (la venta mensual promedio del
+    trimestre de referencia, mostrada junto a cada trimestre en el detalle
+    de producto) por el promedio real de unidades vendidas en ese trimestre
+    de referencia, tomado de Salidas_consolidado.xlsx (mismo agregado
+    mensual por producto que usa el resto del tablero — parse_ventas()
+    devuelve monthly_raw), en vez del valor de la hoja FORECAST.
+
+    Se aplica a TODOS los trimestres con la misma lógica; no hace falta
+    distinguir "trimestre actual" de "históricos" en el código, porque el
+    trimestre de referencia de cualquier trimestre mostrado (el anterior)
+    ya está siempre cerrado — la diferencia es sólo que para los
+    trimestres históricos el número no cambia entre corridas (esas ventas
+    ya son un hecho consumado), mientras que para el trimestre en curso sí
+    puede variar si todavía se cargan correcciones tardías de ventas del
+    trimestre de referencia.
+    """
+    for trimestre, T in trimestres.items():
+        anio_s, qn_s = trimestre.split("_Q")
+        anio, qn = int(anio_s), int(qn_s)
+        if qn == 1:
+            anio_prev, mes_prev = anio - 1, 10   # referencia = Q4 del año anterior
+        else:
+            anio_prev, mes_prev = anio, (qn - 2) * 3 + 1
+
+        meses = []
+        for i in range(3):
+            total_mo = mes_prev - 1 + i
+            meses.append((anio_prev + total_mo // 12, total_mo % 12 + 1))
+
+        for p in T.get("productos", []):
+            cod = str(p["cod"])
+            total = 0.0
+            tiene_datos = False
+            for yr, mo in meses:
+                prods = monthly_raw.get(str(yr), {}).get(str(mo), {}).get("prods", {})
+                if cod in prods:
+                    total += prods[cod].get("u", 0.0)
+                    tiene_datos = True
+            if tiene_datos:
+                p["venta_prom_mensual_anterior"] = round(total / 3, 1)
+
+
 def aplicar_correcciones_abastecimiento(trimestres):
     """
     Sobreescribe "proyeccion_abastecimiento" con los valores editados a mano
@@ -3295,6 +3356,7 @@ def main():
     try:
         inv_gen = load_productos()
         print("  -> %d productos cargados desde PRODUCTOS.xlsx" % len(inv_gen))
+        aplicar_descripciones_productos(proyeccion, inv_gen)
         _ok("Productos", f"{len(inv_gen)} productos")
     except Exception as e:
         print("  Advertencia productos: %s" % e)
@@ -3364,6 +3426,7 @@ def main():
     try:
         ventas, ventas_hasta, monthly_raw = parse_ventas(salidas_src, prod_lookup=inv_gen, costos=costos)
         print("  -> Datos hasta %s (fuente: %s)" % (ventas_hasta, os.path.basename(salidas_src)))
+        aplicar_venta_prom_desde_salidas(proyeccion.get("trimestres", {}), monthly_raw)
         _ok("Ventas/salidas", f"hasta {ventas_hasta}")
     except Exception as e:
         print("  ERROR ventas: %s" % e)
