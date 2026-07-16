@@ -2499,27 +2499,50 @@ def _proy_fetch_ventas_objetivo_2026():
     return productos
 
 
+def aplicar_stock_inventario_productos(trimestres, inv_data):
+    """
+    Reemplaza stock_actual, en TODOS los trimestres (históricos incluido —
+    no sólo el actual), por KLOZER + OFICINA tomado del inventario real
+    consolidado (post Contabilium EN VIVO) — el mismo cálculo que usa por
+    defecto la pestaña "Inventario Productos" (getStock(item,'klozer_ofi')
+    en el dashboard: sin KLOZER MKT, sin Shop Gallery, sin Avolta), en vez
+    del valor de la hoja FORECAST, para que el stock coincida siempre
+    entre ambas vistas. Recalcula los campos derivados de cada producto
+    afectado (saldo por mes, stock+proyección, meses de stock, alerta y
+    unidades/pallets a comprar).
+    """
+    stock_por_cod = {str(d["cod"]): (d.get("klozer", 0) + d.get("ofi", 0)) for d in (inv_data or [])}
+    if not stock_por_cod:
+        return
+
+    n_actualizados = 0
+    for T in (trimestres or {}).values():
+        for p in T.get("productos", []):
+            cod = str(p["cod"])
+            if cod not in stock_por_cod:
+                continue
+            p["stock_actual"] = stock_por_cod[cod]
+            meses_keys = list(p.get("mensual", {}).keys())
+            if meses_keys:
+                _proy_recalcular_derivados(p, meses_keys)
+            n_actualizados += 1
+
+    print(f"  Proyección: stock (KLOZER+OFICINA) actualizado en {n_actualizados} producto(s) x trimestre")
+
+
 def aplicar_override_trimestre_actual(proyeccion, inv_data):
     """
     Para el trimestre EN CURSO (el único todavía "vivo"), la hoja FORECAST
-    trae stock y venta objetivo desactualizados (arrastran valores de
-    trimestres anteriores porque todavía no se revisó manualmente). Se
-    reemplazan esas dos entradas por fuentes más confiables:
-      - stock_actual: inventario real consolidado (mismo que usa el resto
-        del tablero — post Contabilium EN VIVO), en vez del de FORECAST.
-      - venta_objetivo mensual: cuadro "Objetivo 2026" por producto
-        (_proy_fetch_ventas_objetivo_2026), en vez del de FORECAST.
-    Con esos dos insumos nuevos se recalculan los campos derivados que
-    dependían de ellos (saldo por mes, stock+proyección, total objetivo de
-    ventas, meses de stock, alerta y unidades/pallets a comprar), para que
-    no queden mostrando una mezcla de números viejos y nuevos inconsistentes
-    entre sí. "pallet" (unidades por pallet) no cambia — es un dato físico
-    del producto, no una proyección.
+    trae la venta objetivo desactualizada (arrastra valores de trimestres
+    anteriores porque todavía no se revisó manualmente). Se reemplaza por
+    el cuadro "Objetivo 2026" por producto (_proy_fetch_ventas_objetivo_2026),
+    y se recalculan los campos derivados que dependen de ella (saldo por
+    mes, stock+proyección, total objetivo de ventas, meses de stock,
+    alerta y unidades/pallets a comprar). "pallet" no cambia — es un dato
+    físico del producto, no una proyección.
 
-    stock_actual = KLOZER + OFICINA — el mismo cálculo que usa por defecto
-    la pestaña "Inventario Productos" (getStock(item, 'klozer_ofi') en el
-    dashboard: sin KLOZER MKT, sin Shop Gallery, sin Avolta), para que el
-    stock coincida entre ambas vistas.
+    El stock ya no se toca acá — aplicar_stock_inventario_productos() lo
+    reemplaza para TODOS los trimestres antes de llegar a esta función.
     """
     hoy = date.today()
     trimestre_actual = f"{hoy.year}_Q{(hoy.month - 1) // 3 + 1}"
@@ -2527,15 +2550,13 @@ def aplicar_override_trimestre_actual(proyeccion, inv_data):
     if not T or not T.get("productos"):
         return proyeccion
 
-    stock_por_cod = {str(d["cod"]): (d.get("klozer", 0) + d.get("ofi", 0)) for d in (inv_data or [])}
-
     try:
         ventas_obj = _proy_fetch_ventas_objetivo_2026()
     except Exception as e:
         print(f"  Advertencia leyendo Objetivo 2026: {e}")
         ventas_obj = {}
 
-    if not stock_por_cod and not ventas_obj:
+    if not ventas_obj:
         return proyeccion
 
     mes_inicio = (hoy.month - 1) // 3 * 3 + 1   # 1, 4, 7 o 10
@@ -2546,21 +2567,16 @@ def aplicar_override_trimestre_actual(proyeccion, inv_data):
         if not meses_keys:
             continue
 
-        if cod in stock_por_cod:
-            p["stock_actual"] = stock_por_cod[cod]
-
         vo = ventas_obj.get(cod)
         if vo:
             for i, mk in enumerate(meses_keys):
                 p["mensual"][mk]["venta_objetivo"] = vo[mes_inicio - 1 + i]
-
-        if cod in stock_por_cod or vo:
             n_actualizados += 1
 
         _proy_recalcular_derivados(p, meses_keys)
 
     print(f"  Proyección {trimestre_actual}: {n_actualizados}/{len(T['productos'])} productos "
-          f"con stock real y/o venta objetivo de Objetivo 2026")
+          f"con venta objetivo de Objetivo 2026")
     return proyeccion
 
 
@@ -3394,13 +3410,14 @@ def main():
         print("  Advertencia stock vivo Contabilium: %s" % e)
         _fail("Stock EN VIVO (API)", e)
 
-    print("\n[3c/5] Actualizando trimestre actual de Proyección con stock real y Objetivo 2026...")
+    print("\n[3c/5] Actualizando stock de Proyección (todos los trimestres) y venta objetivo del actual...")
     try:
+        aplicar_stock_inventario_productos(proyeccion.get("trimestres", {}), inv_data)
         proyeccion = aplicar_override_trimestre_actual(proyeccion, inv_data)
-        _ok("Proyección trimestre actual")
+        _ok("Proyección: stock y trimestre actual")
     except Exception as e:
-        print(f"  Advertencia override proyección trimestre actual: {e}")
-        _fail("Proyección trimestre actual", e)
+        print(f"  Advertencia override proyección: {e}")
+        _fail("Proyección: stock y trimestre actual", e)
 
     print("\n[4/5] Actualizando costos desde Google Sheets...")
     try:
