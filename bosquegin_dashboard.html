@@ -4246,15 +4246,27 @@ function _proyForecastMetrics(productos) {
 }
 
 const _Y ='background:rgba(250,204,21,.14)';   // amarillo — columnas de stock, como en la hoja
-const _P = 'background:rgba(248,113,113,.12)';  // salmón — venta promedio, como en la hoja
 const _TD = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:10px';
 const _TH = 'padding:5px 7px;text-align:right;white-space:nowrap;font-size:8px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.02em';
 
-function _proyGridHtml(T) {
+// <trimestreKey>__<cod> -> bool (fila expandida con el desglose mensual)
+window.proyRowOpen = window.proyRowOpen || {};
+
+function proyToggleRow(trimestreKey, cod) {
+  const key = trimestreKey + '__' + cod;
+  window.proyRowOpen[key] = !window.proyRowOpen[key];
+  renderProyeccion();
+}
+
+// Grilla resumen (Código, Descripción, Stock, Total obj. ventas, Meses stock);
+// el desglose mes a mes (proyección de abastecimiento, venta objetivo, saldo)
+// se despliega por producto al hacer clic en la fila, en vez de mostrarse
+// siempre para los 16 campos de los 3 meses.
+function _proyGridHtml(trimestreKey, T) {
   const meses = T.meses || [];
   const productos = T.productos || [];
   const ventaPromLabel = T.venta_prom_label || 'período anterior';
-  const nCols = 3 + 5 + 8;
+  const nCols = 6;
 
   const sorted = productos.slice().sort((a, b) => {
     const ac = (a.alerta || '').toUpperCase().includes('COMPRAR') ? 0 : 1;
@@ -4263,29 +4275,24 @@ function _proyGridHtml(T) {
     return (a.meses_stock || 0) - (b.meses_stock || 0);
   });
 
-  const groupRow = `<tr>
-    <th colspan="3" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Situación actual</th>
-    <th colspan="5" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección abastecimiento</th>
-    <th colspan="8" style="${_TH};background:rgba(99,102,241,.18);text-align:center">Proyección ventas</th>
-  </tr>`;
   const headRow = `<tr>
+    <th style="${_TH};width:16px"></th>
     <th style="${_TH};text-align:left">Código</th>
     <th style="${_TH};text-align:left">Descripción</th>
     <th style="${_TH};${_Y}">Stock actual</th>
-    <th style="${_TH}">Proy. ${meses[0]||'Mes1'}</th>
-    <th style="${_TH}">Proy. ${meses[1]||'Mes2'}</th>
-    <th style="${_TH}">Proy. ${meses[2]||'Mes3'}</th>
-    <th style="${_TH};${_Y}">Stock + proy.</th>
-    <th style="${_TH};${_P}">Venta prom. ${ventaPromLabel}</th>
-    <th style="${_TH}">Venta obj. ${meses[0]||'Mes1'}</th>
-    <th style="${_TH};${_Y}">Saldo ${meses[0]||'Mes1'}</th>
-    <th style="${_TH}">Venta obj. ${meses[1]||'Mes2'}</th>
-    <th style="${_TH};${_Y}">Saldo ${meses[1]||'Mes2'}</th>
-    <th style="${_TH}">Venta obj. ${meses[2]||'Mes3'}</th>
-    <th style="${_TH};${_Y}">Saldo ${meses[2]||'Mes3'}</th>
     <th style="${_TH}">Total obj. ventas</th>
     <th style="${_TH}">Meses stock</th>
   </tr>`;
+
+  const n = v => Math.round(v || 0).toLocaleString('es-AR');
+
+  const mesBloque = (lbl, m) => `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:150px">
+      <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}</div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Proy. abast.</span><span>${n(m.proyeccion_abastecimiento)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta objetivo</span><span>${n(m.venta_objetivo)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo</span><span>${n(m.saldo_stock)}</span></div>
+    </div>`;
 
   const rows = sorted.map(p => {
     const mk = Object.keys(p.mensual || {});
@@ -4295,28 +4302,35 @@ function _proyGridHtml(T) {
       ? `<span title="Alerta: comprar" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--red);margin-right:5px"></span>`
       : `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px"></span>`;
     const mesesStkColor = p.meses_stock < 1 ? 'var(--red)' : p.meses_stock < 2 ? 'var(--yellow)' : 'var(--text)';
-    const n = v => Math.round(v || 0).toLocaleString('es-AR');
-    return `<tr>
+    const rowKey = trimestreKey + '__' + p.cod;
+    const open = !!window.proyRowOpen[rowKey];
+    const caret = open ? '▾' : '▸';
+
+    const detailRow = open ? `<tr>
+      <td colspan="${nCols}" style="padding:10px 14px;background:var(--surface)">
+        <div style="font-size:9.5px;color:var(--muted);margin-bottom:8px">
+          Venta prom. mensual ${ventaPromLabel}: <strong style="color:var(--text)">${n(p.venta_prom_mensual_anterior)}</strong>
+          &nbsp;·&nbsp; Stock + proyección: <strong style="color:var(--text)">${n(p.stock_total)}</strong>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1)}
+          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2)}
+          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3)}
+        </div>
+      </td>
+    </tr>` : '';
+
+    return `<tr style="cursor:pointer" onclick="proyToggleRow('${trimestreKey}','${p.cod}')">
+      <td style="${_TD};text-align:left;color:var(--muted)">${caret}</td>
       <td style="${_TD};text-align:left">${puntoAlerta}<code>${p.cod}</code></td>
       <td style="${_TD};text-align:left;white-space:normal;min-width:180px">${p.art}</td>
       <td style="${_TD};${_Y};font-weight:700">${n(p.stock_actual)}</td>
-      <td style="${_TD}">${n(m1.proyeccion_abastecimiento)}</td>
-      <td style="${_TD}">${n(m2.proyeccion_abastecimiento)}</td>
-      <td style="${_TD}">${n(m3.proyeccion_abastecimiento)}</td>
-      <td style="${_TD};${_Y};font-weight:700">${n(p.stock_total)}</td>
-      <td style="${_TD};${_P}">${n(p.venta_prom_mensual_anterior)}</td>
-      <td style="${_TD}">${n(m1.venta_objetivo)}</td>
-      <td style="${_TD};${_Y}">${n(m1.saldo_stock)}</td>
-      <td style="${_TD}">${n(m2.venta_objetivo)}</td>
-      <td style="${_TD};${_Y}">${n(m2.saldo_stock)}</td>
-      <td style="${_TD}">${n(m3.venta_objetivo)}</td>
-      <td style="${_TD};${_Y}">${n(m3.saldo_stock)}</td>
       <td style="${_TD}">${n(p.total_objetivo_ventas)}</td>
       <td style="${_TD};font-weight:700;color:${mesesStkColor}">${(p.meses_stock||0).toFixed(1)}</td>
-    </tr>`;
+    </tr>${detailRow}`;
   }).join('') || `<tr><td colspan="${nCols}" style="text-align:center;color:var(--muted);padding:14px">Sin productos</td></tr>`;
 
-  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead>${groupRow}${headRow}</thead><tbody>${rows}</tbody></table></div>`;
+  return `<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%"><thead>${headRow}</thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function proyToggleTrimestre(key) {
@@ -4365,7 +4379,7 @@ function _proyCuadroHtml(trimestreKey, T, expanded) {
     <div class="table-card" style="margin-bottom:${expanded ? '20px' : '10px'};border-left:3px solid ${expanded ? 'var(--accent)' : 'var(--border)'}">
       ${headerRow}
       ${kpiRow}
-      ${expanded ? _proyGridHtml(T) : ''}
+      ${expanded ? _proyGridHtml(trimestreKey, T) : ''}
     </div>`;
 }
 
@@ -4839,7 +4853,8 @@ function renderCervezas() {
 
   <div style="font-size:9px;color:var(--muted);margin-bottom:14px">
     ⓘ Cada trimestre muestra sus indicadores de precisión de forecast (Accuracy, Bias, MAPE) siempre visibles;
-    hacé clic en el título para desplegar/ocultar el detalle producto por producto.
+    hacé clic en el título para desplegar/ocultar la tabla de productos, y en una fila de producto
+    para ver su desglose mes a mes (proyección, venta objetivo y saldo).
     Los trimestres se acumulan automáticamente en cada Actualizar.
   </div>
 
