@@ -3858,14 +3858,10 @@ function rotMensualToggle(rub) {
 function renderSupply() {
   const items = INV_DATA;
   const alertFilter = parseInt(document.getElementById('sc-alert-filter')?.value || '0');
-  const depFilter = document.getElementById('sc-dep-filter')?.value || 'all';
   const search = (document.getElementById('sc-search')?.value || '').toLowerCase().trim();
 
-  function kTotal(x){ return (x.klozer||0)+(x.klozer_mkt||0); }
   // KLOZER depósito puro
   function diasK(x){ const k=x.klozer||0; return x.min_k>0 ? k/x.min_k : (k>0 ? 9999 : 0); }
-  // KLOZER MKT — usa velocidad propia (min_km)
-  function diasKM(x){ const km=x.klozer_mkt||0; return x.min_km>0 ? km/x.min_km : (km>0 ? 9999 : 0); }
   // OFICINA
   function diasO(x){ return x.min_o>0 ? x.ofi/x.min_o : (x.ofi>0 ? 9999 : 0); }
   function statusK(x){
@@ -3873,12 +3869,6 @@ function renderSupply() {
     if(x.min_k===0 && k===0) return 'none';
     if(k===0 && x.min_k>0) return 'zero';
     const m=diasK(x); if(m<1) return 'crit'; if(m<1.5) return 'low'; return 'ok';
-  }
-  function statusKM(x){
-    const km=x.klozer_mkt||0;
-    if(x.min_km===0 && km===0) return 'none';
-    if(km===0 && x.min_km>0) return 'zero';
-    const m=diasKM(x); if(m<1) return 'crit'; if(m<1.5) return 'low'; return 'ok';
   }
   function statusO(x){
     if(x.min_o===0 && x.ofi===0) return 'none';
@@ -3909,16 +3899,12 @@ function renderSupply() {
     if(col==='art') return x.art.toLowerCase();
     if(col==='cod') return String(x.cod);
     if(col==='rub') return (x.rub||'').toLowerCase();
-    if(col==='total') return kTotal(x)+x.ofi;
+    if(col==='total') return (x.klozer||0)+x.ofi;
     if(col==='klozer') return x.klozer;
-    if(col==='klozer_mkt') return x.klozer_mkt||0;
     if(col==='dias_k')    return diasK(x);
     if(col==='dias_k90')  return x.min_k90>0?(x.klozer||0)/x.min_k90:0;
     if(col==='dias_k365') return x.min_k365>0?(x.klozer||0)/x.min_k365:0;
     if(col==='min_k')     return x.min_k;
-    if(col==='dias_km')   return diasKM(x);
-    if(col==='dias_km90') return x.min_km90>0?(x.klozer_mkt||0)/x.min_km90:0;
-    if(col==='dias_km365')return x.min_km365>0?(x.klozer_mkt||0)/x.min_km365:0;
     if(col==='ofi')       return x.ofi;
     if(col==='dias_o')    return diasO(x);
     if(col==='dias_o90')  return x.po90  || 0;
@@ -3926,7 +3912,6 @@ function renderSupply() {
     if(col==='min_o')     return x.min_o;
     if(col==='status')  {const o={zero:0,crit:1,low:2,ok:3,none:4}; return o[overallStatus(x)]??9;}
     if(col==='status_k'){const o={zero:0,crit:1,low:2,ok:3,none:4}; return o[statusK(x)]??9;}
-    if(col==='status_km'){const o={zero:0,crit:1,low:2,ok:3,none:4}; return o[statusKM(x)]??9;}
     if(col==='status_o'){const o={zero:0,crit:1,low:2,ok:3,none:4}; return o[statusO(x)]??9;}
     return 0;
   }
@@ -3974,9 +3959,6 @@ function renderSupply() {
     if(alertFilter===2) return (x.klozer===0&&x.k90>0)||(x.ofi===0&&x.o90>0);
     return true;
   });
-  // apply deposit filter
-  if(depFilter==='klozer') alertItems = alertItems.filter(x=>x.klozer>0||x.k90>0);
-  else if(depFilter==='ofi') alertItems = alertItems.filter(x=>x.ofi>0||x.o90>0);
   const aC = window.scAlertCol||'status', aA = window.scAlertAsc!==undefined?window.scAlertAsc:true;
   const isStr = c=>['art','cod','rub'].includes(c);
   alertItems = alertItems.slice().sort((a,b)=>{
@@ -4002,8 +3984,6 @@ function renderSupply() {
   // ── Stock table ──────────────────────────────────────────────────────────────
   let stockItems = items.filter(x=>x.klozer>0||x.k90>0||x.ofi>0||x.o90>0);
   if(search) stockItems = stockItems.filter(x=>x.art.toLowerCase().includes(search)||String(x.cod).includes(search));
-  if(depFilter==='klozer') stockItems = stockItems.filter(x=>x.klozer>0||x.k90>0);
-  else if(depFilter==='ofi') stockItems = stockItems.filter(x=>x.ofi>0||x.o90>0);
   const sC = window.scStockCol||'klozer', sA = window.scStockAsc!==undefined?window.scStockAsc:false;
   stockItems = stockItems.slice().sort((a,b)=>{
     const va=sortVal(a,sC), vb=sortVal(b,sC);
@@ -4157,8 +4137,8 @@ function renderSupply() {
       </table>
       </div>`;
   }
-  const kDepFilter  = depFilter==='ofi' ? ()=>false : x=>x.k90>0||x.klozer>0;
-  const oDepFilter  = depFilter==='klozer' ? ()=>false : x=>x.o90>0||x.ofi>0;
+  const kDepFilter  = x=>x.k90>0||x.klozer>0;
+  const oDepFilter  = x=>x.o90>0||x.ofi>0;
   document.getElementById('sc-rep-grid').innerHTML =
     `<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:14px">
       ${buildRepTable('KLOZER', 'K', kDepFilter, x=>x.klozer||0, x=>x.min_k/30, x=>x.min_k, '99,102,241')}
