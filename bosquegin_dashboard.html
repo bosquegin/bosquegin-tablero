@@ -3887,8 +3887,8 @@ function renderSupply() {
   }
   function overallStatus(x){
     const order={zero:0,crit:1,low:2,ok:3,none:4};
-    const sk=statusK(x), skm=statusKM(x), so=statusO(x);
-    const best=[sk,skm,so].reduce((a,b)=>order[a]<=order[b]?a:b);
+    const sk=statusK(x), so=statusO(x);
+    const best=[sk,so].reduce((a,b)=>order[a]<=order[b]?a:b);
     return best;
   }
   function badge(status){
@@ -3971,7 +3971,7 @@ function renderSupply() {
   let alertItems = alerts.filter(x=>{
     const sk=statusK(x), so=statusO(x);
     if(alertFilter===1) return sk==='crit'||sk==='zero'||so==='crit'||so==='zero';
-    if(alertFilter===2) return (x.klozer===0&&x.k90>0)||((x.klozer_mkt||0)===0&&x.k90>0)||(x.ofi===0&&x.o90>0);
+    if(alertFilter===2) return (x.klozer===0&&x.k90>0)||(x.ofi===0&&x.o90>0);
     return true;
   });
   // apply deposit filter
@@ -3992,16 +3992,12 @@ function renderSupply() {
         <td style="text-align:right;background:rgba(99,102,241,.05)">${dFmt(x.klozer||0,x.min_k)}</td>
         <td style="text-align:right;color:var(--muted);background:rgba(99,102,241,.05);font-size:9px">${x.min_k>0?x.min_k.toFixed(1):'—'}</td>
         <td style="background:rgba(99,102,241,.05)">${badge(statusK(x))}</td>
-        <td style="text-align:right;background:rgba(251,146,60,.05)">${(x.klozer_mkt||0).toLocaleString()}</td>
-        <td style="text-align:right;background:rgba(251,146,60,.05)">${dFmt(x.klozer_mkt||0,x.min_km)}</td>
-        <td style="text-align:right;color:var(--muted);background:rgba(251,146,60,.05);font-size:9px">${x.min_km>0?x.min_km.toFixed(1):'—'}</td>
-        <td style="background:rgba(251,146,60,.05)">${badge(statusKM(x))}</td>
         <td style="text-align:right;background:rgba(16,185,129,.05)">${(x.ofi||0).toLocaleString()}</td>
         <td style="text-align:right;background:rgba(16,185,129,.05)">${dFmt(x.ofi,x.min_o)}</td>
         <td style="text-align:right;color:var(--muted);background:rgba(16,185,129,.05);font-size:9px">${x.min_o>0?x.min_o.toFixed(1):'—'}</td>
         <td style="background:rgba(16,185,129,.05)">${badge(statusO(x))}</td>
       </tr>`).join('')
-    : '<tr><td colspan="15" style="text-align:center;color:var(--muted);padding:20px">Sin alertas</td></tr>';
+    : '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:20px">Sin alertas</td></tr>';
 
   // ── Stock table ──────────────────────────────────────────────────────────────
   let stockItems = items.filter(x=>x.klozer>0||x.k90>0||x.ofi>0||x.o90>0);
@@ -4020,33 +4016,25 @@ function renderSupply() {
   }
   document.getElementById('sc-stock-tbody').innerHTML = stockItems.map(x=>{
     // KLOZER depósito: meses90 = klozer/min_k90, meses365 = klozer/min_k365
-    // KLOZER MKT: usa velocidad propia (min_km90, min_km365)
-    const kd=x.klozer||0, km=x.klozer_mkt||0;
+    const kd=x.klozer||0;
     const mk90=x.min_k90||0, mk365=x.min_k365||0;
     const kd90 =mk90 >0?kd/mk90 :0, kd365=mk365>0?kd/mk365:0;
-    const mkm90=x.min_km90||0, mkm365=x.min_km365||0;
-    const km90 =mkm90>0?km/mkm90:0, km365=mkm365>0?km/mkm365:0;
     return `<tr>
     <td style="font-size:9px;color:var(--muted)">${x.rub||'—'}</td>
     <td><code style="font-size:9px">${x.cod}</code></td>
     <td style="font-size:9px;white-space:nowrap" title="${artName(x.cod,x.art)}">${artName(x.cod,x.art)}</td>
-    <td style="text-align:right;font-weight:700">${(kTotal(x)+(x.ofi||0)).toLocaleString()}</td>
+    <td style="text-align:right;font-weight:700">${(kd+(x.ofi||0)).toLocaleString()}</td>
     <td style="text-align:right;font-weight:600;background:rgba(99,102,241,.05)">${kd.toLocaleString()}</td>
     <td style="text-align:right;background:rgba(99,102,241,.05)">${mFmt(kd90)}</td>
     <td style="text-align:right;background:rgba(99,102,241,.05)">${mFmt(kd365)}</td>
     <td style="text-align:right;color:var(--muted);background:rgba(99,102,241,.05);font-size:9px">${x.min_k>0?x.min_k.toFixed(2):'—'}</td>
     <td style="background:rgba(99,102,241,.05)">${badge(statusK(x))}</td>
-    <td style="text-align:right;font-weight:600;background:rgba(251,146,60,.05)">${km.toLocaleString()}</td>
-    <td style="text-align:right;background:rgba(251,146,60,.05)">${mFmt(km90)}</td>
-    <td style="text-align:right;background:rgba(251,146,60,.05)">${mFmt(km365)}</td>
-    <td style="text-align:right;color:var(--muted);background:rgba(251,146,60,.05);font-size:9px">${x.min_km>0?x.min_km.toFixed(2):'—'}</td>
-    <td style="background:rgba(251,146,60,.05)">${badge(statusKM(x))}</td>
     <td style="text-align:right;font-weight:600;background:rgba(16,185,129,.05)">${(x.ofi||0).toLocaleString()}</td>
     <td style="text-align:right;background:rgba(16,185,129,.05)">${mFmt(x.po90||0)}</td>
     <td style="text-align:right;background:rgba(16,185,129,.05)">${mFmt(x.po365||0)}</td>
     <td style="text-align:right;color:var(--muted);background:rgba(16,185,129,.05);font-size:9px">${x.min_o>0?x.min_o.toFixed(2):'—'}</td>
     <td style="background:rgba(16,185,129,.05)">${badge(statusO(x))}</td>
-  </tr>`;}).join('')||'<tr><td colspan="19" style="text-align:center;color:var(--muted);padding:20px">Sin resultados</td></tr>';
+  </tr>`;}).join('')||'<tr><td colspan="14" style="text-align:center;color:var(--muted);padding:20px">Sin resultados</td></tr>';
 
   // ── Replenishment card ──────────────────────────────────────────────────────
   const repDays  = parseInt(document.getElementById('sc-rep-days')?.value || '60');
@@ -4170,14 +4158,10 @@ function renderSupply() {
       </div>`;
   }
   const kDepFilter  = depFilter==='ofi' ? ()=>false : x=>x.k90>0||x.klozer>0;
-  const kmDepFilter = depFilter==='ofi' ? ()=>false : x=>(x.km90||0)>0||(x.klozer_mkt||0)>0;
   const oDepFilter  = depFilter==='klozer' ? ()=>false : x=>x.o90>0||x.ofi>0;
   document.getElementById('sc-rep-grid').innerHTML =
     `<div style="background:rgba(99,102,241,.05);border:1px solid rgba(99,102,241,.2);border-radius:8px;padding:14px">
       ${buildRepTable('KLOZER', 'K', kDepFilter, x=>x.klozer||0, x=>x.min_k/30, x=>x.min_k, '99,102,241')}
-    </div>
-    <div style="background:rgba(251,146,60,.05);border:1px solid rgba(251,146,60,.2);border-radius:8px;padding:14px">
-      ${buildRepTable('KLOZER MKT', 'KM', kmDepFilter, x=>x.klozer_mkt||0, x=>(x.min_km||0)/30, x=>x.min_km||0, '251,146,60')}
     </div>
     <div style="background:rgba(16,185,129,.05);border:1px solid rgba(16,185,129,.2);border-radius:8px;padding:14px">
       ${buildRepTable('OFICINA', 'O', oDepFilter, x=>x.ofi, x=>x.min_o/30, x=>x.min_o, '16,185,129')}
@@ -4863,7 +4847,7 @@ function renderCervezas() {
   <!-- TABLA ALERTAS -->
   <div class="table-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div class="table-title">⚠️ Alertas de reposición · KLOZER · KLOZER MKT · OFICINA</div>
+      <div class="table-title">⚠️ Alertas de reposición · KLOZER · OFICINA</div>
       <div style="display:flex;gap:6px">
         <select id="sc-alert-filter" onchange="renderSupply()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
           <option value="0">Todas (&lt;30 días)</option>
@@ -4878,7 +4862,6 @@ function renderCervezas() {
         <tr>
           <th colspan="3" style="border-bottom:1px solid var(--border)"></th>
           <th colspan="4" style="text-align:center;background:rgba(99,102,241,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:var(--accent);padding:4px 0">KLOZER</th>
-          <th colspan="4" style="text-align:center;background:rgba(251,146,60,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:#fb923c;padding:4px 0">KLOZER MKT</th>
           <th colspan="4" style="text-align:center;background:rgba(16,185,129,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:var(--green);padding:4px 0">OFICINA</th>
         </tr>
         <tr>
@@ -4889,10 +4872,6 @@ function renderCervezas() {
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="dias_k" onclick="scSetSort('alert','dias_k')">Meses <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;background:rgba(99,102,241,.05);font-size:9px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="alert" data-sc-col="status_k" onclick="scSetSort('alert','status_k')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="klozer_mkt" onclick="scSetSort('alert','klozer_mkt')">Stock (un) <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="dias_km" onclick="scSetSort('alert','dias_km')">Meses <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:9px">Mín/mes (un)</th>
-          <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="alert" data-sc-col="status_km" onclick="scSetSort('alert','status_km')">Estado <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="ofi"    onclick="scSetSort('alert','ofi')"   >Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="alert" data-sc-col="dias_o" onclick="scSetSort('alert','dias_o')">Meses <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;background:rgba(16,185,129,.05);font-size:9px">Mín/mes (un)</th>
@@ -4900,7 +4879,7 @@ function renderCervezas() {
         </tr>
       </thead>
       <tbody id="sc-alert-tbody">
-        <tr><td colspan="15" style="text-align:center;color:var(--muted);padding:20px">Cargando…</td></tr>
+        <tr><td colspan="11" style="text-align:center;color:var(--muted);padding:20px">Cargando…</td></tr>
       </tbody>
     </table>
     </div>
@@ -4933,7 +4912,7 @@ function renderCervezas() {
   <!-- TABLA STOCK COMPLETO -->
   <div class="table-card" style="margin-top:0">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div class="table-title">📦 Stock completo · KLOZER · KLOZER MKT · OFICINA</div>
+      <div class="table-title">📦 Stock completo · KLOZER · OFICINA</div>
       
         <input id="sc-search" type="text" placeholder="Buscar artículo…" oninput="renderSupply()"
         style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:9px;width:200px">
@@ -4944,7 +4923,6 @@ function renderCervezas() {
         <tr>
           <th colspan="4" style="border-bottom:1px solid var(--border)"></th>
           <th colspan="5" style="text-align:center;background:rgba(99,102,241,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:var(--accent);padding:4px 0">KLOZER</th>
-          <th colspan="5" style="text-align:center;background:rgba(251,146,60,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:#fb923c;padding:4px 0">KLOZER MKT</th>
           <th colspan="5" style="text-align:center;background:rgba(16,185,129,.08);border-radius:6px 6px 0 0;font-size:9px;letter-spacing:.06em;color:var(--green);padding:4px 0">OFICINA</th>
         </tr>
         <tr>
@@ -4957,11 +4935,6 @@ function renderCervezas() {
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="dias_k365" onclick="scSetSort('stock','dias_k365')">M/365d <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;background:rgba(99,102,241,.05);font-size:9px">Mín/mes (un)</th>
           <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(99,102,241,.05)" data-sc-table="stock" data-sc-col="status_k" onclick="scSetSort('stock','status_k')">Estado <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="klozer_mkt" onclick="scSetSort('stock','klozer_mkt')">Stock (un) <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="dias_km90"  onclick="scSetSort('stock','dias_km90')" >M/90d <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="dias_km365" onclick="scSetSort('stock','dias_km365')">M/365d <span class="sc-sort-icon">⇅</span></th>
-          <th style="text-align:right;background:rgba(251,146,60,.05);font-size:9px">Mín/mes (un)</th>
-          <th style="cursor:pointer;user-select:none;white-space:nowrap;background:rgba(251,146,60,.05)" data-sc-table="stock" data-sc-col="status_km" onclick="scSetSort('stock','status_km')">Estado <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="ofi"      onclick="scSetSort('stock','ofi')"    >Stock (un) <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="dias_o90"  onclick="scSetSort('stock','dias_o90')" >M/90d <span class="sc-sort-icon">⇅</span></th>
           <th style="text-align:right;cursor:pointer;user-select:none;white-space:nowrap;background:rgba(16,185,129,.05)" data-sc-table="stock" data-sc-col="dias_o365" onclick="scSetSort('stock','dias_o365')">M/365d <span class="sc-sort-icon">⇅</span></th>
@@ -4975,7 +4948,7 @@ function renderCervezas() {
     <div style="margin-top:10px;font-size:9px;color:var(--muted)">
       ⓘ <strong>Meses/90d</strong> = stock ÷ demanda mensual (últimos 90 días) &nbsp;|&nbsp;
       <strong>Meses/365d</strong> = stock ÷ demanda mensual (últimos 365 días) &nbsp;|&nbsp;
-      <strong>Mín ud/mes</strong> = (demanda mensual 90d + demanda mensual 365d) ÷ 2 &nbsp;|&nbsp; <strong>KLOZER MKT</strong> usa la misma velocidad de ventas que KLOZER
+      <strong>Mín ud/mes</strong> = (demanda mensual 90d + demanda mensual 365d) ÷ 2
     </div>
   </div>
 
