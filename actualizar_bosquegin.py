@@ -2515,6 +2515,11 @@ def aplicar_override_trimestre_actual(proyeccion, inv_data):
     no queden mostrando una mezcla de números viejos y nuevos inconsistentes
     entre sí. "pallet" (unidades por pallet) no cambia — es un dato físico
     del producto, no una proyección.
+
+    stock_actual = KLOZER + OFICINA — el mismo cálculo que usa por defecto
+    la pestaña "Inventario Productos" (getStock(item, 'klozer_ofi') en el
+    dashboard: sin KLOZER MKT, sin Shop Gallery, sin Avolta), para que el
+    stock coincida entre ambas vistas.
     """
     hoy = date.today()
     trimestre_actual = f"{hoy.year}_Q{(hoy.month - 1) // 3 + 1}"
@@ -2522,7 +2527,7 @@ def aplicar_override_trimestre_actual(proyeccion, inv_data):
     if not T or not T.get("productos"):
         return proyeccion
 
-    stock_por_cod = {str(d["cod"]): d.get("both", 0) for d in (inv_data or [])}
+    stock_por_cod = {str(d["cod"]): (d.get("klozer", 0) + d.get("ofi", 0)) for d in (inv_data or [])}
 
     try:
         ventas_obj = _proy_fetch_ventas_objetivo_2026()
