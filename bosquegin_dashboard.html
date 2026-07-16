@@ -2094,19 +2094,30 @@ function renderOverview() {
     </div>
   </div>
 
-  <!-- TABLA RUBROS × SUBRUBROS -->
+  <!-- TABLA RUBROS × SUBRUBROS — mismo formato que Detalle por artículo -->
   <div class="table-card">
-    <div class="table-title" id="v-rub-title">🏷️ Ventas por rubro y subrubro</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="table-title" id="v-rub-title">🏷️ Salidas por rubro y subrubro</div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="rub-table-filter" onchange="renderRubTable()" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:9px">
+          <option value="">Todos los rubros</option>
+          <option>BEBIDAS</option><option>BOLSAS</option><option>BOTANICOS</option><option>CERVEZA</option><option>COMBO</option><option>ESTUCHE</option><option>FUNDA</option><option>INDUMENTARIA</option><option>MOBILIARIO</option><option>SIN RUBRO</option><option>VASOS</option></select>
+        <input id="rub-table-search" type="text" placeholder="Buscar artículo…" oninput="renderRubTable()"
+          style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:9px;width:160px">
+        <span id="rub-table-count" style="font-size:9px;color:var(--muted)"></span>
+      </div>
+    </div>
     <div style="overflow-x:auto">
     <table>
       <thead>
         <tr id="v-rub-thead">
-          <th class="sortable" onclick="setVRubSort('rub')" style="cursor:pointer;user-select:none">Rubro <span class="sort-icon" id="vrs-icon-rub">⇅</span></th>
-          <th>Subrubro</th>
-          <th>Cód</th>
-          <th>Artículo</th>
-          <th class="sortable" onclick="setVRubSort('u')" style="text-align:right;cursor:pointer;user-select:none">Salidas (un) <span class="sort-icon" id="vrs-icon-u">⇅</span></th>
-          <th style="text-align:right">% del total</th>
+          <th class="sortable" onclick="setRubTableSort('rub')"  data-rcol="rub">Rubro <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('sub')"  data-rcol="sub">Subrubro <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('cod')"  data-rcol="cod">Cód <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('art')"  data-rcol="art">Artículo <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('u')"    data-rcol="u"    style="text-align:right">Salidas (un) <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('pct')"  data-rcol="pct"  style="text-align:right">Peso % <span class="sort-icon">⇅</span></th>
+          <th class="sortable" onclick="setRubTableSort('acum')" data-rcol="acum" style="text-align:right">Acum % <span class="sort-icon">⇅</span></th>
           <th style="text-align:right;white-space:nowrap">Prom 90d<br><span style="font-weight:400;font-size:9px;opacity:.7">un/mes</span></th>
           <th style="text-align:right;white-space:nowrap">Prom 365d<br><span style="font-weight:400;font-size:9px;opacity:.7">un/mes</span></th>
         </tr>
@@ -2202,7 +2213,6 @@ let chartRubC  = null;
 // ── Sort states for Ventas tables ─────────────────────────────────────────────
 var vMesSort = {col: 'mes', asc: true};
 var vDepSort = {col: 'u', asc: false};
-var vRubSort = {col: 'u', asc: false};
 
 function setVMesSort(col) {
   if (vMesSort.col === col) vMesSort.asc = !vMesSort.asc;
@@ -2212,11 +2222,6 @@ function setVMesSort(col) {
 function setVDepSort(col) {
   if (vDepSort.col === col) vDepSort.asc = !vDepSort.asc;
   else { vDepSort.col = col; vDepSort.asc = col === 'dep'; }
-  renderVentas();
-}
-function setVRubSort(col) {
-  if (vRubSort.col === col) vRubSort.asc = !vRubSort.asc;
-  else { vRubSort.col = col; vRubSort.asc = col === 'rub'; }
   renderVentas();
 }
 function updateVentasSortIcons() {
@@ -2233,13 +2238,6 @@ function updateVentasSortIcons() {
     if (el) el.textContent = c !== vDepSort.col ? '⇅' : vDepSort.asc ? '▲' : '▼';
     var th = el ? el.parentElement : null;
     if (th) th.style.color = c === vDepSort.col ? 'var(--accent)' : '';
-  });
-  var vrCols = ['rub','u'];
-  vrCols.forEach(function(c) {
-    var el = document.getElementById('vrs-icon-'+c);
-    if (el) el.textContent = c !== vRubSort.col ? '⇅' : vRubSort.asc ? '▲' : '▼';
-    var th = el ? el.parentElement : null;
-    if (th) th.style.color = c === vRubSort.col ? 'var(--accent)' : '';
   });
 }
 
@@ -2854,82 +2852,10 @@ function renderVentas() {
   });
   document.getElementById('rub-chart-sub').textContent = `Unidades · ${vYear}`;
 
-  // ── Tabla rubros × subrubros (agrupado desde PROD_DATA con subrubro de INV_DATA) ──
-  const prods_for_rub = clData
-    ? (clData.prods || [])
-    : (mes > 0
-        ? ((MONTHLY_DATA[yr] || {}).prods || {})[mesStr] || []
-        : PROD_DATA[yr] || []);
-  const rubSubTree = {};
-  const totAllU = prods_for_rub.reduce((s, p) => s + (p.u || 0), 0);
-  for (const p of prods_for_rub) {
-    if (!p.u) continue;
-    const r   = invRub(p.cod, p.rub) || 'SIN RUBRO';
-    const s2  = invSub(p.cod, p.sub) || '—';
-    const cod = String(p.cod);
-    const nom = ART_NAME_MAP[cod] || p.art || cod;
-    if (!rubSubTree[r]) rubSubTree[r] = {};
-    if (!rubSubTree[r][s2]) rubSubTree[r][s2] = { total: 0, arts: {} };
-    rubSubTree[r][s2].total += p.u;
-    if (!rubSubTree[r][s2].arts[cod]) rubSubTree[r][s2].arts[cod] = { nom, u: 0 };
-    rubSubTree[r][s2].arts[cod].u += p.u;
-  }
-  const rubSubEntries = Object.entries(rubSubTree)
-    .map(([r, subs2]) => [r, subs2, Object.values(subs2).reduce((a, b) => a + b.total, 0)])
-    .filter(([,,tot]) => tot > 0)
-    .sort((a, b) => {
-      if (vRubSort.col === 'rub') return vRubSort.asc ? a[0].localeCompare(b[0]) : b[0].localeCompare(a[0]);
-      return vRubSort.asc ? a[2] - b[2] : b[2] - a[2];
-    });
-  let rubRows = '';
-  for (const [rk, subs2, rubTotU] of rubSubEntries) {
-    const rCods  = Object.values(subs2).flatMap(sv => Object.keys(sv.arts));
-    const rub90  = fmtAvg(rCods.reduce((s, c) => s + (TRAIL90[c]  || 0), 0) / 3);
-    const rub365 = fmtAvg(rCods.reduce((s, c) => s + (TRAIL365[c] || 0), 0) / 12);
-    rubRows += `<tr style="background:rgba(255,255,255,.04)">
-      <td style="font-weight:700;color:var(--text)">${rk}</td>
-      <td style="color:var(--muted);font-size:9px">— todos —</td>
-      <td></td>
-      <td></td>
-      <td style="text-align:right;font-weight:700">${rubTotU.toLocaleString('es-AR')}</td>
-      <td style="text-align:right;font-weight:700">${pct(rubTotU, totAllU)}</td>
-      <td style="text-align:right;font-weight:700;color:var(--accent2)">${rub90}</td>
-      <td style="text-align:right;font-weight:700;color:var(--accent2)">${rub365}</td>
-    </tr>`;
-    const subEntries2 = Object.entries(subs2).filter(([,v]) => v.total > 0).sort((a, b) => b[1].total - a[1].total);
-    for (const [sk, sv] of subEntries2) {
-      const sCods  = Object.keys(sv.arts);
-      const sub90  = fmtAvg(sCods.reduce((s, c) => s + (TRAIL90[c]  || 0), 0) / 3);
-      const sub365 = fmtAvg(sCods.reduce((s, c) => s + (TRAIL365[c] || 0), 0) / 12);
-      rubRows += `<tr>
-        <td style="color:var(--muted);font-size:9px;padding-left:24px">↳</td>
-        <td style="font-size:9px">${sk}</td>
-        <td></td>
-        <td></td>
-        <td style="text-align:right;font-size:9px;font-weight:600">${sv.total.toLocaleString('es-AR')}</td>
-        <td style="text-align:right;font-size:9px;color:var(--muted)">${pct(sv.total, rubTotU)}</td>
-        <td style="text-align:right;font-size:9px;color:var(--accent2)">${sub90}</td>
-        <td style="text-align:right;font-size:9px;color:var(--accent2)">${sub365}</td>
-      </tr>`;
-      const artEntries = Object.entries(sv.arts).sort((a, b) => b[1].u - a[1].u);
-      for (const [cod, {nom, u: av}] of artEntries) {
-        const a90  = fmtAvg((TRAIL90[cod]  || 0) / 3);
-        const a365 = fmtAvg((TRAIL365[cod] || 0) / 12);
-        rubRows += `<tr>
-          <td></td>
-          <td></td>
-          <td style="font-size:9px;color:var(--muted);white-space:nowrap"><code>${cod}</code></td>
-          <td style="font-size:9px;padding-left:4px;white-space:nowrap">↳ ${nom}</td>
-          <td style="text-align:right;font-size:9px">${av.toLocaleString('es-AR')}</td>
-          <td style="text-align:right;font-size:9px;color:var(--muted)">${pct(av, sv.total)}</td>
-          <td style="text-align:right;font-size:9px;color:var(--accent2)">${a90}</td>
-          <td style="text-align:right;font-size:9px;color:var(--accent2)">${a365}</td>
-        </tr>`;
-      }
-    }
-  }
-  document.getElementById('v-rub-tbody').innerHTML = rubRows || '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:14px">Sin datos</td></tr>';
-  document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_allSuffix}`;
+  // Tabla rubros/subrubros: mismo formato que "Detalle por artículo" — una
+  // fila por artículo, con filtro de rubro, buscador y columnas ordenables
+  // (incluye Peso%/Acum%) — ver renderRubTable().
+  renderRubTable(_allSuffix);
   renderProds();
   renderSemanal(mes, series, clData, _costoMes[mes]||0);
   document.getElementById('v-count').textContent = `${activos.length} meses con datos · ${totU.toLocaleString('es-AR')} un`;
@@ -3032,6 +2958,99 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
     <td style="text-align:right;color:var(--muted);font-size:9px">${_mct > 0 ? '$' + Math.round(_mct).toLocaleString('es-AR') : '—'}</td>
   </tr>`;
   tbody.innerHTML = rows;
+}
+
+// ── SALIDAS POR RUBRO Y SUBRUBRO (mismo formato que Detalle por artículo) ─────
+let rubTableSortCol = 'u';
+let rubTableSortAsc = false;
+let _rubTableLastSuffix = '';   // suffix de cliente/filtro del título (viene de renderVentas)
+
+function setRubTableSort(col) {
+  if (rubTableSortCol === col) rubTableSortAsc = !rubTableSortAsc;
+  else { rubTableSortCol = col; rubTableSortAsc = ['cod', 'art', 'rub', 'sub'].includes(col); }
+  renderRubTable();
+}
+
+function updateRubTableSortIcons() {
+  document.querySelectorAll('#v-rub-thead th.sortable').forEach(th => {
+    const col  = th.dataset.rcol;
+    const icon = th.querySelector('.sort-icon');
+    if (!icon) return;
+    icon.textContent = col !== rubTableSortCol ? '⇅' : rubTableSortAsc ? '▲' : '▼';
+    th.style.color   = col === rubTableSortCol ? 'var(--accent)' : '';
+  });
+}
+
+function renderRubTable(_allSuffix) {
+  if (_allSuffix !== undefined) _rubTableLastSuffix = _allSuffix;
+  const yr   = String(vYear);
+  const mes2 = getMesFiltro();
+  let items;
+  const _clDP = getClData(yr);
+  if (_clDP) {
+    if (mes2 > 0) {
+      const moEntry = (_clDP.monthly || []).find(s => s.mes === mes2);
+      items = moEntry ? (moEntry.prods || []) : [];
+    } else {
+      items = _clDP.prods || [];
+    }
+  } else {
+    items = mes2 > 0
+      ? ((MONTHLY_DATA[yr] || {}).prods || {})[String(mes2)] || []
+      : PROD_DATA[yr] || [];
+  }
+  const rub    = document.getElementById('rub-table-filter')?.value || '';
+  const search = (document.getElementById('rub-table-search')?.value || '').toLowerCase();
+
+  let filtered = items.filter(it => {
+    const rubD = invRub(it.cod, it.rub) || it.rub || '';
+    if (rub    && rubD !== rub) return false;
+    if (search && !it.art.toLowerCase().includes(search) && !String(it.cod).includes(search)) return false;
+    return true;
+  });
+
+  const totU2 = filtered.reduce((s, it) => s + it.u, 0);
+  filtered = filtered
+    .map(it => ({ ...it, localPct: totU2 > 0 ? Math.round(it.u / totU2 * 1000) / 10 : 0 }))
+    .sort((a, b) => {
+      const va = a[rubTableSortCol] ?? 0, vb = b[rubTableSortCol] ?? 0;
+      return typeof va === 'string'
+        ? (rubTableSortAsc ? va.localeCompare(vb) : vb.localeCompare(va))
+        : (rubTableSortAsc ? va - vb : vb - va);
+    });
+
+  const sorted_by_u = [...filtered].sort((a, b) => b.u - a.u);
+  let cumMap = {};
+  let c = 0;
+  for (const it of sorted_by_u) { c += it.u; cumMap[it.cod] = totU2 > 0 ? Math.round(c / totU2 * 1000) / 10 : 0; }
+
+  document.getElementById('rub-table-count').textContent = `${filtered.length} artículos`;
+  document.getElementById('v-rub-title').textContent = `🏷️ Salidas por rubro y subrubro · ${vYear}${_rubTableLastSuffix}`;
+
+  const acumColor = (v) => v <= 80 ? 'var(--green)' : v <= 95 ? 'var(--accent2)' : 'var(--muted)';
+
+  let rows = '';
+  for (const it of filtered) {
+    const acum = cumMap[it.cod] ?? 0;
+    const rubD = invRub(it.cod, it.rub) || it.rub || '—';
+    const subD = invSub(it.cod, it.sub) || it.sub || '—';
+    const cod2 = String(it.cod);
+    const p90  = fmtAvg((TRAIL90[cod2]  || 0) / 3);
+    const p365 = fmtAvg((TRAIL365[cod2] || 0) / 12);
+    rows += `<tr>
+      <td style="font-size:9px;white-space:nowrap">${rubD}</td>
+      <td style="font-size:9px;color:var(--muted);white-space:nowrap">${subD}</td>
+      <td><code style="font-size:9px">${it.cod}</code></td>
+      <td style="font-size:9px;white-space:nowrap" title="${it.art}">${it.art}</td>
+      <td style="text-align:right;font-weight:700;white-space:nowrap">${it.u.toLocaleString('es-AR')}</td>
+      <td style="text-align:right;color:var(--muted)">${it.localPct.toFixed(1)}%</td>
+      <td style="text-align:right;font-weight:600;color:${acumColor(acum)}">${acum.toFixed(1)}%</td>
+      <td style="text-align:right;white-space:nowrap;color:var(--accent2)">${p90}</td>
+      <td style="text-align:right;white-space:nowrap;color:var(--accent2)">${p365}</td>
+    </tr>`;
+  }
+  document.getElementById('v-rub-tbody').innerHTML = rows || '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">Sin resultados</td></tr>';
+  updateRubTableSortIcons();
 }
 
 // ── PRODUCTOS ─────────────────────────────────────────────────────────────────
