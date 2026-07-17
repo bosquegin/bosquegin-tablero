@@ -4470,7 +4470,7 @@ function _proyGridHtml(trimestreKey, T) {
       ${esFuturo ? `
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo mes anterior</span><span>${n(saldoAnterior)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0">
-        <span style="color:var(--muted)">Proy. abast.</span>
+        <span style="color:var(--muted)">Proyección abastecimiento</span>
         <input type="number" step="1" value="${Math.round(m.proyeccion_abastecimiento || 0)}"
           data-proy-abast="${trimestreKey}__${cod}__${mk}"
           onchange="proyGuardarAbastecimiento('${trimestreKey}','${cod}','${mk}',this)"
@@ -4482,7 +4482,7 @@ function _proyGridHtml(trimestreKey, T) {
       ${esMesActual ? `
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta real</span><span>${n(m.venta_actual)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">% cumplido</span><span style="font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct || 0)}%</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Proyección mensual</span><span style="font-weight:700">${n(m.proyeccion_mensual)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Proyección ventas mensual</span><span style="font-weight:700">${n(m.proyeccion_mensual)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0;border-top:1px dashed var(--border);margin-top:4px;padding-top:5px"><span style="color:var(--muted)">Saldo stock</span><span style="font-weight:700">${n(m.saldo_stock)}</span></div>
     </div>`;
   };
