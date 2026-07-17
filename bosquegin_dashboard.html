@@ -4460,12 +4460,15 @@ function _proyGridHtml(trimestreKey, T) {
 
   const n = v => Math.round(v || 0).toLocaleString('es-AR');
 
-  const mesBloque = (lbl, m, cod, mk, esMesActual) => {
+  const mesBloque = (lbl, m, cod, mk, esMesActual, esFuturo, saldoAnterior) => {
     const pctColor = (m.objetivo_cumplido_pct || 0) >= 100 ? 'var(--green)'
       : (m.objetivo_cumplido_pct || 0) >= 70 ? 'var(--yellow)' : 'var(--red)';
+    const disponible = esFuturo ? (saldoAnterior || 0) + (m.proyeccion_abastecimiento || 0) : null;
     return `
     <div style="background:var(--surface);border:1px solid ${esMesActual ? 'var(--accent2)' : 'var(--border)'};border-radius:8px;padding:8px 10px;min-width:150px">
       <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}${esMesActual ? ' <span style="color:var(--accent2)">· en curso</span>' : ''}</div>
+      ${esFuturo ? `
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo mes anterior</span><span>${n(saldoAnterior)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0">
         <span style="color:var(--muted)">Proy. abast.</span>
         <input type="number" step="1" value="${Math.round(m.proyeccion_abastecimiento || 0)}"
@@ -4473,11 +4476,14 @@ function _proyGridHtml(trimestreKey, T) {
           onchange="proyGuardarAbastecimiento('${trimestreKey}','${cod}','${mk}',this)"
           style="width:62px;text-align:right;background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10.5px;padding:2px 5px;font-family:inherit">
       </div>
+      ${esFuturo ? `
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 6px;margin:2px -6px;background:rgba(99,102,241,.10);border-radius:4px"><span style="color:var(--muted)">Disponible</span><span style="font-weight:700">${n(disponible)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta objetivo</span><span>${n(m.venta_objetivo)}</span></div>
       ${esMesActual ? `
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Venta real</span><span>${n(m.venta_actual)}</span></div>
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">% cumplido</span><span style="font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct || 0)}%</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo stock</span><span>${n(m.saldo_stock)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">% cumplido</span><span style="font-weight:700;color:${pctColor}">${Math.round(m.objetivo_cumplido_pct || 0)}%</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Proyección mensual</span><span style="font-weight:700">${n(m.proyeccion_mensual)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0;border-top:1px dashed var(--border);margin-top:4px;padding-top:5px"><span style="color:var(--muted)">Saldo stock</span><span style="font-weight:700">${n(m.saldo_stock)}</span></div>
     </div>`;
   };
 
@@ -4501,9 +4507,9 @@ function _proyGridHtml(trimestreKey, T) {
           &nbsp;·&nbsp; Prom. 12 meses: <strong style="color:var(--text)">${p.venta_prom_12m != null ? n(p.venta_prom_12m) : '—'}</strong>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0], mesActualIdx === 0)}
-          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1], mesActualIdx === 1)}
-          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2], mesActualIdx === 2)}
+          ${mesBloque(m1.label || meses[0] || 'Mes 1', m1, p.cod, mk[0], mesActualIdx === 0, mesActualIdx >= 0 && 0 > mesActualIdx, null)}
+          ${mesBloque(m2.label || meses[1] || 'Mes 2', m2, p.cod, mk[1], mesActualIdx === 1, mesActualIdx >= 0 && 1 > mesActualIdx, m1.saldo_stock)}
+          ${mesBloque(m3.label || meses[2] || 'Mes 3', m3, p.cod, mk[2], mesActualIdx === 2, mesActualIdx >= 0 && 2 > mesActualIdx, m2.saldo_stock)}
         </div>
         ${_proyTrendChart(p.venta_historial_12m)}
       </td>
