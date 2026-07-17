@@ -23,7 +23,7 @@ Cambios v2.0:
   - Stock se toma automaticamente de GC (reemplaza archivos manuales diarios)
   - update_consolidado() reconoce formato GC Simplificado y GC Comp
 """
-import os, json, re, glob, time, sys
+import os, json, re, glob, time, sys, calendar
 from datetime import datetime, date, timedelta, timezone
 
 # Evita que un print con tildes/emojis/flechas (p.ej. "→") crashee la corrida
@@ -2774,13 +2774,17 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
     venta_objetivo tal cual, dando la falsa impresión de 100% cumplido).
 
     El "saldo_stock" del mes en curso también se recalcula, pero con la
-    venta REAL en vez de la objetivo: stock_actual (en vivo) - venta_actual,
-    en vez de la cascada proyectada con venta objetivo (que no refleja lo
-    que pasó de verdad este mes). Los meses siguientes del trimestre
-    (todavía no transcurridos) se re-cascadean a partir de ese saldo real
-    con la venta objetivo de cada uno, como antes — y con eso se recalculan
-    también "comprar"/"alerta"/"cantidad_pallets", para que no queden
-    desalineados con el nuevo saldo del mes en curso.
+    PROYECCIÓN MENSUAL en vez de la venta objetivo: stock_actual (en vivo)
+    - proyeccion_mensual, en vez de la cascada proyectada con venta
+    objetivo (que no refleja lo que pasó de verdad este mes). La
+    proyección mensual extrapola la venta real a la fecha al mes completo
+    — mismo cálculo que "Proy. mes" en el Desglose mensual de la hoja
+    Salidas: (venta real a la fecha ÷ día del mes en que estamos) × días
+    totales del mes. Los meses siguientes del trimestre (todavía no
+    transcurridos) se re-cascadean a partir de ese saldo con la venta
+    objetivo de cada uno, como antes — y con eso se recalculan también
+    "comprar"/"alerta"/"cantidad_pallets", para que no queden desalineados
+    con el nuevo saldo del mes en curso.
     """
     hoy = date.today()
     qn = (hoy.month - 1) // 3 + 1
@@ -2793,6 +2797,9 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
     idx_actual = hoy.month - mes_inicio   # 0, 1 o 2
     prods_mes = monthly_raw.get(str(hoy.year), {}).get(str(hoy.month), {}).get("prods", {})
 
+    dia_actual = hoy.day
+    dias_mes   = calendar.monthrange(hoy.year, hoy.month)[1]
+
     n_actualizados = 0
     for p in T["productos"]:
         cod = str(p["cod"])
@@ -2804,8 +2811,9 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         m["venta_actual"] = round(u, 1)
         vobj = m.get("venta_objetivo") or 0
         m["objetivo_cumplido_pct"] = round(u / vobj * 100, 1) if vobj > 0 else 0.0
+        m["proyeccion_mensual"] = round(u / dia_actual * dias_mes, 1) if dia_actual > 0 else round(u, 1)
 
-        saldo_prev = p["stock_actual"] - m["venta_actual"]
+        saldo_prev = p["stock_actual"] - m["proyeccion_mensual"]
         m["saldo_stock"] = saldo_prev
         for mk in meses_keys[idx_actual + 1:]:
             m2 = p["mensual"][mk]
