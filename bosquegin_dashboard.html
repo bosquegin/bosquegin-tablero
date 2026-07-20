@@ -4637,18 +4637,20 @@ function _proyTamanioMl(art) {
   return Number.MAX_SAFE_INTEGER;   // sin tamaño reconocible -> al final
 }
 
-function _proyTamanioTxt(art) {
-  const ml = _proyTamanioMl(art);
-  if (ml === Number.MAX_SAFE_INTEGER) return '—';
-  return ml >= 1000 ? (ml / 1000) + ' L' : ml + ' ml';
-}
-
 // Marca del producto: separa el pedido en Bosque (gin) y Feriado (vermú).
 function _proyMarca(art) {
   const s = (art || '').toUpperCase();
   if (s.includes('BOSQUE'))  return 'Bosque';
   if (s.includes('FERIADO')) return 'Feriado';
   return 'Otros';
+}
+
+// Encabezado de marca por hoja: "Bosque·Gin" para la línea de gin, "Feriado·Vermú"
+// para la línea de vermú — antes decía "Bosque·Gin" también en la hoja Feriado.
+function _proyBrandTxt(marca) {
+  if (marca === 'Feriado') return 'Feriado<span>·</span>Vermú';
+  if (marca === 'Bosque')  return 'Bosque<span>·</span>Gin';
+  return marca;
 }
 
 // Línea de producto dentro de la marca (Nativo, Alta Montaña, Refugios, Rojo,
@@ -4670,16 +4672,6 @@ function _proyLinea(art) {
     .trim();
   if (!s) return 'General';
   return s.toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
-}
-
-// Presentación legible: "Miniatura 50 ml", "Botella 500 ml", "Barril 20 L".
-function _proyPresentacion(art) {
-  const s = (art || '').toUpperCase();
-  const tam = _proyTamanioTxt(art);
-  const env = s.includes('MINIATURA') ? 'Miniatura'
-            : s.includes('BARRIL')    ? 'Barril'
-            : s.includes('BOTELLA')   ? 'Botella' : '';
-  return env ? `${env} ${tam}` : tam;
 }
 
 // Imprime el pedido mes a mes (proyección de abastecimiento) del trimestre en
@@ -4740,7 +4732,9 @@ function printProyPedidos() {
     td.l { text-align:left }
     tr:last-child td { border-bottom:none }
     .cod { font-size:10.5px; color:#5c6660 }
-    .pres { font-weight:600 }
+    /* la descripción completa es larga (hasta ~47 caracteres): se deja
+       envolver para que no desborde el ancho útil de la hoja A4 */
+    .pres { font-weight:600; white-space:normal; line-height:1.35 }
     .dash { color:#b5bdb9 }
     .foot { display:flex; justify-content:space-between; align-items:center; margin-top:14px;
             padding-top:11px; border-top:2px solid #b8c2bd; font-size:13px; font-weight:700 }
@@ -4763,7 +4757,7 @@ function printProyPedidos() {
         const totProd = vals.reduce((a, b) => a + b, 0);
         return `<tr>
           <td class="l cod">${p.cod}</td>
-          <td class="l pres">${_proyPresentacion(p.art)}</td>
+          <td class="l pres">${p.art}</td>
           ${vals.map(v => `<td>${cell(v)}</td>`).join('')}
           <td><b>${totProd > 0 ? n(totProd) : '—'}</b></td>
         </tr>`;
@@ -4778,7 +4772,7 @@ function printProyPedidos() {
           <table>
             <thead><tr>
               <th class="l" style="width:64px">Código</th>
-              <th class="l">Presentación</th>
+              <th class="l">Producto</th>
               ${meses.map(mes => `<th>${mes}</th>`).join('')}
               <th>Total</th>
             </tr></thead>
@@ -4791,7 +4785,7 @@ function printProyPedidos() {
       <div class="page">
         <div class="doc-head">
           <div>
-            <div class="brand">Bosque<span>·</span>Gin</div>
+            <div class="brand">${_proyBrandTxt(marca)}</div>
             <div class="doc-sub">Pedido de producción — <strong>${marca}</strong></div>
           </div>
           <div class="doc-meta">Trimestre <b>${label}</b><br>Emitido <b>${fecha}</b></div>
