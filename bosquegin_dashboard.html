@@ -4625,6 +4625,190 @@ function renderProyeccion() {
   ).join('');
 }
 
+// Tamaño de presentación en ml, para ordenar (50 ML < 500 ML < 750 ML < 20 LTS).
+// Se saca de la descripción, que siempre lo incluye ("… BOTELLA 500 ML",
+// "… MINIATURA BOTELLA 50 ML", "… BARRIL 20 LTS").
+function _proyTamanioMl(art) {
+  const s = (art || '').toUpperCase();
+  const mL = s.match(/(\d+(?:[.,]\d+)?)\s*ML\b/);
+  if (mL) return parseFloat(mL[1].replace(',', '.'));
+  const mLt = s.match(/(\d+(?:[.,]\d+)?)\s*(?:LTS?|LITROS?)\b/);
+  if (mLt) return parseFloat(mLt[1].replace(',', '.')) * 1000;
+  return Number.MAX_SAFE_INTEGER;   // sin tamaño reconocible -> al final
+}
+
+function _proyTamanioTxt(art) {
+  const ml = _proyTamanioMl(art);
+  if (ml === Number.MAX_SAFE_INTEGER) return '—';
+  return ml >= 1000 ? (ml / 1000) + ' L' : ml + ' ml';
+}
+
+// Marca del producto: separa el pedido en Bosque (gin) y Feriado (vermú).
+function _proyMarca(art) {
+  const s = (art || '').toUpperCase();
+  if (s.includes('BOSQUE'))  return 'Bosque';
+  if (s.includes('FERIADO')) return 'Feriado';
+  return 'Otros';
+}
+
+// Línea de producto dentro de la marca (Nativo, Alta Montaña, Refugios, Rojo,
+// Rosado…): la descripción sin el nombre de la marca ni la presentación.
+function _proyLinea(art) {
+  let s = (art || '').toUpperCase()
+    .replace(/\bGIN\b/g, '')
+    .replace(/\bBOSQUE\b/g, '')
+    .replace(/\bFERIADO\b/g, '')
+    // \b no sirve después de "Ú" (no es carácter de palabra ASCII), así que el
+    // corte final se hace con un lookahead unicode: si no, "VERMÚ" queda sin
+    // borrar y Feriado Rojo se parte en dos líneas ("Rojo" y "Rojo Vermú").
+    .replace(/\bVERM[UÚ](?!\p{L})/gu, '')
+    .replace(/\bMINIATURA\b/g, '')
+    .replace(/\bBOTELLA\b/g, '')
+    .replace(/\bBARRIL\b/g, '')
+    .replace(/\d+(?:[.,]\d+)?\s*(?:ML|LTS?|LITROS?)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!s) return 'General';
+  return s.toLowerCase().replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
+}
+
+// Presentación legible: "Miniatura 50 ml", "Botella 500 ml", "Barril 20 L".
+function _proyPresentacion(art) {
+  const s = (art || '').toUpperCase();
+  const tam = _proyTamanioTxt(art);
+  const env = s.includes('MINIATURA') ? 'Miniatura'
+            : s.includes('BARRIL')    ? 'Barril'
+            : s.includes('BOTELLA')   ? 'Botella' : '';
+  return env ? `${env} ${tam}` : tam;
+}
+
+// Imprime el pedido mes a mes (proyección de abastecimiento) del trimestre en
+// curso: una hoja por marca (Bosque / Feriado), y dentro de cada una un bloque
+// por línea de producto con sus presentaciones ordenadas de menor a mayor.
+function printProyPedidos() {
+  const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
+  const trimestres = P.trimestres || {};
+  const keys = Object.keys(trimestres).sort().reverse();
+  const tKey = keys.find(k => (trimestres[k].productos || []).length);
+  if (!tKey) { alert('No hay datos de proyección para imprimir.'); return; }
+
+  const T       = trimestres[tKey];
+  const meses   = T.meses || [];
+  const label   = tKey.replace('_', ' ');
+  const fecha   = new Date().toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const n       = v => Math.round(v || 0).toLocaleString('es-AR');
+  const cell    = v => v > 0 ? n(v) : '<span class="dash">—</span>';
+  const mkOrder = ['mes1','mes2','mes3'];
+  const abast   = (p, mk) => (p.mensual && p.mensual[mk] && p.mensual[mk].proyeccion_abastecimiento) || 0;
+
+  // marca -> línea -> [productos]
+  const porMarca = {};
+  for (const p of (T.productos || [])) {
+    const marca = _proyMarca(p.art);
+    const linea = _proyLinea(p.art);
+    porMarca[marca] = porMarca[marca] || {};
+    (porMarca[marca][linea] = porMarca[marca][linea] || []).push(p);
+  }
+  const marcasOrden = ['Bosque', 'Feriado', 'Otros'].filter(mm => porMarca[mm]);
+
+  const CSS = `
+    @page { size:A4 portrait; margin:1.4cm 1.5cm }
+    * { box-sizing:border-box; margin:0; padding:0 }
+    body { font-family:"Segoe UI",Arial,sans-serif; font-size:11px; color:#1a1f1c; background:#fff }
+    .page { page-break-after:always }
+    .page:last-child { page-break-after:auto }
+    .doc-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+                padding-bottom:10px; margin-bottom:16px; border-bottom:2px solid #2d6a4f }
+    .brand { font-family:Georgia,"Times New Roman",serif; font-size:21px; font-weight:600 }
+    .brand span { color:#2d6a4f }
+    .doc-sub { font-size:11.5px; color:#5c6660; margin-top:3px }
+    .doc-meta { text-align:right; font-size:10.5px; color:#5c6660; line-height:1.7 }
+    .doc-meta b { color:#1a1f1c; font-weight:600 }
+    .card { border:1px solid #dde3e0; border-radius:6px; overflow:hidden;
+            margin-bottom:12px; page-break-inside:avoid }
+    .card-head { display:flex; justify-content:space-between; align-items:baseline;
+                 padding:8px 12px; background:#eef4f1; border-bottom:1px solid #dde3e0 }
+    .card-title { font-family:Georgia,serif; font-size:14px; font-weight:600; color:#2d6a4f }
+    .card-tot { font-size:10.5px; color:#5c6660 }
+    .card-tot b { color:#1a1f1c; font-size:12.5px }
+    table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
+    th, td { padding:6px 9px; white-space:nowrap }
+    thead th { font-size:9px; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+               color:#5c6660; border-bottom:1.5px solid #b8c2bd; text-align:right }
+    thead th.l { text-align:left }
+    td { font-size:12px; border-bottom:1px solid #eef1ef; text-align:right }
+    td.l { text-align:left }
+    tr:last-child td { border-bottom:none }
+    .cod { font-size:10.5px; color:#5c6660 }
+    .pres { font-weight:600 }
+    .dash { color:#b5bdb9 }
+    .foot { display:flex; justify-content:space-between; align-items:center; margin-top:14px;
+            padding-top:11px; border-top:2px solid #b8c2bd; font-size:13px; font-weight:700 }
+  `;
+
+  const pages = marcasOrden.map(marca => {
+    const lineas = Object.keys(porMarca[marca]).sort((a, b) => a.localeCompare(b, 'es'));
+    let totMarca = 0;
+
+    const cards = lineas.map(linea => {
+      const arr = porMarca[marca][linea].slice().sort((a, b) => {
+        const d = _proyTamanioMl(a.art) - _proyTamanioMl(b.art);
+        return d !== 0 ? d : (a.art || '').localeCompare(b.art || '', 'es');
+      });
+      const subtotal = arr.reduce((s, p) => s + mkOrder.reduce((x, mk) => x + abast(p, mk), 0), 0);
+      totMarca += subtotal;
+
+      const filas = arr.map(p => {
+        const vals = mkOrder.map(mk => abast(p, mk));
+        const totProd = vals.reduce((a, b) => a + b, 0);
+        return `<tr>
+          <td class="l cod">${p.cod}</td>
+          <td class="l pres">${_proyPresentacion(p.art)}</td>
+          ${vals.map(v => `<td>${cell(v)}</td>`).join('')}
+          <td><b>${totProd > 0 ? n(totProd) : '—'}</b></td>
+        </tr>`;
+      }).join('');
+
+      return `
+        <div class="card">
+          <div class="card-head">
+            <span class="card-title">${linea}</span>
+            <span class="card-tot">subtotal <b>${n(subtotal)}</b> un</span>
+          </div>
+          <table>
+            <thead><tr>
+              <th class="l" style="width:64px">Código</th>
+              <th class="l">Presentación</th>
+              ${meses.map(mes => `<th>${mes}</th>`).join('')}
+              <th>Total</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+          </table>
+        </div>`;
+    }).join('');
+
+    return `
+      <div class="page">
+        <div class="doc-head">
+          <div>
+            <div class="brand">Bosque<span>·</span>Gin</div>
+            <div class="doc-sub">Pedido de producción — <strong>${marca}</strong></div>
+          </div>
+          <div class="doc-meta">Trimestre <b>${label}</b><br>Emitido <b>${fecha}</b></div>
+        </div>
+        ${cards}
+        <div class="foot"><span>Total ${marca}</span><span>${n(totMarca)} un</span></div>
+      </div>`;
+  }).join('');
+
+  const win = window.open('', '_blank', 'width=1000,height=800');
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>Pedidos ${label} — Bosque Gin</title>
+    <style>${CSS}</style></head><body>${pages}</body></html>`);
+  win.document.close();
+  win.onload = function() { win.focus(); win.print(); };
+}
+
 
 // ── DESTILERÍA ──────────────────────────────────────────────────────────
 let chartDest = null;
@@ -5043,11 +5227,16 @@ function renderCervezas() {
 <!-- ═══════════════════════════════════════════════ -->
 <section id="proyeccion" class="section">
 
-  <div style="font-size:9px;color:var(--muted);margin-bottom:14px">
-    ⓘ Cada trimestre muestra sus indicadores de precisión de forecast (Accuracy, Bias, MAPE) siempre visibles;
-    hacé clic en el título para desplegar/ocultar la tabla de productos, y en una fila de producto
-    para ver su desglose mes a mes (proyección, venta objetivo y saldo).
-    Los trimestres se acumulan automáticamente en cada Actualizar.
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="font-size:9px;color:var(--muted);flex:1;min-width:280px">
+      ⓘ Cada trimestre muestra sus indicadores de precisión de forecast (Accuracy, Bias, MAPE) siempre visibles;
+      hacé clic en el título para desplegar/ocultar la tabla de productos, y en una fila de producto
+      para ver su desglose mes a mes (proyección, venta objetivo y saldo).
+      Los trimestres se acumulan automáticamente en cada Actualizar.
+    </div>
+    <button onclick="printProyPedidos()" style="display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:11px;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap" onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--card)'">
+      🖨️ Imprimir pedidos
+    </button>
   </div>
 
   <div id="proy-container"></div>

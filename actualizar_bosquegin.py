@@ -2499,6 +2499,25 @@ def _proy_fetch_ventas_objetivo_2026():
     return productos
 
 
+def _leer_proyeccion_publicada():
+    """
+    Lee el data_proyeccion.js ya publicado y devuelve su contenido
+    ({"trimestres": {...}}). Se usa como respaldo cuando la lectura de la
+    hoja FORECAST no devuelve nada (ej. sin CDP disponible), para no pisar
+    la pestaña Proyección con datos vacíos. Devuelve {} si no se puede leer.
+    """
+    path = os.path.join(BASE, "data_proyeccion.js")
+    if not os.path.exists(path):
+        return {}
+    try:
+        js = open(path, encoding="utf-8").read()
+        m = re.search(r'window\.BOSQUE_DATA\.proyeccion\s*=\s*(\{.*\});?\s*$', js, re.DOTALL)
+        return json.loads(m.group(1)) if m else {}
+    except Exception as e:
+        print(f"  Advertencia leyendo proyección publicada: {e}")
+        return {}
+
+
 def _leer_stock_cierre_mes():
     """
     Parsea data_stock_cierre.js (generado por update_stock_cierre_mes(), el
@@ -2650,6 +2669,13 @@ def _proy_recalcular_derivados(p, meses_keys):
     el tablero), para que esos campos derivados nunca queden desalineados
     con los insumos que sí cambiaron. "pallet" (unidades por pallet) no se
     toca — es un dato físico fijo del producto, no una proyección.
+
+    El mes EN CURSO (el único con "proyeccion_mensual" cargada, por
+    aplicar_venta_real_mes_actual) resta la proyección de ventas del mes
+    en vez de la venta objetivo, porque esa proyección sí refleja el ritmo
+    real de venta. Sin esta distinción, editar el abastecimiento desde el
+    tablero recalcularía el saldo del mes en curso con venta objetivo y
+    pisaría la lógica del pipeline.
     """
     saldo_prev = p["stock_actual"]
     total_obj = 0.0
@@ -2658,7 +2684,8 @@ def _proy_recalcular_derivados(p, meses_keys):
         m = p["mensual"][mk]
         proy = m.get("proyeccion_abastecimiento") or 0
         vobj = m.get("venta_objetivo") or 0
-        saldo_prev = saldo_prev + proy - vobj
+        salida = m["proyeccion_mensual"] if m.get("proyeccion_mensual") is not None else vobj
+        saldo_prev = saldo_prev + proy - salida
         m["saldo_stock"] = saldo_prev
         total_obj += vobj
         proy_total += proy
@@ -2773,18 +2800,19 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
     valor de la hoja FORECAST (que para el trimestre en curso copia
     venta_objetivo tal cual, dando la falsa impresión de 100% cumplido).
 
-    El "saldo_stock" del mes en curso también se recalcula, pero con la
-    PROYECCIÓN MENSUAL en vez de la venta objetivo: stock_actual (en vivo)
-    - proyeccion_mensual, en vez de la cascada proyectada con venta
-    objetivo (que no refleja lo que pasó de verdad este mes). La
-    proyección mensual extrapola la venta real a la fecha al mes completo
-    — mismo cálculo que "Proy. mes" en el Desglose mensual de la hoja
-    Salidas: (venta real a la fecha ÷ día del mes en que estamos) × días
-    totales del mes. Los meses siguientes del trimestre (todavía no
-    transcurridos) se re-cascadean a partir de ese saldo con la venta
-    objetivo de cada uno, como antes — y con eso se recalculan también
-    "comprar"/"alerta"/"cantidad_pallets", para que no queden desalineados
-    con el nuevo saldo del mes en curso.
+    El "saldo_stock" del mes en curso también se recalcula, con la misma
+    estructura que los meses siguientes (entra + sale), pero usando la
+    PROYECCIÓN DE VENTAS MENSUAL en vez de la venta objetivo:
+        stock_actual (en vivo) + proyeccion_abastecimiento - proyeccion_mensual
+    La venta objetivo no refleja lo que está pasando de verdad este mes;
+    la proyección de ventas sí, porque extrapola la venta real a la fecha
+    al mes completo — mismo cálculo que "Proy. mes" en el Desglose mensual
+    de la hoja Salidas: (venta real a la fecha ÷ día del mes en que
+    estamos) × días totales del mes. Los meses siguientes del trimestre
+    (todavía no transcurridos) se re-cascadean a partir de ese saldo con
+    la venta objetivo de cada uno, como antes — y con eso se recalculan
+    también "comprar"/"alerta"/"cantidad_pallets", para que no queden
+    desalineados con el nuevo saldo del mes en curso.
     """
     hoy = date.today()
     qn = (hoy.month - 1) // 3 + 1
@@ -2813,7 +2841,8 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         m["objetivo_cumplido_pct"] = round(u / vobj * 100, 1) if vobj > 0 else 0.0
         m["proyeccion_mensual"] = round(u / dia_actual * dias_mes, 1) if dia_actual > 0 else round(u, 1)
 
-        saldo_prev = p["stock_actual"] - m["proyeccion_mensual"]
+        proy_abast = m.get("proyeccion_abastecimiento") or 0
+        saldo_prev = p["stock_actual"] + proy_abast - m["proyeccion_mensual"]
         m["saldo_stock"] = saldo_prev
         for mk in meses_keys[idx_actual + 1:]:
             m2 = p["mensual"][mk]
@@ -3514,6 +3543,17 @@ def main():
     except Exception as e:
         print(f"  Advertencia proyección trimestral: {e}")
         _fail("Proyección trimestral", e)
+
+    # Red de seguridad: si la lectura de la hoja falló (típicamente porque no
+    # hay CDP disponible y el sondeo no encontró ningún encabezado), NO pisar
+    # data_proyeccion.js con un objeto vacío — eso borraría la pestaña
+    # Proyección entera. Se conserva lo último publicado.
+    if not proyeccion.get("trimestres"):
+        _prev = _leer_proyeccion_publicada()
+        if _prev.get("trimestres"):
+            print(f"  Conservando proyección publicada ({len(_prev['trimestres'])} trimestre(s)) "
+                  f"— la lectura de la hoja no devolvió datos")
+            proyeccion = _prev
 
     print("\n[1/5] Actualizando consolidado de inventario...")
     try:
