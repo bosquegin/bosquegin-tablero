@@ -4645,14 +4645,6 @@ function _proyMarca(art) {
   return 'Otros';
 }
 
-// Encabezado de marca por hoja: "Bosque·Gin" para la línea de gin, "Feriado·Vermú"
-// para la línea de vermú — antes decía "Bosque·Gin" también en la hoja Feriado.
-function _proyBrandTxt(marca) {
-  if (marca === 'Feriado') return 'Feriado<span>·</span>Vermú';
-  if (marca === 'Bosque')  return 'Bosque<span>·</span>Gin';
-  return marca;
-}
-
 // Línea de producto dentro de la marca (Nativo, Alta Montaña, Refugios, Rojo,
 // Rosado…): la descripción sin el nombre de la marca ni la presentación.
 function _proyLinea(art) {
@@ -4675,8 +4667,9 @@ function _proyLinea(art) {
 }
 
 // Imprime el pedido mes a mes (proyección de abastecimiento) del trimestre en
-// curso: una hoja por marca (Bosque / Feriado), y dentro de cada una un bloque
-// por línea de producto con sus presentaciones ordenadas de menor a mayor.
+// curso en UNA sola hoja: dos cuadros compactos, uno por marca (Bosque /
+// Feriado), cada uno con la línea de producto en su propia columna
+// (agrupada con rowspan) y las presentaciones ordenadas de menor a mayor.
 function printProyPedidos() {
   const P = (window.BOSQUE_DATA && window.BOSQUE_DATA.proyeccion) || { trimestres: {} };
   const trimestres = P.trimestres || {};
@@ -4704,101 +4697,97 @@ function printProyPedidos() {
   const marcasOrden = ['Bosque', 'Feriado', 'Otros'].filter(mm => porMarca[mm]);
 
   const CSS = `
-    @page { size:A4 portrait; margin:1.4cm 1.5cm }
+    @page { size:A4 portrait; margin:1.1cm 1.3cm }
     * { box-sizing:border-box; margin:0; padding:0 }
-    body { font-family:"Segoe UI",Arial,sans-serif; font-size:11px; color:#1a1f1c; background:#fff }
-    .page { page-break-after:always }
-    .page:last-child { page-break-after:auto }
+    body { font-family:"Segoe UI",Arial,sans-serif; font-size:10px; color:#1a1f1c; background:#fff }
     .doc-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
-                padding-bottom:10px; margin-bottom:16px; border-bottom:2px solid #2d6a4f }
-    .brand { font-family:Georgia,"Times New Roman",serif; font-size:21px; font-weight:600 }
+                padding-bottom:8px; margin-bottom:12px; border-bottom:2px solid #2d6a4f }
+    .brand { font-family:Georgia,"Times New Roman",serif; font-size:18px; font-weight:600 }
     .brand span { color:#2d6a4f }
-    .doc-sub { font-size:11.5px; color:#5c6660; margin-top:3px }
-    .doc-meta { text-align:right; font-size:10.5px; color:#5c6660; line-height:1.7 }
+    .doc-sub { font-size:10px; color:#5c6660; margin-top:2px }
+    .doc-meta { text-align:right; font-size:9.5px; color:#5c6660; line-height:1.5 }
     .doc-meta b { color:#1a1f1c; font-weight:600 }
-    .card { border:1px solid #dde3e0; border-radius:6px; overflow:hidden;
-            margin-bottom:12px; page-break-inside:avoid }
-    .card-head { display:flex; justify-content:space-between; align-items:baseline;
-                 padding:8px 12px; background:#eef4f1; border-bottom:1px solid #dde3e0 }
-    .card-title { font-family:Georgia,serif; font-size:14px; font-weight:600; color:#2d6a4f }
-    .card-tot { font-size:10.5px; color:#5c6660 }
-    .card-tot b { color:#1a1f1c; font-size:12.5px }
+    .cuadro { border:1px solid #dde3e0; border-radius:5px; overflow:hidden; margin-bottom:10px }
+    .cuadro-head { display:flex; justify-content:space-between; align-items:baseline;
+                   padding:6px 10px; background:#eef4f1; border-bottom:1px solid #dde3e0 }
+    .cuadro-title { font-family:Georgia,serif; font-size:12.5px; font-weight:600; color:#2d6a4f }
+    .cuadro-tot { font-size:9.5px; color:#5c6660 }
+    .cuadro-tot b { color:#1a1f1c; font-size:11px }
     table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums }
-    th, td { padding:6px 9px; white-space:nowrap }
-    thead th { font-size:9px; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+    th, td { padding:3.5px 7px }
+    thead th { font-size:8px; letter-spacing:.07em; text-transform:uppercase; font-weight:700;
                color:#5c6660; border-bottom:1.5px solid #b8c2bd; text-align:right }
     thead th.l { text-align:left }
-    td { font-size:12px; border-bottom:1px solid #eef1ef; text-align:right }
+    td { font-size:10px; border-bottom:1px solid #eef1ef; text-align:right; vertical-align:top }
     td.l { text-align:left }
-    tr:last-child td { border-bottom:none }
-    .cod { font-size:10.5px; color:#5c6660 }
+    tbody tr:last-child td { border-bottom:none }
+    .linea { font-weight:700; color:#2d6a4f; white-space:nowrap }
+    .cod { font-size:9px; color:#5c6660; white-space:nowrap }
     /* la descripción completa es larga (hasta ~47 caracteres): se deja
-       envolver para que no desborde el ancho útil de la hoja A4 */
-    .pres { font-weight:600; white-space:normal; line-height:1.35 }
+       envolver en dos líneas si hace falta, para que la hoja siga entrando
+       en una sola página en vez de ensanchar la tabla */
+    .prod { white-space:normal; line-height:1.3 }
     .dash { color:#b5bdb9 }
-    .foot { display:flex; justify-content:space-between; align-items:center; margin-top:14px;
-            padding-top:11px; border-top:2px solid #b8c2bd; font-size:13px; font-weight:700 }
+    .foot { display:flex; justify-content:space-between; align-items:center; margin-top:2px;
+            padding:6px 10px; background:#f8fafc; font-size:11px; font-weight:700 }
   `;
 
-  const pages = marcasOrden.map(marca => {
+  const cuadros = marcasOrden.map(marca => {
     const lineas = Object.keys(porMarca[marca]).sort((a, b) => a.localeCompare(b, 'es'));
     let totMarca = 0;
 
-    const cards = lineas.map(linea => {
+    const filas = lineas.map(linea => {
       const arr = porMarca[marca][linea].slice().sort((a, b) => {
         const d = _proyTamanioMl(a.art) - _proyTamanioMl(b.art);
         return d !== 0 ? d : (a.art || '').localeCompare(b.art || '', 'es');
       });
-      const subtotal = arr.reduce((s, p) => s + mkOrder.reduce((x, mk) => x + abast(p, mk), 0), 0);
-      totMarca += subtotal;
+      totMarca += arr.reduce((s, p) => s + mkOrder.reduce((x, mk) => x + abast(p, mk), 0), 0);
 
-      const filas = arr.map(p => {
+      return arr.map((p, i) => {
         const vals = mkOrder.map(mk => abast(p, mk));
         const totProd = vals.reduce((a, b) => a + b, 0);
         return `<tr>
+          ${i === 0 ? `<td class="l linea" rowspan="${arr.length}">${linea}</td>` : ''}
           <td class="l cod">${p.cod}</td>
-          <td class="l pres">${p.art}</td>
+          <td class="l prod">${p.art}</td>
           ${vals.map(v => `<td>${cell(v)}</td>`).join('')}
           <td><b>${totProd > 0 ? n(totProd) : '—'}</b></td>
         </tr>`;
       }).join('');
-
-      return `
-        <div class="card">
-          <div class="card-head">
-            <span class="card-title">${linea}</span>
-            <span class="card-tot">subtotal <b>${n(subtotal)}</b> un</span>
-          </div>
-          <table>
-            <thead><tr>
-              <th class="l" style="width:64px">Código</th>
-              <th class="l">Producto</th>
-              ${meses.map(mes => `<th>${mes}</th>`).join('')}
-              <th>Total</th>
-            </tr></thead>
-            <tbody>${filas}</tbody>
-          </table>
-        </div>`;
     }).join('');
 
     return `
-      <div class="page">
-        <div class="doc-head">
-          <div>
-            <div class="brand">${_proyBrandTxt(marca)}</div>
-            <div class="doc-sub">Pedido de producción — <strong>${marca}</strong></div>
-          </div>
-          <div class="doc-meta">Trimestre <b>${label}</b><br>Emitido <b>${fecha}</b></div>
+      <div class="cuadro">
+        <div class="cuadro-head">
+          <span class="cuadro-title">${marca}</span>
+          <span class="cuadro-tot">total <b>${n(totMarca)}</b> un</span>
         </div>
-        ${cards}
-        <div class="foot"><span>Total ${marca}</span><span>${n(totMarca)} un</span></div>
+        <table>
+          <thead><tr>
+            <th class="l" style="width:80px">Línea</th>
+            <th class="l" style="width:52px">Código</th>
+            <th class="l">Producto</th>
+            ${meses.map(mes => `<th>${mes}</th>`).join('')}
+            <th>Total</th>
+          </tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
       </div>`;
   }).join('');
 
   const win = window.open('', '_blank', 'width=1000,height=800');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
     <title>Pedidos ${label} — Bosque Gin</title>
-    <style>${CSS}</style></head><body>${pages}</body></html>`);
+    <style>${CSS}</style></head><body>
+      <div class="doc-head">
+        <div>
+          <div class="brand">Bosque<span>·</span>Gin</div>
+          <div class="doc-sub">Pedido de producción — Bosque y Feriado</div>
+        </div>
+        <div class="doc-meta">Trimestre <b>${label}</b><br>Emitido <b>${fecha}</b></div>
+      </div>
+      ${cuadros}
+    </body></html>`);
   win.document.close();
   win.onload = function() { win.focus(); win.print(); };
 }
