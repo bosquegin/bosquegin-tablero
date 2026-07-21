@@ -15,7 +15,7 @@ Fuentes y tablas:
   costos             <- data_costos.js         (snapshot actual por producto)
   costos_anual       <- data_costos.js         (costo/pvp/mb/cmv por año)
   costos_mensual     <- data_costos.js         (costo/pvp/mb por mes)
-  proyeccion         <- Data/Costos y PVP/Analisis_proyeccion_cache.json  (7 trimestres)
+  proyeccion         <- data_proyeccion.js  (7 trimestres, valores YA CORREGIDOS/publicados)
   proyeccion_mensual <- idem, desglose mes a mes por producto
 
 Es idempotente: cada corrida reconstruye la base desde cero a partir de las
@@ -96,10 +96,15 @@ def _leer_stock_cierre():
 
 
 def _leer_proyeccion():
-    path = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion_cache.json")
+    # data_proyeccion.js (no el caché Analisis_proyeccion_cache.json): es lo
+    # PUBLICADO, con los overrides del mes en curso ya aplicados (venta real,
+    # saldo_stock correcto). El caché es el forecast crudo sin esos ajustes.
+    path = os.path.join(BASE, "data_proyeccion.js")
     if not os.path.exists(path):
         return {}
-    return json.load(open(path, encoding="utf-8")).get("trimestres", {})
+    txt = open(path, encoding="utf-8").read()
+    m = re.search(r"=\s*(\{.*\});?\s*$", txt, re.DOTALL)
+    return json.loads(m.group(1)).get("trimestres", {}) if m else {}
 
 
 def construir():
@@ -240,28 +245,29 @@ def construir():
     # ── proyeccion (+ mensual) ─────────────────────────────────────────────
     cur.execute("""CREATE TABLE proyeccion (
         trimestre TEXT, codigo TEXT, articulo TEXT, stock_actual REAL, stock_total REAL,
-        venta_prom_mensual_anterior REAL, total_objetivo_ventas REAL, meses_stock REAL,
+        venta_prom_mensual_anterior REAL, venta_prom_6m REAL, venta_prom_12m REAL,
+        total_objetivo_ventas REAL, meses_stock REAL,
         alerta TEXT, comprar REAL, pallet REAL, cantidad_pallets REAL)""")
     cur.execute("""CREATE TABLE proyeccion_mensual (
         trimestre TEXT, codigo TEXT, mes_idx TEXT, mes_label TEXT,
         proyeccion_abastecimiento REAL, pendiente_retiro REAL, venta_objetivo REAL,
-        venta_actual REAL, objetivo_cumplido_pct REAL, saldo_stock REAL)""")
+        venta_actual REAL, proyeccion_mensual REAL, objetivo_cumplido_pct REAL, saldo_stock REAL)""")
     try:
         for trimestre, T in _leer_proyeccion().items():
             for pr in T.get("productos", []):
                 cod = _cod(pr.get("cod"))
-                cur.execute("INSERT INTO proyeccion VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                cur.execute("INSERT INTO proyeccion VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                             (trimestre, cod, pr.get("art"), pr.get("stock_actual"), pr.get("stock_total"),
-                             pr.get("venta_prom_mensual_anterior"), pr.get("total_objetivo_ventas"),
-                             pr.get("meses_stock"), pr.get("alerta"), pr.get("comprar"),
-                             pr.get("pallet"), pr.get("cantidad_pallets")))
+                             pr.get("venta_prom_mensual_anterior"), pr.get("venta_prom_6m"), pr.get("venta_prom_12m"),
+                             pr.get("total_objetivo_ventas"), pr.get("meses_stock"), pr.get("alerta"),
+                             pr.get("comprar"), pr.get("pallet"), pr.get("cantidad_pallets")))
                 for mk, m in (pr.get("mensual") or {}).items():
-                    cur.execute("INSERT INTO proyeccion_mensual VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    cur.execute("INSERT INTO proyeccion_mensual VALUES (?,?,?,?,?,?,?,?,?,?,?)",
                                 (trimestre, cod, mk, m.get("label"), m.get("proyeccion_abastecimiento"),
                                  m.get("pendiente_retiro"), m.get("venta_objetivo"), m.get("venta_actual"),
-                                 m.get("objetivo_cumplido_pct"), m.get("saldo_stock")))
-        resumen.append(("proyeccion",         _rows("proyeccion"),         "Analisis_proyeccion_cache.json"))
-        resumen.append(("proyeccion_mensual", _rows("proyeccion_mensual"), "Analisis_proyeccion_cache.json"))
+                                 m.get("proyeccion_mensual"), m.get("objetivo_cumplido_pct"), m.get("saldo_stock")))
+        resumen.append(("proyeccion",         _rows("proyeccion"),         "data_proyeccion.js"))
+        resumen.append(("proyeccion_mensual", _rows("proyeccion_mensual"), "data_proyeccion.js"))
     except Exception as e:
         resumen.append(("proyeccion", "ERROR", str(e)[:80]))
 
