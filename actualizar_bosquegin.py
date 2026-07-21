@@ -1043,6 +1043,7 @@ PROYECCION_SHEET_GID = "1879268030"  # pestaña FORECAST (proyección de compra/
 PROYECCION_CACHE     = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_proyeccion_cache.json")
 VENTAS_OBJ_2026_SHEET_GID = "702882960"  # pestaña "Rolling - Mensual x Etiqueta" (cuadro "Objetivo 2026")
 VENTAS_OBJ_2026_FILAS     = (50, 70)     # rango A50:P70 indicado por el usuario
+VENTAS_OBJ_2026_CACHE     = os.path.join(DATA_DIR, "Costos y PVP", "Ventas_objetivo_2026_cache.json")
 PROY_ABAST_CORR = os.path.join(DATA_DIR, "Costos y PVP", "Proyeccion_abastecimiento_correcciones.json")
 CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
 CERV_SHEET_GID   = "2130605343"
@@ -2476,9 +2477,25 @@ def _proy_fetch_ventas_objetivo_2026():
     blanco — el mismo bug de truncamiento de gviz ya visto en la hoja
     FORECAST (ver _proy_leer_celda). Sólo 21 filas, así que el costo de
     pedir una por una es insignificante.
+    Son 21 lecturas CDP individuales (una por fila) y cada fetch a través
+    del navegador tiene bastante overhead, así que en la práctica esto
+    tardaba ~1m30s por corrida. Se cachea 1x/día en VENTAS_OBJ_2026_CACHE
+    (mismo patrón que la hoja FORECAST): la primera actualización del día
+    lo lee de la hoja; las siguientes lo toman del caché al instante.
     Devuelve {cod: [ene, feb, ..., dic]} (12 floats, columnas C..N).
     """
     import csv, io
+
+    if os.path.exists(VENTAS_OBJ_2026_CACHE) and \
+       date.fromtimestamp(os.path.getmtime(VENTAS_OBJ_2026_CACHE)) >= date.today():
+        try:
+            with open(VENTAS_OBJ_2026_CACHE, encoding="utf-8") as f:
+                cache = json.load(f)
+            print(f"  Objetivo 2026 al día (caché), {len(cache)} producto(s)")
+            return cache
+        except Exception:
+            pass   # caché corrupto -> releer de la hoja
+
     fila_ini, fila_fin = VENTAS_OBJ_2026_FILAS
     productos = {}
     for fila in range(fila_ini, fila_fin + 1):
@@ -2496,6 +2513,16 @@ def _proy_fetch_ventas_objetivo_2026():
         except Exception:
             continue
         productos[cod] = [_proy_num(r[c]) for c in range(2, 14)]  # C..N = enero..dic
+
+    # Guardar caché sólo si la lectura trajo algo (si no hay CDP y quedó vacío,
+    # no pisamos un caché válido de una corrida anterior con uno vacío).
+    if productos:
+        try:
+            os.makedirs(os.path.dirname(VENTAS_OBJ_2026_CACHE), exist_ok=True)
+            with open(VENTAS_OBJ_2026_CACHE, "w", encoding="utf-8") as f:
+                json.dump(productos, f, ensure_ascii=False)
+        except Exception as e:
+            print(f"  Advertencia guardando caché de Objetivo 2026: {e}")
     return productos
 
 
@@ -3718,10 +3745,17 @@ def main():
         "proyeccion": proyeccion,
     }
 
-    js_str = "var BOSQUE_DATA=" + json.dumps(new_data, ensure_ascii=False) + ";"
-    with open(OUT_JS, "w", encoding="utf-8") as f:
-        f.write(js_str)
-    print("\nOK: bosquegin_data.js actualizado (%d chars)" % len(js_str))
+    # El monolito bosquegin_data.js (~5 MB) NO lo usa el dashboard —
+    # carga los archivos por sección (data_*.js). El único consumidor es el
+    # flujo cloud (actualizar_cloud.py), que lo sube a GitHub y corre con
+    # _SKIP_GIT_PUSH=True. Por eso sólo se escribe en ese caso: en el
+    # Actualizar local nos ahorramos escribir 5 MB y, sobre todo, re-pushear
+    # ese blob enorme en cada corrida (era ~1m del git push).
+    if _SKIP_GIT_PUSH:
+        js_str = "var BOSQUE_DATA=" + json.dumps(new_data, ensure_ascii=False) + ";"
+        with open(OUT_JS, "w", encoding="utf-8") as f:
+            f.write(js_str)
+        print("\nOK: bosquegin_data.js actualizado (%d chars)" % len(js_str))
     print("  Stock:   %d articulos al %s" % (len(inv_data), stock_hasta))
     print("  Ventas:  hasta %s" % ventas_hasta)
 
@@ -3801,8 +3835,11 @@ def main():
             r = subprocess.run(cmd, cwd=BASE, capture_output=True, text=True)
             return r.returncode, (r.stdout + r.stderr)
 
+        # bosquegin_data.js NO se agrega: el dashboard usa los data_*.js por
+        # sección, y en modo local ni siquiera se regenera (ver arriba). Así el
+        # git push no re-sube ese blob de 5 MB en cada corrida.
         for cmd in [
-            ["git", "add", "bosquegin_data.js", "data_meta.js", "data_ventas.js", "data_clientes.js",
+            ["git", "add", "data_meta.js", "data_ventas.js", "data_clientes.js",
               "data_stock.js", "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
               "data_proyeccion.js", "auth_static.js", "bosquegin_dashboard.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
