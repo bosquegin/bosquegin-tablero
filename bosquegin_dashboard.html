@@ -126,6 +126,22 @@
     }
     .header-title .sub .ver { color: var(--accent); opacity: .7; font-weight: 600; }
 
+    .header-below {
+      margin-top: 9px; display: flex; flex-direction: column; align-items: center; gap: 7px;
+      pointer-events: auto;
+    }
+    .upd-pill {
+      background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+      padding: 5px 13px; font-size: 9px; color: var(--muted); display: flex; align-items: center; gap: 7px;
+      font-family: 'Segoe UI', sans-serif; letter-spacing: 0; text-transform: none; white-space: nowrap;
+    }
+    .upd-pill .upd-sep { color: var(--border); }
+    .upd-pill .upd-go {
+      background: none; border: none; padding: 0; margin: 0; color: var(--accent); font-weight: 700;
+      font-size: 9px; cursor: pointer; display: flex; align-items: center; gap: 5px; font-family: 'Segoe UI', sans-serif;
+    }
+    .upd-pill .upd-go:hover { opacity: .8; }
+
     .header-products {
       display: flex; align-items: center; gap: 6px;
       background: rgba(255,255,255,0.04);
@@ -156,6 +172,53 @@
     @media (max-width: 900px) { .header-products { display: none; } }
 
     .header-right { display: flex; align-items: center; gap: 12px; }
+
+    /* Latas Temple: cascada escalonada saliendo hacia el título */
+    .temple-cascade { position: relative; width: 172px; height: 100px; }
+    .temple-cascade .a-pill {
+      position: absolute; right: 0; top: 18px; width: 88px; height: 82px; border-radius: 14px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+    }
+    .temple-cascade img {
+      position: absolute; border-radius: 7px; object-fit: cover; object-position: center top;
+      box-shadow: 0 4px 14px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); opacity: .88;
+      cursor: default; transition: opacity .18s, transform .18s, box-shadow .18s, border-color .18s;
+    }
+    .temple-cascade .tc1 { right: 8px;   top: 26px; width: 44px; height: 68px; z-index: 4; transform: rotate(0deg); }
+    .temple-cascade .tc2 { right: 48px;  top: 20px; width: 39px; height: 61px; z-index: 3; transform: rotate(-9deg); opacity: .96; }
+    .temple-cascade .tc3 { right: 86px;  top: 14px; width: 35px; height: 55px; z-index: 2; transform: rotate(-16deg); opacity: .9; }
+    .temple-cascade .tc4 { right: 120px; top: 7px;  width: 31px; height: 49px; z-index: 1; transform: rotate(-24deg); opacity: .8; }
+    .temple-cascade .tc1:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(0deg) scale(1.25) translateY(-8px); }
+    .temple-cascade .tc2:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(-9deg) scale(1.25) translateY(-8px); }
+    .temple-cascade .tc3:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(-16deg) scale(1.25) translateY(-8px); }
+    .temple-cascade .tc4:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(-24deg) scale(1.25) translateY(-8px); }
+    @media (max-width: 900px) { .temple-cascade { display: none; } }
+
+    /* Botellas + barril: misma cascada, espejada (6 productos) — orden: Feriado + Barril primero, Bosque Nativo al final */
+    .bosque-cascade { position: relative; width: 218px; height: 100px; }
+    .bosque-cascade .a-pill {
+      position: absolute; left: 0; top: 18px; width: 88px; height: 82px; border-radius: 14px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+    }
+    .bosque-cascade img {
+      position: absolute; border-radius: 7px; object-fit: cover; object-position: center top;
+      box-shadow: 0 4px 14px rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.12); opacity: .88;
+      cursor: default; transition: opacity .18s, transform .18s, box-shadow .18s, border-color .18s;
+    }
+    .bosque-cascade .bc1 { left: 8px;   top: 26px; width: 44px; height: 68px; z-index: 6; transform: rotate(0deg); }
+    .bosque-cascade .bc2 { left: 48px;  top: 20px; width: 39px; height: 61px; z-index: 5; transform: rotate(9deg); opacity: .96; }
+    .bosque-cascade .bc3 { left: 86px;  top: 14px; width: 35px; height: 55px; z-index: 4; transform: rotate(16deg); opacity: .9; }
+    .bosque-cascade .bc4 { left: 120px; top: 9px;  width: 32px; height: 51px; z-index: 3; transform: rotate(21deg); opacity: .85; }
+    .bosque-cascade .bc5 { left: 152px; top: 6px;  width: 29px; height: 46px; z-index: 2; transform: rotate(26deg); opacity: .8; }
+    .bosque-cascade .bc6 { left: 180px; top: 3px;  width: 26px; height: 41px; z-index: 1; transform: rotate(31deg); opacity: .75; }
+    .bosque-cascade .bc1:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(0deg) scale(1.25) translateY(-8px); }
+    .bosque-cascade .bc2:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(9deg) scale(1.25) translateY(-8px); }
+    .bosque-cascade .bc3:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(16deg) scale(1.25) translateY(-8px); }
+    .bosque-cascade .bc4:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(21deg) scale(1.25) translateY(-8px); }
+    .bosque-cascade .bc5:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(26deg) scale(1.25) translateY(-8px); }
+    .bosque-cascade .bc6:hover { opacity: 1; z-index: 50; box-shadow: 0 10px 26px rgba(74,222,128,.4); border-color: rgba(74,222,128,.55); transform: rotate(31deg) scale(1.25) translateY(-8px); }
+    @media (max-width: 900px) { .bosque-cascade { display: none; } }
+
     .date-badge {
       background: var(--card);
       border: 1px solid var(--border);
@@ -569,18 +632,16 @@
 
 <!-- HEADER -->
 <header>
-  <!-- Izquierda: imágenes + separador vertical -->
+  <!-- Izquierda: botellas + barril, en cascada hacia el título -->
   <div class="header-left">
-    <div class="header-products">
-      <img src="img/Bosque--Nativo.jpg"          title="Bosque Nativo">
-      <img src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
-      <img src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
-      <div class="prod-sep"></div>
-      <img src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
-      <img src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
-      <div class="prod-sep"></div>
-      <img src="img/Temple-Wolf.jpg"              title="Temple Wolf IPA">
-      <img src="img/Temple-Wolf-0.jpg"            title="Temple Wolf IPA Sin Alcohol">
+    <div class="bosque-cascade">
+      <div class="a-pill"></div>
+      <img class="bc6" src="img/Bosque--Nativo.jpg"           title="Bosque Nativo">
+      <img class="bc5" src="img/Bosque---Alta-Montana.jpg"    title="Bosque Alta Montaña">
+      <img class="bc4" src="img/Bosque---Refugios.jpg"        title="Bosque Refugios">
+      <img class="bc3" src="img/Feriado-Rojo.jpg"             title="Feriado Rojo">
+      <img class="bc2" src="img/Feriado-Rosado.jpg"           title="Feriado Rosado">
+      <img class="bc1" src="img/Barril-20L.jpg"               title="Barril 20 Litros">
     </div>
     <div class="header-vert-sep"></div>
   </div>
@@ -589,26 +650,37 @@
     <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
     <span class="sub">Supply Chain &nbsp;<span class="ver">v3.2</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
+    <div class="header-below">
+      <div class="upd-pill">
+        <div id="data-freshness-dot" class="update-dot" title="Verificando datos…"></div>
+        <span id="last-updated-badge" style="display:none"></span>
+        <span class="upd-sep">·</span>
+        <button id="btn-update" onclick="runUpdate()" class="upd-go">
+          <span id="update-btn-icon">🔄</span> <span id="update-btn-label">Actualizar</span>
+        </button>
+      </div>
+      <!-- User info + logout -->
+      <div id="user-chip" style="display:none;align-items:center;gap:8px;background:var(--card);
+           border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:9px;cursor:default;
+           font-family:'Segoe UI',sans-serif">
+        <span style="font-size:15px">👤</span>
+        <span id="user-nombre" style="color:var(--text);font-weight:500"></span>
+        <span id="user-role-badge" style="font-size:9px;padding:1px 7px;border-radius:10px;
+              background:rgba(74,222,128,.15);color:var(--accent);font-weight:600"></span>
+        <a href="/logout" onclick="return _bgLogout()" style="color:var(--muted);text-decoration:none;font-size:9px;
+           margin-left:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'"
+           onmouseout="this.style.color='var(--muted)'">Salir</a>
+      </div>
+    </div>
   </div>
+  <!-- Derecha: latas Temple, en cascada hacia el título -->
   <div class="header-right">
-    <div id="last-updated-badge" style="font-size:9px;color:var(--muted);white-space:nowrap;display:none"></div>
-    <div id="data-freshness-dot" class="update-dot" title="Verificando datos…"></div>
-    <button id="btn-update" onclick="runUpdate()"
-      style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;
-             padding:6px 14px;font-size:9px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s"
-      onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-      <span id="update-btn-icon">🔄</span> <span id="update-btn-label">Actualizar</span>
-    </button>
-    <!-- User info + logout -->
-    <div id="user-chip" style="display:none;align-items:center;gap:8px;background:var(--card);
-         border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-size:9px;cursor:default">
-      <span style="font-size:15px">👤</span>
-      <span id="user-nombre" style="color:var(--text);font-weight:500"></span>
-      <span id="user-role-badge" style="font-size:9px;padding:1px 7px;border-radius:10px;
-            background:rgba(74,222,128,.15);color:var(--accent);font-weight:600"></span>
-      <a href="/logout" onclick="return _bgLogout()" style="color:var(--muted);text-decoration:none;font-size:9px;
-         margin-left:4px;transition:color .15s" onmouseover="this.style.color='var(--red)'"
-         onmouseout="this.style.color='var(--muted)'">Salir</a>
+    <div class="temple-cascade">
+      <div class="a-pill"></div>
+      <img class="tc4" src="img/Temple-Wolf-IPA-0.jpg"   title="Temple Wolf IPA Sin Alcohol">
+      <img class="tc3" src="img/Temple-Scottish.jpg"     title="Temple Scottish">
+      <img class="tc2" src="img/Temple-Indie-Golden.jpg" title="Temple Indie Golden">
+      <img class="tc1" src="img/Temple-Wolf-IPA.jpg"     title="Temple Wolf IPA">
     </div>
   </div>
 </header>
