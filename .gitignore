@@ -14,3 +14,4 @@ oauth_tokens.json
 get_oauth_token.py
 contabilium_config.json
 contabilium_token_cache.json
+Data/Base_historica.db
