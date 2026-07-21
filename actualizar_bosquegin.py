@@ -2698,11 +2698,13 @@ def _proy_recalcular_derivados(p, meses_keys):
     toca — es un dato físico fijo del producto, no una proyección.
 
     El mes EN CURSO (el único con "proyeccion_mensual" cargada, por
-    aplicar_venta_real_mes_actual) resta la proyección de ventas del mes
-    en vez de la venta objetivo, porque esa proyección sí refleja el ritmo
-    real de venta. Sin esta distinción, editar el abastecimiento desde el
-    tablero recalcularía el saldo del mes en curso con venta objetivo y
-    pisaría la lógica del pipeline.
+    aplicar_venta_real_mes_actual) resta sólo lo que FALTA vender de hoy a
+    fin de mes (proyeccion_mensual - venta_actual) en vez de la venta
+    objetivo, porque el stock_actual es el inventario en vivo y ya tiene
+    descontada la venta real del mes — restar la proyección completa
+    descontaría dos veces lo ya vendido. Sin esta distinción, editar el
+    abastecimiento desde el tablero recalcularía el saldo del mes en curso
+    con venta objetivo y pisaría la lógica del pipeline.
     """
     saldo_prev = p["stock_actual"]
     total_obj = 0.0
@@ -2711,7 +2713,10 @@ def _proy_recalcular_derivados(p, meses_keys):
         m = p["mensual"][mk]
         proy = m.get("proyeccion_abastecimiento") or 0
         vobj = m.get("venta_objetivo") or 0
-        salida = m["proyeccion_mensual"] if m.get("proyeccion_mensual") is not None else vobj
+        if m.get("proyeccion_mensual") is not None:      # mes en curso
+            salida = m["proyeccion_mensual"] - (m.get("venta_actual") or 0)
+        else:                                            # meses futuros
+            salida = vobj
         saldo_prev = saldo_prev + proy - salida
         m["saldo_stock"] = saldo_prev
         total_obj += vobj
@@ -2868,8 +2873,13 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         m["objetivo_cumplido_pct"] = round(u / vobj * 100, 1) if vobj > 0 else 0.0
         m["proyeccion_mensual"] = round(u / dia_actual * dias_mes, 1) if dia_actual > 0 else round(u, 1)
 
-        proy_abast = m.get("proyeccion_abastecimiento") or 0
-        saldo_prev = p["stock_actual"] + proy_abast - m["proyeccion_mensual"]
+        # stock_actual es el inventario EN VIVO: ya tiene descontada la venta
+        # real del mes a la fecha. Por eso sólo se resta lo que FALTA vender de
+        # hoy a fin de mes (proyeccion_mensual - venta_actual), no la proyección
+        # completa — si no, la venta ya realizada se descontaría dos veces.
+        proy_abast     = m.get("proyeccion_abastecimiento") or 0
+        venta_restante = m["proyeccion_mensual"] - m["venta_actual"]
+        saldo_prev     = p["stock_actual"] + proy_abast - venta_restante
         m["saldo_stock"] = saldo_prev
         for mk in meses_keys[idx_actual + 1:]:
             m2 = p["mensual"][mk]
