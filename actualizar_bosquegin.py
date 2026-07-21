@@ -3435,6 +3435,14 @@ def update_stock_cierre_mes():
 
 
 # ─── 7. MAIN ──────────────────────────────────────────────────────────────────
+def _fmt_dur(seg):
+    """Duración legible: '0.4s', '12.3s', '1m 05s'."""
+    if seg < 60:
+        return "%.1fs" % seg
+    m, s = divmod(int(round(seg)), 60)
+    return "%dm %02ds" % (m, s)
+
+
 def main():
     print("=" * 60)
     print(f"Actualizando Bosque Gin Dashboard — {datetime.now(_AR):%Y-%m-%d %H:%M} (AR)")
@@ -3448,6 +3456,22 @@ def main():
     def _fail(nombre, err):
         _health.append((nombre, False, str(err)))
 
+    # Cronómetro por paso: _paso() imprime el encabezado del paso Y marca el
+    # tiempo. Al llamar al siguiente _paso() (o al cerrar en el resumen) se
+    # calcula cuánto tardó el paso anterior. Al final se imprime una tabla de
+    # tiempos ordenada de más lento a más rápido, para ver de un vistazo dónde
+    # se va el tiempo en cada "Actualizar".
+    _pasos_timing = []                     # [(encabezado, segundos)]
+    _t_state = {"prev": None, "label": None}
+    def _paso(header):
+        now = time.monotonic()
+        if _t_state["label"] is not None:
+            _pasos_timing.append((_t_state["label"], now - _t_state["prev"]))
+        _t_state["prev"] = now
+        _t_state["label"] = header
+        print("\n" + header)
+
+    _paso("[0a/7] Preparando entorno (CDP/Brave)...")
     # Configurar CDP en Brave (una vez; si ya está configurado no hace nada)
     try:
         import subprocess
@@ -3468,7 +3492,7 @@ def main():
     # (ver update_salidas_consolidado()). Para reactivar: GC_DOWNLOAD_ENABLED = True.
     GC_DOWNLOAD_ENABLED = False
     if GC_DOWNLOAD_ENABLED:
-        print("\n[0/5] Descargando archivos de Gestión Cervecera...")
+        _paso("[0/5] Descargando archivos de Gestión Cervecera...")
         try:
             from gc_downloader import descargar_todo
             _last_d = _last_ventas_date()
@@ -3482,7 +3506,7 @@ def main():
             print(f"  Advertencia GC downloader: {e}")
             print("  Continuando con los archivos existentes...")
 
-    print("\n[0d/5] Descargando historial de salidas de Contabilium...")
+    _paso("[0d/5] Descargando historial de salidas de Contabilium...")
     try:
         from contabilium_downloader import descargar_historial as _cont_descargar_historial
         _fpath = _cont_descargar_historial(verbose=True)
@@ -3495,7 +3519,7 @@ def main():
     # lo trae en vivo desde contabilium_api.get_stock_todos_depositos()
 
     # Destilería desde hoja RESUMEN PRODUCTOS X DESTILERIA (Google Sheets)
-    print("\n[0b/5] Descargando resumen destilería/cervezas...")
+    _paso("[0b/5] Descargando resumen destilería/cervezas...")
     destileria = {}
     try:
         destileria = fetch_resumen_destileria()
@@ -3515,7 +3539,7 @@ def main():
                 pass
 
     # Cervezas (costos por producto BARRIL y LATA)
-    print("\n[0c/5] Descargando costos cervezas...")
+    _paso("[0c/5] Descargando costos cervezas...")
     cervezas = {}
     try:
         cervezas = fetch_cervezas()
@@ -3532,7 +3556,7 @@ def main():
             except Exception:
                 pass
 
-    print("\n[0e/5] Actualizando proyección trimestral (FORECAST)...")
+    _paso("[0e/5] Actualizando proyección trimestral (FORECAST)...")
     proyeccion = {"trimestres": {}}
     try:
         proyeccion = cargar_proyeccion_trimestral_historica()
@@ -3555,7 +3579,7 @@ def main():
                   f"— la lectura de la hoja no devolvió datos")
             proyeccion = _prev
 
-    print("\n[1/5] Actualizando consolidado de inventario...")
+    _paso("[1/5] Actualizando consolidado de inventario...")
     try:
         update_consolidado()
         _ok("Consolidado inventario")
@@ -3563,7 +3587,7 @@ def main():
         print("  Advertencia consolidado: %s" % e)
         _fail("Consolidado inventario", e)
 
-    print("\n[1b/5] Actualizando STOCK_CIERRE_MES en dashboard...")
+    _paso("[1b/5] Actualizando STOCK_CIERRE_MES en dashboard...")
     try:
         update_stock_cierre_mes()
         _ok("Stock cierre mes")
@@ -3571,7 +3595,7 @@ def main():
         print("  Advertencia stock cierre mes: %s" % e)
         _fail("Stock cierre mes", e)
 
-    print("\n[2/5] Cargando productos (rubro/subrubro)...")
+    _paso("[2/5] Cargando productos (rubro/subrubro)...")
     try:
         inv_gen = load_productos()
         print("  -> %d productos cargados desde PRODUCTOS.xlsx" % len(inv_gen))
@@ -3582,7 +3606,7 @@ def main():
         _fail("Productos", e)
         inv_gen = {}
 
-    print("\n[3/5] Leyendo inventario desde consolidado...")
+    _paso("[3/5] Leyendo inventario desde consolidado...")
     try:
         inv_data, stock_hasta = parse_stock(INV_DIR)
         print("  -> %d articulos al %s" % (len(inv_data), stock_hasta))
@@ -3599,7 +3623,7 @@ def main():
         _fail("Stock consolidado (histórico)", e)
         inv_data, stock_hasta = [], date.today().strftime("%Y-%m-%d")
 
-    print("\n[3b/5] Sobreescribiendo stock EN VIVO desde Contabilium...")
+    _paso("[3b/5] Sobreescribiendo stock EN VIVO desde Contabilium...")
     try:
         inv_data, stock_hasta = apply_stock_contabilium_vivo(inv_data, inv_gen)
         print("  -> stock actualizado al %s (vía API Contabilium)" % stock_hasta)
@@ -3608,7 +3632,7 @@ def main():
         print("  Advertencia stock vivo Contabilium: %s" % e)
         _fail("Stock EN VIVO (API)", e)
 
-    print("\n[3c/5] Actualizando stock de Proyección (todos los trimestres) y venta objetivo del actual...")
+    _paso("[3c/5] Actualizando stock de Proyección (todos los trimestres) y venta objetivo del actual...")
     try:
         aplicar_stock_inventario_productos(proyeccion.get("trimestres", {}), inv_data)
         proyeccion = aplicar_override_trimestre_actual(proyeccion, inv_data)
@@ -3617,7 +3641,7 @@ def main():
         print(f"  Advertencia override proyección: {e}")
         _fail("Proyección: stock y trimestre actual", e)
 
-    print("\n[4/5] Actualizando costos desde Google Sheets...")
+    _paso("[4/5] Actualizando costos desde Google Sheets...")
     try:
         costos, costos_data = fetch_costos_completo()   # descarga automática incluida
         _ok("Costos")
@@ -3626,7 +3650,7 @@ def main():
         _fail("Costos", e)
         costos, costos_data = {}, {"periodos": [], "productos": [], "actualizacion": "", "error": str(e)}
 
-    print("\n[4b/5] Actualizando consolidado de salidas...")
+    _paso("[4b/5] Actualizando consolidado de salidas...")
     try:
         _max_fecha_salidas = update_salidas_consolidado()
         if _max_fecha_salidas and _max_fecha_salidas != "0":
@@ -3641,7 +3665,7 @@ def main():
         print("  Advertencia consolidado salidas: %s" % e)
         _fail("Consolidado salidas", e)
 
-    print("\n[4c/5] Leyendo salidas desde consolidado...")
+    _paso("[4c/5] Leyendo salidas desde consolidado...")
     salidas_src = SALIDAS_CONS if os.path.exists(SALIDAS_CONS) else VENTAS_F
     try:
         ventas, ventas_hasta, monthly_raw = parse_ventas(salidas_src, prod_lookup=inv_gen, costos=costos)
@@ -3654,7 +3678,7 @@ def main():
         _fail("Ventas/salidas", e)
         ventas, ventas_hasta, monthly_raw = {"VD": {}, "MONTHLY_DATA": {}, "PROD_DATA": {}}, "?", {}
 
-    print("\n[4d/5] Cargando inventario insumos...")
+    _paso("[4d/5] Cargando inventario insumos...")
     try:
         insumos_data = fetch_insumos()
         if insumos_data.get("error"):
@@ -3666,7 +3690,7 @@ def main():
         _fail("Insumos", e)
         insumos_data = {"items": [], "meses": [], "error": str(e)}
 
-    print("\n[5/5] Calculando velocidad de ventas por deposito...")
+    _paso("[5/5] Calculando velocidad de ventas por deposito...")
     try:
         ref = date.today()
         vel = compute_velocity(monthly_raw, ref)
@@ -3727,7 +3751,7 @@ def main():
             f.write(content)
         print("  %s (%d KB)" % (fname, len(content) // 1024))
 
-    print("\n[6/6] Generando proyecciones de compra...")
+    _paso("[6/6] Generando proyecciones de compra...")
     try:
         generate_proyecciones(inv_data)
     except Exception as e:
@@ -3736,6 +3760,22 @@ def main():
     print("Recarga el dashboard para ver los cambios.")
 
     def _print_health_summary():
+        # Cerrar el cronómetro del último paso en curso.
+        if _t_state["label"] is not None:
+            _pasos_timing.append((_t_state["label"], time.monotonic() - _t_state["prev"]))
+            _t_state["label"] = None
+
+        # Tabla de tiempos por paso (más lento primero), con barra proporcional.
+        if _pasos_timing:
+            total = sum(d for _, d in _pasos_timing) or 0.001
+            print("\n" + "=" * 60)
+            print("TIEMPOS POR PASO (más lento primero) — total %s" % _fmt_dur(total))
+            for header, dur in sorted(_pasos_timing, key=lambda x: -x[1]):
+                # header = "[0d/5] Descargando..."; recortar el "..." final
+                etiqueta = header.rstrip(".")
+                barra = "█" * max(1, round(dur / total * 32)) if dur > 0.05 else ""
+                print("  %8s  %3d%%  %-32s %s" % (_fmt_dur(dur), round(dur / total * 100), barra, etiqueta))
+
         fails = [h for h in _health if not h[1]]
         oks   = [h for h in _health if h[1]]
         print("\n" + "=" * 60)
@@ -3748,8 +3788,7 @@ def main():
         print("=" * 60)
 
     # ── Auto-publicar en bosquegin.com via GitHub Pages ──────────────────────
-    print("\n[7/7] Publicando datos en bosquegin.com...")
-
+    _paso("[7/7] Publicando datos en bosquegin.com...")
     if _SKIP_GIT_PUSH:
         print("  [cloud] Git push omitido — lo maneja el servidor cloud")
         _print_health_summary()
