@@ -200,32 +200,75 @@ _DOWNLOAD_JS = """
 })()
 """
 
+_ULTIMA_FECHA_CACHE = os.path.join(CONTABILIUM_DIR, "_ultima_fecha_cache.json")
+
+
+def _fecha_max_en_archivo(fpath):
+    """Última fecha (columna Fecha) dentro de UN xlsx de historial."""
+    import openpyxl
+    max_fecha = None
+    try:
+        wb = openpyxl.load_workbook(fpath, read_only=True, data_only=True)
+        ws = wb.active
+        for row in ws.iter_rows(min_row=2, max_col=1, values_only=True):
+            raw = row[0] if row else None
+            if raw is None: continue
+            d = raw.date() if hasattr(raw, "date") else None
+            if d is None:
+                try:
+                    d = date.fromisoformat(str(raw)[:10])
+                except Exception:
+                    continue
+            if max_fecha is None or d > max_fecha:
+                max_fecha = d
+        wb.close()
+    except Exception:
+        pass
+    return max_fecha
+
+
 def _ultima_fecha_historial():
     """
     Última fecha (columna Fecha) presente en los xlsx ya descargados de
     _tmp_HistorialStock_*.xlsx. El nombre del archivo es la fecha de
     DESCARGA, no la de los datos — hay que leer el contenido.
+
+    Cada archivo, una vez descargado, no vuelve a cambiar de contenido —
+    así que se cachea su máximo por archivo (en _ultima_fecha_cache.json)
+    y sólo se abren con openpyxl los xlsx NUEVOS desde la última corrida.
+    Sin esto, cada "Actualizar" reabría TODO el historial acumulado
+    (crece sin límite con cada descarga) sólo para recalcular un dato que
+    ya se conocía.
     """
-    import openpyxl
-    max_fecha = None
-    for fpath in glob.glob(os.path.join(CONTABILIUM_DIR, "_tmp_HistorialStock_*.xlsx")):
+    archivos = glob.glob(os.path.join(CONTABILIUM_DIR, "_tmp_HistorialStock_*.xlsx"))
+
+    cache = {}
+    if os.path.exists(_ULTIMA_FECHA_CACHE):
         try:
-            wb = openpyxl.load_workbook(fpath, read_only=True, data_only=True)
-            ws = wb.active
-            for row in ws.iter_rows(min_row=2, max_col=1, values_only=True):
-                raw = row[0] if row else None
-                if raw is None: continue
-                d = raw.date() if hasattr(raw, "date") else None
-                if d is None:
-                    try:
-                        d = date.fromisoformat(str(raw)[:10])
-                    except Exception:
-                        continue
-                if max_fecha is None or d > max_fecha:
-                    max_fecha = d
-            wb.close()
+            cache = json.load(open(_ULTIMA_FECHA_CACHE, encoding="utf-8"))
         except Exception:
-            continue
+            cache = {}
+
+    max_fecha = None
+    cambio = False
+    for fpath in archivos:
+        key = os.path.basename(fpath)
+        cached = cache.get(key)
+        if cached is None:
+            d = _fecha_max_en_archivo(fpath)
+            cache[key] = d.isoformat() if d else None
+            cambio = True
+        else:
+            d = date.fromisoformat(cached) if cached else None
+        if d and (max_fecha is None or d > max_fecha):
+            max_fecha = d
+
+    if cambio:
+        try:
+            json.dump(cache, open(_ULTIMA_FECHA_CACHE, "w", encoding="utf-8"))
+        except Exception:
+            pass
+
     return max_fecha
 
 
