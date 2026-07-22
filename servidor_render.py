@@ -21,7 +21,11 @@ from flask import Flask, request, Response, stream_with_context
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, origins=["https://bosquegin.github.io"])
+CORS(app, origins=[
+    "https://bosquegin.github.io",
+    "https://bosquegin.com",
+    "https://www.bosquegin.com",
+])
 
 _lock          = threading.Lock()
 _last_update   = 0.0
