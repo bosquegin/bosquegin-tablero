@@ -659,6 +659,88 @@ def apply_stock_contabilium_vivo(inv_data, inv_gen=None):
     return inv_data, hoy
 
 
+def append_stock_vivo_a_consolidado(inv_data, hoy):
+    """
+    Agrega al consolidado diario (Stock_consolidado_por_deposito_y_dia.xlsx)
+    una fila por producto x depósito con el stock EN VIVO de Contabilium de
+    HOY. Desde el corte a la API de Contabilium (29/06/2026) ya no se
+    generan los archivos diarios manuales ("Stock productos DD-MM.xlsx")
+    que alimentaban update_consolidado() — sin esto, el consolidado (y por
+    lo tanto el desglose de stock por semana, que se arma a partir de él)
+    quedaba congelado para siempre en esa fecha.
+
+    Es idempotente: si ya hay filas de HOY (por ej. si Actualizar corrió
+    más de una vez en el día), update_consolidado() las borra al principio
+    de la corrida siguiente antes de que esta función las vuelva a agregar.
+    """
+    import openpyxl
+    dep_nombre = {"klozer": "KLOZER", "klozer_mkt": "KLOZER MKT", "ofi": "OFICINA",
+                  "shop_gallery": "SHOP GALLERY", "avolta": "AVOLTA"}
+    fecha_key = {"klozer": "k_fecha", "klozer_mkt": "km_fecha", "ofi": "o_fecha",
+                 "shop_gallery": "sg_fecha", "avolta": "av_fecha"}
+
+    nuevas = []
+    for item in inv_data:
+        try:
+            cod_out = int(item["cod"])
+        except (TypeError, ValueError):
+            cod_out = item["cod"]
+        for dep_grp, nombre in dep_nombre.items():
+            if item.get(fecha_key[dep_grp]) != hoy:
+                continue   # este depósito no trajo dato en vivo hoy para este producto
+            nuevas.append((hoy, nombre, item.get("art", ""), cod_out, None,
+                           item.get(dep_grp, 0), item.get("rub", ""), item.get("sub", "")))
+
+    if not nuevas:
+        return 0
+
+    wb = openpyxl.load_workbook(CONS_FILE)
+    ws = wb.active
+    for r in nuevas:
+        ws.append(list(r))
+    wb.save(CONS_FILE)
+    wb.close()
+    return len(nuevas)
+
+
+def merge_hoy_en_stock_semanal(stock_semanal, inv_data, hoy):
+    """
+    parse_stock() (paso [3/5]) lee el consolidado ANTES de que este paso
+    ([3b/5]) le agregue la fila de hoy — así que sin esto, el stock en vivo
+    de hoy recién aparecería en data_stock.js.SEMANAL en la corrida
+    siguiente. Mezcla el snapshot de hoy directamente en el dict ya
+    calculado, en memoria, con el mismo formato que arma parse_stock().
+    Si ya existe una entrada para la semana de hoy (ej. 2da corrida del
+    mismo día), la reemplaza en vez de duplicarla.
+    """
+    try:
+        semana_hoy = f"{date.fromisoformat(hoy).isocalendar()[0]}-W{date.fromisoformat(hoy).isocalendar()[1]:02d}"
+    except Exception:
+        return
+
+    for item in inv_data:
+        cod = item["cod"]
+        klozer      = item.get("klozer", 0)      if item.get("k_fecha")  == hoy else 0
+        klozer_mkt  = item.get("klozer_mkt", 0)  if item.get("km_fecha") == hoy else 0
+        ofi         = item.get("ofi", 0)         if item.get("o_fecha")  == hoy else 0
+        shop_gallery= item.get("shop_gallery", 0) if item.get("sg_fecha") == hoy else 0
+        avolta      = item.get("avolta", 0)      if item.get("av_fecha") == hoy else 0
+        if not (item.get("k_fecha")==hoy or item.get("km_fecha")==hoy or item.get("o_fecha")==hoy
+                or item.get("sg_fecha")==hoy or item.get("av_fecha")==hoy):
+            continue   # ningún depósito trajo dato en vivo hoy para este producto
+
+        fila = {
+            "semana": semana_hoy, "fecha": hoy,
+            "klozer": round(klozer), "klozer_mkt": round(klozer_mkt), "ofi": round(ofi),
+            "shop_gallery": round(shop_gallery), "avolta": round(avolta),
+            "klozer_ofi": round(klozer + ofi),
+            "both": round(klozer + klozer_mkt + ofi + shop_gallery + avolta),
+        }
+        semanas = stock_semanal.setdefault(cod, [])
+        semanas[:] = [s for s in semanas if s["semana"] != semana_hoy] + [fila]
+        semanas.sort(key=lambda r: r["semana"])
+
+
 # ─── 2. VENTAS ────────────────────────────────────────────────────────────────
 DEP_MAP = {
     "KLOZER": "KLOZER", "KLOZER MKT": "KLOZER_MKT",
@@ -3711,6 +3793,12 @@ def main():
         inv_data, stock_hasta = apply_stock_contabilium_vivo(inv_data, inv_gen)
         print("  -> stock actualizado al %s (vía API Contabilium)" % stock_hasta)
         _ok("Stock EN VIVO (API)", f"al {stock_hasta}")
+        try:
+            n_nuevas = append_stock_vivo_a_consolidado(inv_data, stock_hasta)
+            print(f"  -> {n_nuevas} filas de hoy agregadas al consolidado diario (para el desglose semanal)")
+            merge_hoy_en_stock_semanal(stock_semanal, inv_data, stock_hasta)
+        except Exception as e2:
+            print(f"  Advertencia agregando stock vivo al consolidado: {e2}")
     except Exception as e:
         print("  Advertencia stock vivo Contabilium: %s" % e)
         _fail("Stock EN VIVO (API)", e)
