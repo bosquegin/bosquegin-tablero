@@ -742,7 +742,7 @@
   <!-- FILTROS COMPACTOS -->
   <div class="filter-bar" style="margin-bottom:16px;align-items:center;">
     <span class="filter-label">Depósito:</span>
-    <select id="dep-filter" onchange="renderInvTable()" style="min-width:130px">
+    <select id="dep-filter" onchange="renderInvTable();renderStockSemanal();" style="min-width:130px">
       <option value="klozer_ofi">KLOZER + OFICINA</option>
       <option value="klozer">KLOZER</option>
       <option value="klozer_mkt">KLOZER MKT</option>
@@ -799,9 +799,14 @@
   <div class="table-card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
       <div class="table-title">📅 Desglose de stock por semana</div>
-      <select id="inv-prod-sel" onchange="renderStockSemanal()" style="min-width:280px"></select>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <select id="inv-prod-sel" onchange="renderStockSemanal()" style="min-width:280px"></select>
+        <select id="inv-semanal-mes" onchange="renderStockSemanal()" style="min-width:130px">
+          <option value="">Todos los meses</option>
+        </select>
+      </div>
     </div>
-    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un producto para ver su stock semana a semana.</div>
+    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un producto para ver su stock semana a semana (según el Depósito elegido arriba).</div>
     <div id="inv-semanal-content" style="display:none">
       <div class="chart-wrap" style="height:160px;margin-bottom:14px"><canvas id="chartStockSemanal"></canvas></div>
       <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
@@ -1705,26 +1710,46 @@ function initInvProdSel() {
   });
 }
 
+const _MESES_SEMANAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function _pobla_mesSemanal(rows) {
+  const sel = document.getElementById('inv-semanal-mes');
+  const prevVal = sel.value;
+  const metas = Array.from(new Set(rows.map(r => r.fecha.slice(0,7)))).sort();
+  sel.innerHTML = '<option value="">Todos los meses</option>' + metas.map(ym => {
+    const [y, m] = ym.split('-');
+    return `<option value="${ym}">${_MESES_SEMANAL[parseInt(m,10)-1]} ${y}</option>`;
+  }).join('');
+  if (metas.includes(prevVal)) sel.value = prevVal;
+}
+
 function renderStockSemanal() {
   const cod = document.getElementById('inv-prod-sel').value;
   const empty   = document.getElementById('inv-semanal-empty');
   const content = document.getElementById('inv-semanal-content');
   const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
-  const rows = cod ? (semanal[cod] || []) : [];
+  const dep     = document.getElementById('dep-filter')?.value || 'klozer_ofi';
+  const allRows = cod ? (semanal[cod] || []) : [];
 
-  if (!rows.length) {
+  if (!allRows.length) {
     empty.style.display = 'block';
-    empty.textContent = cod ? 'Sin desglose semanal para este producto.' : 'Elegí un producto para ver su stock semana a semana.';
+    empty.textContent = cod ? 'Sin desglose semanal para este producto.' : 'Elegí un producto para ver su stock semana a semana (según el Depósito elegido arriba).';
     content.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
   content.style.display = 'block';
 
+  _pobla_mesSemanal(allRows);
+  const mes  = document.getElementById('inv-semanal-mes').value;
+  const rows = mes ? allRows.filter(r => r.fecha.slice(0,7) === mes) : allRows;
+  const depLabels = { klozer_ofi:'KLOZER + OFICINA', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', ofi:'OFICINA', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA' };
+
   let prev = null;
   const trs = rows.map(r => {
-    const delta = prev === null ? null : r.stock - prev;
-    prev = r.stock;
+    const stock = r[dep] || 0;
+    const delta = prev === null ? null : stock - prev;
+    prev = stock;
     const deltaTxt = delta === null
       ? '<span style="color:var(--muted)">—</span>'
       : (delta === 0
@@ -1733,21 +1758,22 @@ function renderStockSemanal() {
     return `<tr>
       <td>${r.semana}</td>
       <td style="color:var(--muted)">${r.fecha}</td>
-      <td style="text-align:right;font-weight:600">${r.stock.toLocaleString('es-AR')}</td>
+      <td style="text-align:right;font-weight:600">${stock.toLocaleString('es-AR')}</td>
       <td style="text-align:right">${deltaTxt}</td>
     </tr>`;
   }).reverse();   // semana mas reciente arriba
-  document.getElementById('inv-semanal-tbody').innerHTML = trs.join('');
+  document.getElementById('inv-semanal-tbody').innerHTML = trs.length ? trs.join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Sin semanas en ese mes</td></tr>';
 
   const ctx = document.getElementById('chartStockSemanal');
   if (chartStockSemanal) chartStockSemanal.destroy();
   chartStockSemanal = new Chart(ctx, {
     type: 'line',
     data: {
-      labels: rows.map(r => r.semana.replace('2026-', '').replace('2025-', '')),
+      labels: rows.map(r => r.semana.replace(/^\d{4}-/, '')),
       datasets: [{
-        label: 'Stock (un)',
-        data: rows.map(r => r.stock),
+        label: 'Stock ' + (depLabels[dep] || dep) + ' (un)',
+        data: rows.map(r => r[dep] || 0),
         borderColor: '#38bdf8',
         backgroundColor: 'rgba(56,189,248,.12)',
         fill: true, tension: .25, pointRadius: 2,
