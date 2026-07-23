@@ -1781,7 +1781,11 @@ function renderStockSemanal() {
   const rowsHtml = rows.map(({ it, byWeek }) => {
     const cells = semanas.map(s => {
       const r = byWeek[s];
-      return `<td style="text-align:right">${r ? (r[dep]||0).toLocaleString('es-AR') : '<span style="color:var(--muted)">—</span>'}</td>`;
+      if (!r) return `<td style="text-align:right"><span style="color:var(--muted)">—</span></td>`;
+      const val = (r[dep]||0).toLocaleString('es-AR');
+      return r.est
+        ? `<td style="text-align:right;font-style:italic;color:var(--accent2)" title="Estimado: stock de la última semana real menos las ventas posteriores">${val}<span style="font-size:8px">≈</span></td>`
+        : `<td style="text-align:right">${val}</td>`;
     }).join('');
     return `<tr><td style="color:var(--muted)">${it.rub}</td><td style="color:var(--muted)">${it.sub||''}</td><td style="font-size:9px">${it.cod}</td><td>${artName(it.cod,it.art)}</td>${cells}</tr>`;
   });
