@@ -751,7 +751,7 @@
       <option value="avolta">AVOLTA</option>
     </select>
     <span class="filter-label">Rubro:</span>
-    <select id="rub-filter" onchange="renderInvTable()" style="min-width:130px">
+    <select id="rub-filter" onchange="renderInvTable();renderStockSemanal();" style="min-width:130px">
       <option value="">Todos</option>
       <option>BEBIDAS</option>
       <option>BOTELLAS</option>
@@ -763,12 +763,8 @@
       <option>MOBILIARIO</option>
     </select>
     <span class="filter-label">Buscar:</span>
-    <input type="text" id="inv-search" placeholder="Artículo o código…" oninput="renderInvTable()" style="min-width:170px">
+    <input type="text" id="inv-search" placeholder="Artículo o código…" oninput="renderInvTable();renderStockSemanal();" style="min-width:170px">
     <span style="font-size:9px;color:var(--muted);margin:0 4px">|</span>
-    <span class="filter-label">Artículo:</span>
-    <select id="inv-articulo-filter" onchange="renderInvTable();renderStockSemanal();" style="min-width:220px">
-      <option value="">Todos</option>
-    </select>
     <span class="filter-label">Mes:</span>
     <select id="inv-mes-filter" onchange="renderStockSemanal()" style="min-width:100px">
       <option value="0">Todos</option>
@@ -810,17 +806,14 @@
     </div>
   </div>
 
-  <!-- DESGLOSE DE STOCK POR SEMANA, POR PRODUCTO -->
+  <!-- DESGLOSE DE STOCK POR SEMANA (todos los artículos, según Depósito/Rubro/Buscar de arriba) -->
   <div class="table-card">
     <div class="table-title" style="margin-bottom:10px">📅 Desglose de stock por semana</div>
-    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un Artículo en el filtro de arriba para ver su stock semana a semana (según el Depósito y Mes elegidos).</div>
+    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un Mes en el filtro de arriba para ver el stock al último día de cada semana, por artículo.</div>
     <div id="inv-semanal-content" style="display:none">
-      <div class="chart-wrap" style="height:160px;margin-bottom:14px"><canvas id="chartStockSemanal"></canvas></div>
-      <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
       <table>
-        <thead style="position:sticky;top:0;background:var(--card);z-index:1">
-          <tr><th>Semana</th><th>Cierre al</th><th style="text-align:right">Stock (un)</th><th style="text-align:right">Variación</th></tr>
-        </thead>
+        <thead id="inv-semanal-thead" style="position:sticky;top:0;background:var(--card);z-index:1"></thead>
         <tbody id="inv-semanal-tbody"></tbody>
       </table>
       </div>
@@ -1587,14 +1580,12 @@ function renderInvTable() {
   const dep    = document.getElementById('dep-filter')?.value || 'klozer_ofi';
   const rub    = document.getElementById('rub-filter').value;
   const search = (document.getElementById('inv-search').value || '').toLowerCase();
-  const artCod = document.getElementById('inv-articulo-filter')?.value || '';
   const depLabels = { both:'KLOZER + OFICINA (todos)', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA', ofi:'OFICINA' };
 
   // Filtrar
   let filtered = INV_DATA.filter(item => {
     if (getStock(item, dep) === 0 && getStock(item, 'both') === 0) return false;
     if (rub    && item.rub !== rub) return false;
-    if (artCod && item.cod !== artCod) return false;
     if (search && !item.art.toLowerCase().includes(search) && !item.cod.includes(search)) return false;
     return true;
   });
@@ -1693,90 +1684,76 @@ function renderInvTable() {
   renderRotRub();
   renderRotacionMensual();
   if (typeof renderInvIntel === 'function') renderInvIntel();
-  initInvProdSel();
+  renderStockSemanal();
 }
 
-// ── Desglose de stock por semana, por producto ────────────────────────────────
-let chartStockSemanal = null;
-
-function initInvProdSel() {
-  const sel = document.getElementById('inv-articulo-filter');
-  if (!sel || sel.options.length > 1) return;   // ya tiene "Todos" + opciones cargadas
-  const opts = INV_DATA
-    .map(it => ({ cod: it.cod, label: artName(it.cod, it.art) }))
-    .sort((a, b) => a.label.localeCompare(b.label));
-  opts.forEach(o => {
-    const opt = document.createElement('option');
-    opt.value = o.cod;
-    opt.textContent = o.label;
-    sel.appendChild(opt);
-  });
-}
-
+// ── Desglose de stock por semana — todos los artículos, semanas del mes elegido como columnas ──
 function renderStockSemanal() {
-  const cod = document.getElementById('inv-articulo-filter')?.value || '';
-  const mesN = parseInt(document.getElementById('inv-mes-filter')?.value || '0', 10);
+  const mesN    = parseInt(document.getElementById('inv-mes-filter')?.value || '0', 10);
+  const dep     = document.getElementById('dep-filter')?.value || 'klozer_ofi';
+  const rub     = document.getElementById('rub-filter')?.value || '';
+  const search  = (document.getElementById('inv-search')?.value || '').toLowerCase();
   const empty   = document.getElementById('inv-semanal-empty');
   const content = document.getElementById('inv-semanal-content');
   const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
-  const dep     = document.getElementById('dep-filter')?.value || 'klozer_ofi';
-  const allRows = cod ? (semanal[cod] || []) : [];
 
-  if (!allRows.length) {
+  if (!mesN) {
     empty.style.display = 'block';
-    empty.textContent = cod ? 'Sin desglose semanal para este artículo.' : 'Elegí un Artículo en el filtro de arriba para ver su stock semana a semana (según el Depósito y Mes elegidos).';
+    empty.textContent = 'Elegí un Mes en el filtro de arriba para ver el stock al último día de cada semana, por artículo.';
+    content.style.display = 'none';
+    return;
+  }
+
+  // Artículos a mostrar: mismos filtros que la tabla principal (Depósito/Rubro/Buscar)
+  const arts = INV_DATA.filter(item => {
+    if (rub    && item.rub !== rub) return false;
+    if (search && !item.art.toLowerCase().includes(search) && !item.cod.includes(search)) return false;
+    return true;
+  });
+
+  // Semanas del mes elegido: unión de las que aparecen en cualquier artículo filtrado
+  const semanasSet = new Set();
+  arts.forEach(it => {
+    (semanal[it.cod] || []).forEach(r => {
+      if (parseInt(r.fecha.slice(5,7), 10) === mesN) semanasSet.add(r.semana);
+    });
+  });
+  const semanas = Array.from(semanasSet).sort();
+
+  if (!semanas.length) {
+    empty.style.display = 'block';
+    empty.textContent = 'Sin datos de stock semanal para ese mes.';
     content.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
   content.style.display = 'block';
 
-  const rows = mesN ? allRows.filter(r => parseInt(r.fecha.slice(5,7), 10) === mesN) : allRows;
-  const depLabels = { klozer_ofi:'KLOZER + OFICINA', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', ofi:'OFICINA', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA' };
+  // fecha de cierre de cada semana (para el encabezado), tomada del primer articulo que la tenga
+  const fechaPorSemana = {};
+  arts.forEach(it => (semanal[it.cod] || []).forEach(r => {
+    if (semanasSet.has(r.semana) && !fechaPorSemana[r.semana]) fechaPorSemana[r.semana] = r.fecha;
+  }));
 
-  let prev = null;
-  const trs = rows.map(r => {
-    const stock = r[dep] || 0;
-    const delta = prev === null ? null : stock - prev;
-    prev = stock;
-    const deltaTxt = delta === null
-      ? '<span style="color:var(--muted)">—</span>'
-      : (delta === 0
-          ? '<span style="color:var(--muted)">0</span>'
-          : `<span style="color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+':''}${delta.toLocaleString('es-AR')}</span>`);
-    return `<tr>
-      <td>${r.semana}</td>
-      <td style="color:var(--muted)">${r.fecha}</td>
-      <td style="text-align:right;font-weight:600">${stock.toLocaleString('es-AR')}</td>
-      <td style="text-align:right">${deltaTxt}</td>
-    </tr>`;
-  }).reverse();   // semana mas reciente arriba
-  document.getElementById('inv-semanal-tbody').innerHTML = trs.length ? trs.join('')
-    : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Sin semanas en ese mes</td></tr>';
+  document.getElementById('inv-semanal-thead').innerHTML = '<tr><th>Rubro</th><th>Artículo</th>' +
+    semanas.map(s => `<th style="text-align:right">${s.replace(/^\d{4}-/,'')}<br><span style="font-weight:400;color:var(--muted)">${fechaPorSemana[s]||''}</span></th>`).join('') +
+    '</tr>';
 
-  const ctx = document.getElementById('chartStockSemanal');
-  if (chartStockSemanal) chartStockSemanal.destroy();
-  chartStockSemanal = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: rows.map(r => r.semana.replace(/^\d{4}-/, '')),
-      datasets: [{
-        label: 'Stock ' + (depLabels[dep] || dep) + ' (un)',
-        data: rows.map(r => r[dep] || 0),
-        borderColor: '#38bdf8',
-        backgroundColor: 'rgba(56,189,248,.12)',
-        fill: true, tension: .25, pointRadius: 2,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        x: { ticks: { font: { size: 8 } }, grid: { display: false } },
-        y: { ticks: { font: { size: 8 } }, beginAtZero: true },
-      }
-    }
-  });
+  const rowsHtml = arts
+    .filter(it => (semanal[it.cod] || []).some(r => semanasSet.has(r.semana)))
+    .sort((a,b) => artName(a.cod,a.art).localeCompare(artName(b.cod,b.art)))
+    .map(it => {
+      const byWeek = {};
+      (semanal[it.cod] || []).forEach(r => { byWeek[r.semana] = r; });
+      const cells = semanas.map(s => {
+        const r = byWeek[s];
+        return `<td style="text-align:right">${r ? (r[dep]||0).toLocaleString('es-AR') : '<span style="color:var(--muted)">—</span>'}</td>`;
+      }).join('');
+      return `<tr><td style="color:var(--muted)">${it.rub}</td><td>${artName(it.cod,it.art)}</td>${cells}</tr>`;
+    });
+
+  document.getElementById('inv-semanal-tbody').innerHTML = rowsHtml.length ? rowsHtml.join('')
+    : `<tr><td colspan="${2+semanas.length}" style="text-align:center;color:var(--muted);padding:16px">Sin artículos con stock semanal ese mes</td></tr>`;
 }
 
 function updateParetoChart(items, dep, depLabel) {
