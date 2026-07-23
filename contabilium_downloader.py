@@ -163,6 +163,18 @@ def _close_tab(tab_id, port=CDP_PORT):
         pass
 
 
+# ── JS para detectar que la sesión caducó (redirigió a la pantalla de login) ──
+
+_LOGIN_CHECK_JS = """
+(function() {
+    var url = (location.href || '').toLowerCase();
+    if (url.indexOf('/login') !== -1 || url.indexOf('/account/login') !== -1) return true;
+    // Fallback: pantalla con campo de contraseña visible = pantalla de login
+    var pass = document.querySelector('input[type="password"]');
+    return !!(pass && pass.offsetParent !== null);
+})()
+"""
+
 # ── JS para clickear el botón de exportar Excel ───────────────────────────────
 
 _EXPORT_JS = """
@@ -352,6 +364,17 @@ def _download_page(page_url, dest_dir, setup_js, verbose):
         except TimeoutError:
             pass
         time.sleep(2)   # ASP.NET a veces renderiza después del load event
+
+        # ── 2b. Detectar sesión caducada (redirect a login) ANTES de buscar
+        # el botón de exportar — si no, el error real ("NO ENCONTRADO botón")
+        # es críptico y no deja claro que hay que volver a iniciar sesión.
+        res = tab_cdp.call("Runtime.evaluate", expression=_LOGIN_CHECK_JS,
+                            awaitPromise=True, returnByValue=True)
+        if res.get("result", {}).get("value"):
+            raise RuntimeError(
+                "Sesión de Contabilium caducada — iniciá sesión de nuevo en "
+                "la pestaña de Contabilium en Brave y volvé a correr Actualizar."
+            )
 
         # ── 3. Setup (fechas, filtros) ─────────────────────────────────────
         if setup_js:
