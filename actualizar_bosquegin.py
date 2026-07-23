@@ -472,7 +472,9 @@ def parse_stock(inv_dir):
     # Productos) — usa TODO el histórico diario de all_rows, no sólo la
     # fecha más reciente. Por cada (producto, depósito, semana ISO) se toma
     # el stock del último día conocido dentro de esa semana ("cierre" de la
-    # semana), y se suman los depósitos para el total.
+    # semana). Se guarda por depósito (no sólo el total) para que el
+    # tablero pueda mostrar el desglose según el Depósito elegido en el
+    # filtro, igual que ya hace la tabla principal (getStock() en el JS).
     weekly_last = {}   # (cod, dep_grp, semana) -> (file_date, qty)
     for file_date, dep_grp, cod, qty in all_rows:
         try:
@@ -485,17 +487,29 @@ def parse_stock(inv_dir):
         if prev is None or file_date > prev[0]:
             weekly_last[k] = (file_date, qty)
 
-    stock_semanal_acc = {}   # cod -> semana -> {fecha, total}
+    stock_semanal_acc = {}   # cod -> semana -> {fecha, klozer, klozer_mkt, ofi, shop_gallery, avolta}
     for (cod, dep_grp, semana), (file_date, qty) in weekly_last.items():
-        wk = stock_semanal_acc.setdefault(cod, {}).setdefault(semana, {"fecha": file_date, "total": 0.0})
-        wk["total"] += qty
+        wk = stock_semanal_acc.setdefault(cod, {}).setdefault(semana, {
+            "fecha": file_date, "klozer": 0.0, "klozer_mkt": 0.0,
+            "ofi": 0.0, "shop_gallery": 0.0, "avolta": 0.0,
+        })
+        wk[dep_grp] = wk.get(dep_grp, 0.0) + qty
         if file_date > wk["fecha"]:
             wk["fecha"] = file_date
 
+    def _semana_row(sem, v):
+        klozer, klozer_mkt, ofi, sg, av = (
+            v["klozer"], v["klozer_mkt"], v["ofi"], v["shop_gallery"], v["avolta"])
+        return {
+            "semana": sem, "fecha": v["fecha"],
+            "klozer": round(klozer), "klozer_mkt": round(klozer_mkt), "ofi": round(ofi),
+            "shop_gallery": round(sg), "avolta": round(av),
+            "klozer_ofi": round(klozer + ofi),
+            "both": round(klozer + klozer_mkt + ofi + sg + av),
+        }
+
     stock_semanal = {
-        cod: sorted(
-            ({"semana": sem, "fecha": v["fecha"], "stock": round(v["total"])} for sem, v in semanas.items()),
-            key=lambda r: r["semana"])
+        cod: sorted((_semana_row(sem, v) for sem, v in semanas.items()), key=lambda r: r["semana"])
         for cod, semanas in stock_semanal_acc.items()
     }
 
