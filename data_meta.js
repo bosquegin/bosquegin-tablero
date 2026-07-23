@@ -1,1 +1,1 @@
-window.BOSQUE_DATA=window.BOSQUE_DATA||{};window.BOSQUE_DATA.meta={"generado": "2026-07-23T11:47:50-03:00", "ventas_hasta": "2026-07", "stock_hasta": "2026-07-23", "destileria_hasta": "?"};
+window.BOSQUE_DATA=window.BOSQUE_DATA||{};window.BOSQUE_DATA.meta={"generado": "2026-07-23T17:37:25-03:00", "ventas_hasta": "2026-07", "stock_hasta": "2026-07-23", "destileria_hasta": "?"};

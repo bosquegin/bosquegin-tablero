@@ -795,7 +795,25 @@
     </div>
   </div>
 
-
+  <!-- DESGLOSE DE STOCK POR SEMANA, POR PRODUCTO -->
+  <div class="table-card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div class="table-title">📅 Desglose de stock por semana</div>
+      <select id="inv-prod-sel" onchange="renderStockSemanal()" style="min-width:280px"></select>
+    </div>
+    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un producto para ver su stock semana a semana.</div>
+    <div id="inv-semanal-content" style="display:none">
+      <div class="chart-wrap" style="height:160px;margin-bottom:14px"><canvas id="chartStockSemanal"></canvas></div>
+      <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
+      <table>
+        <thead style="position:sticky;top:0;background:var(--card);z-index:1">
+          <tr><th>Semana</th><th>Cierre al</th><th style="text-align:right">Stock (un)</th><th style="text-align:right">Variación</th></tr>
+        </thead>
+        <tbody id="inv-semanal-tbody"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
 
   <!-- TABLA -->
   <div class="table-card">
@@ -1661,6 +1679,89 @@ function renderInvTable() {
   renderRotRub();
   renderRotacionMensual();
   if (typeof renderInvIntel === 'function') renderInvIntel();
+  initInvProdSel();
+}
+
+// ── Desglose de stock por semana, por producto ────────────────────────────────
+let chartStockSemanal = null;
+
+function initInvProdSel() {
+  const sel = document.getElementById('inv-prod-sel');
+  if (!sel || sel.options.length > 0) return;
+  const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
+  const opts = INV_DATA
+    .filter(it => semanal[it.cod] && semanal[it.cod].length)
+    .map(it => ({ cod: it.cod, label: artName(it.cod, it.art) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Elegí un producto…';
+  sel.appendChild(placeholder);
+  opts.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.cod;
+    opt.textContent = o.label;
+    sel.appendChild(opt);
+  });
+}
+
+function renderStockSemanal() {
+  const cod = document.getElementById('inv-prod-sel').value;
+  const empty   = document.getElementById('inv-semanal-empty');
+  const content = document.getElementById('inv-semanal-content');
+  const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
+  const rows = cod ? (semanal[cod] || []) : [];
+
+  if (!rows.length) {
+    empty.style.display = 'block';
+    empty.textContent = cod ? 'Sin desglose semanal para este producto.' : 'Elegí un producto para ver su stock semana a semana.';
+    content.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  content.style.display = 'block';
+
+  let prev = null;
+  const trs = rows.map(r => {
+    const delta = prev === null ? null : r.stock - prev;
+    prev = r.stock;
+    const deltaTxt = delta === null
+      ? '<span style="color:var(--muted)">—</span>'
+      : (delta === 0
+          ? '<span style="color:var(--muted)">0</span>'
+          : `<span style="color:${delta>0?'var(--green)':'var(--red)'}">${delta>0?'+':''}${delta.toLocaleString('es-AR')}</span>`);
+    return `<tr>
+      <td>${r.semana}</td>
+      <td style="color:var(--muted)">${r.fecha}</td>
+      <td style="text-align:right;font-weight:600">${r.stock.toLocaleString('es-AR')}</td>
+      <td style="text-align:right">${deltaTxt}</td>
+    </tr>`;
+  }).reverse();   // semana mas reciente arriba
+  document.getElementById('inv-semanal-tbody').innerHTML = trs.join('');
+
+  const ctx = document.getElementById('chartStockSemanal');
+  if (chartStockSemanal) chartStockSemanal.destroy();
+  chartStockSemanal = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.semana.replace('2026-', '').replace('2025-', '')),
+      datasets: [{
+        label: 'Stock (un)',
+        data: rows.map(r => r.stock),
+        borderColor: '#38bdf8',
+        backgroundColor: 'rgba(56,189,248,.12)',
+        fill: true, tension: .25, pointRadius: 2,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { font: { size: 8 } }, grid: { display: false } },
+        y: { ticks: { font: { size: 8 } }, beginAtZero: true },
+      }
+    }
+  });
 }
 
 function updateParetoChart(items, dep, depLabel) {
