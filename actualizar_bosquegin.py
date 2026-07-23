@@ -399,7 +399,7 @@ def parse_stock(inv_dir):
     Lee el archivo Stock_consolidado_por_deposito_y_dia.xlsx.
     Para cada producto toma el stock del dia mas reciente por deposito.
     Columnas: fecha | deposito | articulo | codigo | proveedor | cantidad | rubro | subrubro
-    Devuelve (inv_data_list, last_date_str).
+    Devuelve (inv_data_list, last_date_str, stock_semanal_por_codigo).
     """
     try:
         import openpyxl
@@ -466,10 +466,42 @@ def parse_stock(inv_dir):
 
     wb.close()
 
+    from datetime import date as _dt
+
+    # ── Desglose semanal de stock por producto (para el filtro de Inventario
+    # Productos) — usa TODO el histórico diario de all_rows, no sólo la
+    # fecha más reciente. Por cada (producto, depósito, semana ISO) se toma
+    # el stock del último día conocido dentro de esa semana ("cierre" de la
+    # semana), y se suman los depósitos para el total.
+    weekly_last = {}   # (cod, dep_grp, semana) -> (file_date, qty)
+    for file_date, dep_grp, cod, qty in all_rows:
+        try:
+            iso = _dt.fromisoformat(file_date).isocalendar()
+        except Exception:
+            continue
+        semana = f"{iso[0]}-W{iso[1]:02d}"
+        k = (cod, dep_grp, semana)
+        prev = weekly_last.get(k)
+        if prev is None or file_date > prev[0]:
+            weekly_last[k] = (file_date, qty)
+
+    stock_semanal_acc = {}   # cod -> semana -> {fecha, total}
+    for (cod, dep_grp, semana), (file_date, qty) in weekly_last.items():
+        wk = stock_semanal_acc.setdefault(cod, {}).setdefault(semana, {"fecha": file_date, "total": 0.0})
+        wk["total"] += qty
+        if file_date > wk["fecha"]:
+            wk["fecha"] = file_date
+
+    stock_semanal = {
+        cod: sorted(
+            ({"semana": sem, "fecha": v["fecha"], "stock": round(v["total"])} for sem, v in semanas.items()),
+            key=lambda r: r["semana"])
+        for cod, semanas in stock_semanal_acc.items()
+    }
+
     # Solo incluir productos del archivo mas reciente de cada deposito.
     # Se compara file_date contra dep_max[dep_grp] (no contra hoy),
     # así funciona aunque hoy no haya descarga nueva todavía.
-    from datetime import date as _dt
     def _gap(file_date, ref_date):
         try: return (_dt.fromisoformat(ref_date) - _dt.fromisoformat(file_date)).days
         except: return 9999
@@ -540,7 +572,7 @@ def parse_stock(inv_dir):
 
     stock_hasta = max(dep_max.values()) if dep_max else date.today().strftime("%Y-%m-%d")
     inv_data.sort(key=lambda x: x["art"])
-    return inv_data, stock_hasta
+    return inv_data, stock_hasta, stock_semanal
 
 
 # Mapeo nombre de depósito en Contabilium -> clave de dep_grp usada en INV_DATA
@@ -3645,7 +3677,7 @@ def main():
 
     _paso("[3/5] Leyendo inventario desde consolidado...")
     try:
-        inv_data, stock_hasta = parse_stock(INV_DIR)
+        inv_data, stock_hasta, stock_semanal = parse_stock(INV_DIR)
         print("  -> %d articulos al %s" % (len(inv_data), stock_hasta))
         if inv_gen:
             for item in inv_data:
@@ -3658,7 +3690,7 @@ def main():
     except Exception as e:
         print("  ERROR stock: %s" % e)
         _fail("Stock consolidado (histórico)", e)
-        inv_data, stock_hasta = [], date.today().strftime("%Y-%m-%d")
+        inv_data, stock_hasta, stock_semanal = [], date.today().strftime("%Y-%m-%d"), {}
 
     _paso("[3b/5] Sobreescribiendo stock EN VIVO desde Contabilium...")
     try:
@@ -3747,7 +3779,7 @@ def main():
             "destileria_hasta": max((m["key"] for m in destileria.get("months", [])), default="?"),
         },
         "ventas":    ventas,
-        "stock":     {"INV_DATA": inv_data},
+        "stock":     {"INV_DATA": inv_data, "SEMANAL": stock_semanal},
         "destileria": destileria,
         "cervezas":  cervezas,
         "costos":    costos_data,
