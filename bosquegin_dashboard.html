@@ -806,20 +806,6 @@
     </div>
   </div>
 
-  <!-- DESGLOSE DE STOCK POR SEMANA (todos los artículos, según Depósito/Rubro/Buscar de arriba) -->
-  <div class="table-card">
-    <div class="table-title" style="margin-bottom:10px">📅 Desglose de stock por semana</div>
-    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un Mes en el filtro de arriba para ver el stock al último día de cada semana, por artículo.</div>
-    <div id="inv-semanal-content" style="display:none">
-      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
-      <table>
-        <thead id="inv-semanal-thead" style="position:sticky;top:0;background:var(--card);z-index:1"></thead>
-        <tbody id="inv-semanal-tbody"></tbody>
-      </table>
-      </div>
-    </div>
-  </div>
-
   <!-- TABLA -->
   <div class="table-card">
     <div class="table-title" id="inv-table-title">📦 Stock por artículo — KLOZER + OFICINA · 06/05/2026</div>
@@ -849,6 +835,21 @@
       <strong>Pareto A</strong> acum ≤ 70% · <strong>B</strong> 71–90% · <strong>C</strong> 91–100%
     </div>
   </div>
+
+  <!-- DESGLOSE DE STOCK POR SEMANA (todos los artículos, según Depósito/Rubro/Buscar de arriba) -->
+  <div class="table-card">
+    <div class="table-title" style="margin-bottom:10px">📅 Desglose de stock por semana</div>
+    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un Mes en el filtro de arriba para ver el stock al último día de cada semana, por artículo.</div>
+    <div id="inv-semanal-content" style="display:none">
+      <div style="overflow-x:auto;max-height:420px;overflow-y:auto">
+      <table>
+        <thead id="inv-semanal-thead" style="position:sticky;top:0;background:var(--card);z-index:1"></thead>
+        <tbody id="inv-semanal-tbody"></tbody>
+      </table>
+      </div>
+    </div>
+  </div>
+
   <!-- PARETO DE INVENTARIO -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
 
