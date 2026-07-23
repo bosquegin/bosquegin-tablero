@@ -313,6 +313,11 @@
       margin-bottom: 20px;
       flex-wrap: wrap;
       align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--bg);
+      padding-bottom: 8px;
     }
     .filter-bar select, .filter-bar input {
       background: var(--card);
@@ -7081,7 +7086,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
   </div>
 
-  <div class="filter-bar" style="margin-bottom:16px">
+  <div class="filter-bar" style="margin-bottom:16px;top:44px">
     <span class="filter-label">Producto:</span>
     <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
   </div>
@@ -7116,7 +7121,7 @@ document.addEventListener('DOMContentLoaded', () => {
   <div id="costos-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:20px"></div>
 
   <!-- FILTROS -->
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+  <div style="position:sticky;top:0;z-index:40;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 18px;margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center">
     <input id="cos-search" type="text" placeholder="🔍  Buscar producto…"
       oninput="renderCostos()"
       style="flex:1;min-width:180px;padding:7px 12px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:9px"/>
