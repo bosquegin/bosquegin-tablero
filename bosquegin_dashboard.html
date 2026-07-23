@@ -764,6 +764,21 @@
     </select>
     <span class="filter-label">Buscar:</span>
     <input type="text" id="inv-search" placeholder="Artículo o código…" oninput="renderInvTable()" style="min-width:170px">
+    <span style="font-size:9px;color:var(--muted);margin:0 4px">|</span>
+    <span class="filter-label">Artículo:</span>
+    <select id="inv-articulo-filter" onchange="renderInvTable();renderStockSemanal();" style="min-width:220px">
+      <option value="">Todos</option>
+    </select>
+    <span class="filter-label">Mes:</span>
+    <select id="inv-mes-filter" onchange="renderStockSemanal()" style="min-width:100px">
+      <option value="0">Todos</option>
+      <option value="1">Enero</option><option value="2">Febrero</option>
+      <option value="3">Marzo</option><option value="4">Abril</option>
+      <option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option>
+      <option value="9">Septiembre</option><option value="10">Octubre</option>
+      <option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
     <span id="inv-count" style="font-size:9px;color:var(--muted);margin-left:4px"></span>
   </div>
 
@@ -797,16 +812,8 @@
 
   <!-- DESGLOSE DE STOCK POR SEMANA, POR PRODUCTO -->
   <div class="table-card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-      <div class="table-title">📅 Desglose de stock por semana</div>
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <select id="inv-prod-sel" onchange="renderStockSemanal()" style="min-width:280px"></select>
-        <select id="inv-semanal-mes" onchange="renderStockSemanal()" style="min-width:130px">
-          <option value="">Todos los meses</option>
-        </select>
-      </div>
-    </div>
-    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un producto para ver su stock semana a semana (según el Depósito elegido arriba).</div>
+    <div class="table-title" style="margin-bottom:10px">📅 Desglose de stock por semana</div>
+    <div id="inv-semanal-empty" style="font-size:9px;color:var(--muted);padding:8px 0">Elegí un Artículo en el filtro de arriba para ver su stock semana a semana (según el Depósito y Mes elegidos).</div>
     <div id="inv-semanal-content" style="display:none">
       <div class="chart-wrap" style="height:160px;margin-bottom:14px"><canvas id="chartStockSemanal"></canvas></div>
       <div style="overflow-x:auto;max-height:220px;overflow-y:auto">
@@ -1580,12 +1587,14 @@ function renderInvTable() {
   const dep    = document.getElementById('dep-filter')?.value || 'klozer_ofi';
   const rub    = document.getElementById('rub-filter').value;
   const search = (document.getElementById('inv-search').value || '').toLowerCase();
+  const artCod = document.getElementById('inv-articulo-filter')?.value || '';
   const depLabels = { both:'KLOZER + OFICINA (todos)', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA', ofi:'OFICINA' };
 
   // Filtrar
   let filtered = INV_DATA.filter(item => {
     if (getStock(item, dep) === 0 && getStock(item, 'both') === 0) return false;
     if (rub    && item.rub !== rub) return false;
+    if (artCod && item.cod !== artCod) return false;
     if (search && !item.art.toLowerCase().includes(search) && !item.cod.includes(search)) return false;
     return true;
   });
@@ -1691,17 +1700,11 @@ function renderInvTable() {
 let chartStockSemanal = null;
 
 function initInvProdSel() {
-  const sel = document.getElementById('inv-prod-sel');
-  if (!sel || sel.options.length > 0) return;
-  const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
+  const sel = document.getElementById('inv-articulo-filter');
+  if (!sel || sel.options.length > 1) return;   // ya tiene "Todos" + opciones cargadas
   const opts = INV_DATA
-    .filter(it => semanal[it.cod] && semanal[it.cod].length)
     .map(it => ({ cod: it.cod, label: artName(it.cod, it.art) }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  const placeholder = document.createElement('option');
-  placeholder.value = '';
-  placeholder.textContent = 'Elegí un producto…';
-  sel.appendChild(placeholder);
   opts.forEach(o => {
     const opt = document.createElement('option');
     opt.value = o.cod;
@@ -1710,21 +1713,9 @@ function initInvProdSel() {
   });
 }
 
-const _MESES_SEMANAL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-
-function _pobla_mesSemanal(rows) {
-  const sel = document.getElementById('inv-semanal-mes');
-  const prevVal = sel.value;
-  const metas = Array.from(new Set(rows.map(r => r.fecha.slice(0,7)))).sort();
-  sel.innerHTML = '<option value="">Todos los meses</option>' + metas.map(ym => {
-    const [y, m] = ym.split('-');
-    return `<option value="${ym}">${_MESES_SEMANAL[parseInt(m,10)-1]} ${y}</option>`;
-  }).join('');
-  if (metas.includes(prevVal)) sel.value = prevVal;
-}
-
 function renderStockSemanal() {
-  const cod = document.getElementById('inv-prod-sel').value;
+  const cod = document.getElementById('inv-articulo-filter')?.value || '';
+  const mesN = parseInt(document.getElementById('inv-mes-filter')?.value || '0', 10);
   const empty   = document.getElementById('inv-semanal-empty');
   const content = document.getElementById('inv-semanal-content');
   const semanal = (BOSQUE_DATA.stock || {}).SEMANAL || {};
@@ -1733,16 +1724,14 @@ function renderStockSemanal() {
 
   if (!allRows.length) {
     empty.style.display = 'block';
-    empty.textContent = cod ? 'Sin desglose semanal para este producto.' : 'Elegí un producto para ver su stock semana a semana (según el Depósito elegido arriba).';
+    empty.textContent = cod ? 'Sin desglose semanal para este artículo.' : 'Elegí un Artículo en el filtro de arriba para ver su stock semana a semana (según el Depósito y Mes elegidos).';
     content.style.display = 'none';
     return;
   }
   empty.style.display = 'none';
   content.style.display = 'block';
 
-  _pobla_mesSemanal(allRows);
-  const mes  = document.getElementById('inv-semanal-mes').value;
-  const rows = mes ? allRows.filter(r => r.fecha.slice(0,7) === mes) : allRows;
+  const rows = mesN ? allRows.filter(r => parseInt(r.fecha.slice(5,7), 10) === mesN) : allRows;
   const depLabels = { klozer_ofi:'KLOZER + OFICINA', klozer:'KLOZER', klozer_mkt:'KLOZER MKT', ofi:'OFICINA', shop_gallery:'SHOP GALLERY', avolta:'AVOLTA' };
 
   let prev = null;
