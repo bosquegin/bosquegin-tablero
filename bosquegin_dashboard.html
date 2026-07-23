@@ -1688,6 +1688,15 @@ function renderInvTable() {
 }
 
 // ── Desglose de stock por semana — todos los artículos, semanas del mes elegido como columnas ──
+let _invSemSortCol = 'art';
+let _invSemSortAsc = true;
+
+function sortInvSemanal(col) {
+  if (_invSemSortCol === col) { _invSemSortAsc = !_invSemSortAsc; }
+  else { _invSemSortCol = col; _invSemSortAsc = true; }
+  renderStockSemanal();
+}
+
 function renderStockSemanal() {
   const mesN    = parseInt(document.getElementById('inv-mes-filter')?.value || '0', 10);
   const dep     = document.getElementById('dep-filter')?.value || 'klozer_ofi';
@@ -1735,25 +1744,50 @@ function renderStockSemanal() {
     if (semanasSet.has(r.semana) && !fechaPorSemana[r.semana]) fechaPorSemana[r.semana] = r.fecha;
   }));
 
-  document.getElementById('inv-semanal-thead').innerHTML = '<tr><th>Rubro</th><th>Artículo</th>' +
-    semanas.map(s => `<th style="text-align:right">${s.replace(/^\d{4}-/,'')}<br><span style="font-weight:400;color:var(--muted)">${fechaPorSemana[s]||''}</span></th>`).join('') +
+  const staticCols = [
+    { key: 'rub', label: 'Rubro' },
+    { key: 'sub', label: 'Subrubro' },
+    { key: 'cod', label: 'Código' },
+    { key: 'art', label: 'Artículo' },
+  ];
+  const icon = (key) => _invSemSortCol === key ? (_invSemSortAsc ? ' ▲' : ' ▼') : ' ⇅';
+  document.getElementById('inv-semanal-thead').innerHTML = '<tr>' +
+    staticCols.map(c => `<th class="sortable" onclick="sortInvSemanal('${c.key}')" style="cursor:pointer">${c.label}<span style="color:var(--muted);font-size:8px">${icon(c.key)}</span></th>`).join('') +
+    semanas.map(s => `<th class="sortable" onclick="sortInvSemanal('${s}')" style="cursor:pointer;text-align:right">${s.replace(/^\d{4}-/,'')}<span style="color:var(--muted);font-size:8px">${icon(s)}</span><br><span style="font-weight:400;color:var(--muted)">${fechaPorSemana[s]||''}</span></th>`).join('') +
     '</tr>';
 
-  const rowsHtml = arts
+  // Armar filas con su desglose semanal ya resuelto (para poder ordenar por cualquier columna, incluidas las semanas)
+  let rows = arts
     .filter(it => (semanal[it.cod] || []).some(r => semanasSet.has(r.semana)))
-    .sort((a,b) => artName(a.cod,a.art).localeCompare(artName(b.cod,b.art)))
     .map(it => {
       const byWeek = {};
       (semanal[it.cod] || []).forEach(r => { byWeek[r.semana] = r; });
-      const cells = semanas.map(s => {
-        const r = byWeek[s];
-        return `<td style="text-align:right">${r ? (r[dep]||0).toLocaleString('es-AR') : '<span style="color:var(--muted)">—</span>'}</td>`;
-      }).join('');
-      return `<tr><td style="color:var(--muted)">${it.rub}</td><td>${artName(it.cod,it.art)}</td>${cells}</tr>`;
+      return { it, byWeek };
     });
 
+  rows.sort((a, b) => {
+    let va, vb;
+    if (staticCols.some(c => c.key === _invSemSortCol)) {
+      va = _invSemSortCol === 'art' ? artName(a.it.cod, a.it.art) : (a.it[_invSemSortCol] || '');
+      vb = _invSemSortCol === 'art' ? artName(b.it.cod, b.it.art) : (b.it[_invSemSortCol] || '');
+      const cmp = String(va).localeCompare(String(vb));
+      return _invSemSortAsc ? cmp : -cmp;
+    }
+    va = (a.byWeek[_invSemSortCol] || {})[dep] || 0;
+    vb = (b.byWeek[_invSemSortCol] || {})[dep] || 0;
+    return _invSemSortAsc ? va - vb : vb - va;
+  });
+
+  const rowsHtml = rows.map(({ it, byWeek }) => {
+    const cells = semanas.map(s => {
+      const r = byWeek[s];
+      return `<td style="text-align:right">${r ? (r[dep]||0).toLocaleString('es-AR') : '<span style="color:var(--muted)">—</span>'}</td>`;
+    }).join('');
+    return `<tr><td style="color:var(--muted)">${it.rub}</td><td style="color:var(--muted)">${it.sub||''}</td><td style="font-size:9px">${it.cod}</td><td>${artName(it.cod,it.art)}</td>${cells}</tr>`;
+  });
+
   document.getElementById('inv-semanal-tbody').innerHTML = rowsHtml.length ? rowsHtml.join('')
-    : `<tr><td colspan="${2+semanas.length}" style="text-align:center;color:var(--muted);padding:16px">Sin artículos con stock semanal ese mes</td></tr>`;
+    : `<tr><td colspan="${4+semanas.length}" style="text-align:center;color:var(--muted);padding:16px">Sin artículos con stock semanal ese mes</td></tr>`;
 }
 
 function updateParetoChart(items, dep, depLabel) {
