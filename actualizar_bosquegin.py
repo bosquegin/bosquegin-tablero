@@ -741,6 +741,124 @@ def merge_hoy_en_stock_semanal(stock_semanal, inv_data, hoy):
         semanas.sort(key=lambda r: r["semana"])
 
 
+def calcular_ventas_semanales(ventas_path):
+    """
+    Unidades vendidas por producto x depósito x semana ISO (mismas 5
+    categorías que el stock: klozer, klozer_mkt, ofi, shop_gallery,
+    avolta), leídas directo de Salidas_consolidado.xlsx. Se usa para
+    estimar semanas de stock que no tienen dato real (ver
+    estimar_stock_semanal_faltante).
+    """
+    import openpyxl
+    dep_grp_map = {
+        "KLOZER": "klozer", "KLOZER MKT": "klozer_mkt",
+        "OFI": "ofi", "OFICINA": "ofi",
+        "SHOP GALLERY": "shop_gallery", "AVOLTA": "avolta",
+    }
+    out = {}   # cod -> semana -> {dep_grp: unidades}
+    if not os.path.exists(ventas_path):
+        return out
+
+    wb = openpyxl.load_workbook(ventas_path, read_only=True, data_only=True)
+    ws = wb["SALIDAS"] if "SALIDAS" in wb.sheetnames else wb.active
+    it = ws.iter_rows(values_only=True)
+    next(it, None)   # cabecera
+
+    for row in it:
+        if not row or not any(row):
+            continue
+        fecha_raw = row[0] if len(row) > 0 else None
+        cod_raw   = row[2] if len(row) > 2 else None
+        qty_raw   = row[3] if len(row) > 3 else None
+        dep_raw   = row[4] if len(row) > 4 else None
+        if fecha_raw is None or cod_raw is None or qty_raw is None:
+            continue
+        dep_grp = dep_grp_map.get(str(dep_raw).strip().upper()) if dep_raw else None
+        if not dep_grp:
+            continue
+        try:
+            d = fecha_raw.date() if hasattr(fecha_raw, "date") else date.fromisoformat(str(fecha_raw)[:10])
+        except Exception:
+            continue
+        try:
+            cod = str(int(float(str(cod_raw))))
+        except Exception:
+            continue
+        try:
+            qty = float(str(qty_raw).replace(",", "."))
+        except Exception:
+            continue
+
+        iso = d.isocalendar()
+        semana = f"{iso[0]}-W{iso[1]:02d}"
+        wk = out.setdefault(cod, {}).setdefault(
+            semana, {"klozer": 0.0, "klozer_mkt": 0.0, "ofi": 0.0, "shop_gallery": 0.0, "avolta": 0.0})
+        wk[dep_grp] += qty
+
+    wb.close()
+    return out
+
+
+def estimar_stock_semanal_faltante(stock_semanal, ventas_semanales):
+    """
+    Completa, para cada producto, los huecos entre dos semanas con stock
+    REAL conocido: parte del stock de la última semana real anterior al
+    hueco y le va restando, semana a semana, las unidades vendidas de esa
+    semana (por depósito) — el mismo criterio que pidió el usuario para
+    julio (stock semana 27 menos las salidas posteriores). Las filas
+    generadas se marcan con "est": True para distinguirlas de un dato real.
+    """
+    DEPS = ("klozer", "klozer_mkt", "ofi", "shop_gallery", "avolta")
+
+    def _semanas_entre(sem_a, sem_b):
+        """Claves ISO 'YYYY-Www' estrictamente entre sem_a y sem_b (excluidos), con su lunes."""
+        y, w = int(sem_a[:4]), int(sem_a[6:]) + 1
+        y_b, w_b = int(sem_b[:4]), int(sem_b[6:])
+        out = []
+        while (y, w) < (y_b, w_b):
+            try:
+                lunes = date.fromisocalendar(y, w, 1)
+            except ValueError:
+                y, w = y + 1, 1
+                continue
+            out.append((f"{y}-W{w:02d}", lunes))
+            w += 1
+        return out
+
+    total_estimadas = 0
+    for cod, filas in stock_semanal.items():
+        if len(filas) < 2:
+            continue
+        vsem = ventas_semanales.get(cod, {})
+        nuevas = []
+        for i in range(len(filas) - 1):
+            a, b = filas[i], filas[i + 1]
+            huecos = _semanas_entre(a["semana"], b["semana"])
+            if not huecos:
+                continue
+            acumulado = {dg: 0.0 for dg in DEPS}
+            for sem_key, sem_lunes in huecos:
+                ventas_sem = vsem.get(sem_key, {})
+                for dg in DEPS:
+                    acumulado[dg] += ventas_sem.get(dg, 0.0)
+                vals = {dg: max(0.0, a[dg] - acumulado[dg]) for dg in DEPS}
+                fecha_fin = sem_lunes + timedelta(days=6)
+                nuevas.append({
+                    "semana": sem_key, "fecha": fecha_fin.isoformat(),
+                    "klozer": round(vals["klozer"]), "klozer_mkt": round(vals["klozer_mkt"]),
+                    "ofi": round(vals["ofi"]), "shop_gallery": round(vals["shop_gallery"]),
+                    "avolta": round(vals["avolta"]),
+                    "klozer_ofi": round(vals["klozer"] + vals["ofi"]),
+                    "both": round(sum(vals.values())),
+                    "est": True,
+                })
+        if nuevas:
+            filas.extend(nuevas)
+            filas.sort(key=lambda r: r["semana"])
+            total_estimadas += len(nuevas)
+    return total_estimadas
+
+
 # ─── 2. VENTAS ────────────────────────────────────────────────────────────────
 DEP_MAP = {
     "KLOZER": "KLOZER", "KLOZER MKT": "KLOZER_MKT",
@@ -3848,6 +3966,13 @@ def main():
         print("  ERROR ventas: %s" % e)
         _fail("Ventas/salidas", e)
         ventas, ventas_hasta, monthly_raw = {"VD": {}, "MONTHLY_DATA": {}, "PROD_DATA": {}}, "?", {}
+
+    try:
+        ventas_semanales = calcular_ventas_semanales(salidas_src)
+        n_est = estimar_stock_semanal_faltante(stock_semanal, ventas_semanales)
+        print(f"  -> {n_est} semanas de stock estimadas (huecos entre datos reales, restando ventas)")
+    except Exception as e:
+        print(f"  Advertencia estimando stock semanal faltante: {e}")
 
     _paso("[4d/5] Cargando inventario insumos...")
     try:
