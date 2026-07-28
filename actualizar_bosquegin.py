@@ -1442,15 +1442,43 @@ def _download_costos_via_cdp(url, port=9222):
 CDP_TIMEOUT_S = 45
 _CDP_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="cdp-fetch")
 
+# Circuit breaker: algunos pasos (ej. descubrir headers de FORECAST) hacen
+# cientos de llamadas CDP en secuencia. Si CDP no está disponible en esta
+# corrida (Brave cerrado, sesión caducada, etc.), cada una de esas llamadas
+# igual paga el timeout completo antes de rendirse — medido en vivo
+# 2026-07-28: 27 min "perdidos" en un solo paso porque siguió reintentando
+# fila por fila en vez de notar que CDP no respondía y cortar. Tras
+# _CDP_FAIL_THRESHOLD fallos SEGUIDOS se asume que CDP no va a responder en
+# el resto de la corrida y se saltean las llamadas restantes (retorno
+# instantáneo a None, cae a datos locales/caché). Se resetea solo con un
+# éxito real, así una falla suelta no lo apaga de más.
+_CDP_FAIL_THRESHOLD = 2
+_cdp_state = {"fail_streak": 0, "disabled": False}
+
 
 def _cdp_fetch(url, port=9222, timeout=CDP_TIMEOUT_S):
-    """Envoltorio de _download_costos_via_cdp con timeout duro de conjunto."""
+    """Envoltorio de _download_costos_via_cdp con timeout duro de conjunto y
+    circuit breaker (ver _cdp_state)."""
+    if _cdp_state["disabled"]:
+        return None
+
     fut = _CDP_EXECUTOR.submit(_download_costos_via_cdp, url, port)
     try:
-        return fut.result(timeout=timeout)
+        result = fut.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
         print(f"  CDP timeout ({timeout}s) — abortando y usando datos locales/caché")
-        return None
+        result = None
+
+    if result is None:
+        _cdp_state["fail_streak"] += 1
+        if _cdp_state["fail_streak"] >= _CDP_FAIL_THRESHOLD and not _cdp_state["disabled"]:
+            _cdp_state["disabled"] = True
+            print(f"  CDP: {_cdp_state['fail_streak']} fallos seguidos — "
+                  f"desactivando CDP para el resto de esta corrida (datos locales/caché)")
+    else:
+        _cdp_state["fail_streak"] = 0
+
+    return result
 
 
 def download_costos_csv(force=False):
