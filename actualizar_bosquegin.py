@@ -24,6 +24,7 @@ Cambios v2.0:
   - update_consolidado() reconoce formato GC Simplificado y GC Comp
 """
 import os, json, re, glob, time, sys, calendar
+import concurrent.futures
 from datetime import datetime, date, timedelta, timezone
 
 # Evita que un print con tildes/emojis/flechas (p.ej. "→") crashee la corrida
@@ -1214,7 +1215,7 @@ def fetch_insumos():
     #    funciona aunque la hoja no este publicada)
     if all_rows is None:
         try:
-            content = _download_costos_via_cdp(INSUMOS_GVIZ)
+            content = _cdp_fetch(INSUMOS_GVIZ)
             if content and not content.lstrip().startswith(("<", "{")):
                 all_rows = list(csv.reader(io.StringIO(content)))
                 print(f"  Insumos: leido via CDP ({len(all_rows)} filas)")
@@ -1430,6 +1431,28 @@ def _download_costos_via_cdp(url, port=9222):
     return None
 
 
+# Pool compartido para acotar con un timeout DURO cada llamada CDP. El socket
+# interno de _download_costos_via_cdp solo tiene timeout por-paquete (30s), no
+# por llamada completa: si van llegando frames sueltos (ruido de otros
+# dominios CDP) sin nunca completar la respuesta esperada, la espera puede
+# estirarse muchos minutos y el paso correspondiente del pipeline queda
+# "trabado" (bug real detectado 2026-07-28, paso [4/5] Costos). Este wrapper
+# garantiza que ninguna llamada bloquee el pipeline más de CDP_TIMEOUT_S,
+# cayendo al CSV/caché local existente si se excede.
+CDP_TIMEOUT_S = 45
+_CDP_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="cdp-fetch")
+
+
+def _cdp_fetch(url, port=9222, timeout=CDP_TIMEOUT_S):
+    """Envoltorio de _download_costos_via_cdp con timeout duro de conjunto."""
+    fut = _CDP_EXECUTOR.submit(_download_costos_via_cdp, url, port)
+    try:
+        return fut.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        print(f"  CDP timeout ({timeout}s) — abortando y usando datos locales/caché")
+        return None
+
+
 def download_costos_csv(force=False):
     """
     Descarga la hoja de costos (gid=173195948) de Google Sheets via CDP.
@@ -1452,7 +1475,7 @@ def download_costos_csv(force=False):
     )
     print(f"  Costos: descargando {today:%Y-%m} via CDP (col hasta {end_col}) ...")
 
-    content = _download_costos_via_cdp(csv_url)
+    content = _cdp_fetch(csv_url)
 
     if not content or len(content.splitlines()) < 5:
         print("  Costos: CDP no disponible o respuesta invalida, usando CSV local existente")
@@ -2586,7 +2609,7 @@ def _proy_leer_celda(row, col_letra="A"):
     """
     url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/gviz/tq"
            f"?tqx=out:csv&gid={PROYECCION_SHEET_GID}&range={col_letra}{row}:{col_letra}{row}")
-    content = _download_costos_via_cdp(url)
+    content = _cdp_fetch(url)
     if content is None:
         return None
     return content.strip().strip('"')
@@ -2657,7 +2680,7 @@ def fetch_proyeccion_trimestral():
         rango = f"A{fila_inicio}:BO{fila_fin}"
         url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/"
                f"gviz/tq?tqx=out:csv&gid={PROYECCION_SHEET_GID}&range={rango}")
-        content = _download_costos_via_cdp(url)
+        content = _cdp_fetch(url)
         if not content:
             print(f"  Proyección trimestral: {trimestre} — sin contenido ({rango})")
             continue
@@ -2747,7 +2770,7 @@ def _proy_fetch_ventas_objetivo_2026():
     for fila in range(fila_ini, fila_fin + 1):
         url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/gviz/tq"
                f"?tqx=out:csv&gid={VENTAS_OBJ_2026_SHEET_GID}&range=A{fila}:P{fila}")
-        content = _download_costos_via_cdp(url)
+        content = _cdp_fetch(url)
         if not content:
             continue
         r = next(csv.reader(io.StringIO(content)), [])
@@ -3209,7 +3232,7 @@ def fetch_resumen_destileria():
     else:
         url = (f"https://docs.google.com/spreadsheets/d/{COSTOS_SHEET_ID}/"
                f"gviz/tq?tqx=out:csv&gid={DEST_SHEET_GID}")
-        content = _download_costos_via_cdp(url)
+        content = _cdp_fetch(url)
         if content and len(content.splitlines()) >= 4:
             os.makedirs(os.path.dirname(DEST_CSV), exist_ok=True)
             with open(DEST_CSV, "w", encoding="utf-8-sig", newline="") as f:
@@ -3340,7 +3363,7 @@ def fetch_cervezas():
         import json as _json, re as _re
         url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
                f"gviz/tq?tqx=out:json&headers=0")
-        raw = _download_costos_via_cdp(url)
+        raw = _cdp_fetch(url)
         if not raw: return {}
         m = _re.search(r'setResponse\((.+)\)\s*;?\s*$', raw, _re.DOTALL)
         if not m: return {}
@@ -3356,7 +3379,7 @@ def fetch_cervezas():
                 gid_map[title] = str(sid)
         # Fallback: parse HTML if allSheets not available
         if not gid_map:
-            raw2 = _download_costos_via_cdp(
+            raw2 = _cdp_fetch(
                 f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/edit")
             if raw2:
                 for m2 in _re.finditer(r'"(\d{2}(?:/|\\u002F|\\/)(\d{2}))"', raw2):
@@ -3396,19 +3419,19 @@ def fetch_cervezas():
             if gid:
                 url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
                        f"gviz/tq?tqx=out:csv&gid={gid}")
-                content = _download_costos_via_cdp(url)
+                content = _cdp_fetch(url)
                 if not _is_csv(content): content = None
             # 2) Por nombre sin encodear (fallback)
             if not content:
                 url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
                        f"gviz/tq?tqx=out:csv&sheet={sheet_name}")
-                content = _download_costos_via_cdp(url)
+                content = _cdp_fetch(url)
                 if not _is_csv(content): content = None
             # 3) Por nombre URL-encodeado (otro fallback)
             if not content:
                 url = (f"https://docs.google.com/spreadsheets/d/{CERV_SHEET_ID}/"
                        f"gviz/tq?tqx=out:csv&sheet={quote(sheet_name, safe='')}")
-                content = _download_costos_via_cdp(url)
+                content = _cdp_fetch(url)
                 if not _is_csv(content): content = None
             if content and len(content.splitlines()) >= 5:
                 with open(cache, "w", encoding="utf-8-sig", newline="") as f:

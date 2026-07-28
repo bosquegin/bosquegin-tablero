@@ -6670,17 +6670,34 @@ function closeUpdateModal() {
 }
 
 // Pasos del proceso → [patron regex, label, % barra]
+// IMPORTANTE: matchear por el tag "[n/n]" literal de cada _paso(...) en
+// actualizar_bosquegin.py, NO por frases sueltas del texto — un patrón como
+// /Descargando costos/i parecía representar el paso pesado [4/5] pero en
+// realidad matcheaba antes con "[0c/5] Descargando costos cervezas" (un paso
+// chico y temprano), así que la barra saltaba a "Costos… 66%" casi al
+// principio y quedaba pegada ahí (mal etiquetada) durante todo el tramo lento
+// real del medio del pipeline — de ahí la sensación de "queda trabado en
+// costos" (bug detectado 2026-07-28). Si se agregan/renombran pasos en
+// actualizar_bosquegin.py, actualizar esta lista en el mismo cambio.
 const UPD_STEPS = [
-  [/Descargando archivos|Reiniciando Brave|Cookies le/i, 'Descargando GC…',        15],
-  [/GC.*OK|Comp.*OK|Continuando con/i,                  'Archivos GC listos',      28],
-  [/Actualizando consolidado/i,                          'Actualizando inventario', 38],
-  [/Cargando productos/i,                                'Cargando productos…',     48],
-  [/Leyendo inventario/i,                                'Leyendo stock…',          58],
-  [/Descargando costos/i,                                'Costos…',                 66],
-  [/Leyendo salidas/i,                                   'Salidas…',                74],
-  [/Remitos GC/i,                                        'Remitos GC…',             82],
-  [/Calculando velocidad/i,                              'Velocidad de ventas…',    90],
-  [/Proyecciones/i,                                      'Proyecciones…',           96],
+  [/\[0a\/7\]/,  'Preparando entorno…',                 3],
+  [/\[0d\/5\]/,  'Historial Contabilium…',              10],
+  [/\[0b\/5\]/,  'Destilería / cervezas…',              18],
+  [/\[0c\/5\]/,  'Costos cervezas…',                    24],
+  [/\[0e\/5\]/,  'Proyección trimestral (FORECAST)…',   34],
+  [/\[1\/5\]/,   'Actualizando inventario…',            44],
+  [/\[1b\/5\]/,  'Stock cierre de mes…',                48],
+  [/\[2\/5\]/,   'Cargando productos…',                 52],
+  [/\[3\/5\]/,   'Leyendo stock…',                      58],
+  [/\[3b\/5\]/,  'Stock en vivo (Contabilium)…',        64],
+  [/\[3c\/5\]/,  'Proyección: stock y trimestre…',      68],
+  [/\[4\/5\]/,   'Costos…',                             76],
+  [/\[4b\/5\]/,  'Consolidado de salidas…',             82],
+  [/\[4c\/5\]/,  'Leyendo salidas…',                    86],
+  [/\[4d\/5\]/,  'Inventario insumos…',                 89],
+  [/\[5\/5\]/,   'Velocidad de ventas…',                93],
+  [/\[6\/6\]/,   'Proyecciones de compra…',             97],
+  [/\[7\/7\]/,   'Publicando datos…',                   99],
 ];
 
 // ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
