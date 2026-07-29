@@ -6626,12 +6626,23 @@ const UPD_STEPS = [
 function _syncVideoProgress(pct) {
   var v = document.getElementById('upd-video');
   if (!v) return;
-  if (v.duration) { v.currentTime = (pct / 100) * v.duration; return; }
-  // Metadata todavía no cargó (primera apertura del modal) -- reintentar apenas esté lista
-  v.addEventListener('loadedmetadata', function once() {
-    v.removeEventListener('loadedmetadata', once);
+  // isFinite() descarta tanto "todavia no cargó" (duration=NaN) como el bug
+  // de Chrome/Brave que reporta duration=Infinity cuando el servidor no
+  // soporta HTTP Range (ver servidor_bosquegin.py send_head) -- en ambos
+  // casos hay que esperar a que el navegador realmente sepa la duración.
+  if (isFinite(v.duration) && v.duration > 0) {
     v.currentTime = (pct / 100) * v.duration;
-  });
+    return;
+  }
+  var retry = function() {
+    if (isFinite(v.duration) && v.duration > 0) {
+      v.currentTime = (pct / 100) * v.duration;
+      v.removeEventListener('loadedmetadata', retry);
+      v.removeEventListener('durationchange', retry);
+    }
+  };
+  v.addEventListener('loadedmetadata', retry);
+  v.addEventListener('durationchange', retry);
 }
 
 // ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
