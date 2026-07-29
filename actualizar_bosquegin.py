@@ -1731,6 +1731,48 @@ def fetch_costos_completo():
     return costos_dict, costos_data
 
 
+def agregar_cervezas_a_lista_precios(costos_data, cervezas):
+    """
+    Suma las latas de cervezas (cervezas["lata"], de fetch_cervezas()) a la
+    Lista de Precios (costos_data["productos"]) con el mismo formato que el
+    resto de los productos, para que aparezcan en esa hoja del dashboard.
+    Solo latas -- el barril no se agrega porque el pipeline nunca parseó esa
+    sección de la hoja (bloque "RESUMEN LITROS BARRIL").
+    PVP y MB se leen de la misma hoja de cervezas (antes solo se usaba el
+    costo); ver _extract_lata_col_k() en fetch_cervezas().
+    """
+    lata = (cervezas or {}).get("lata") or []
+    if not lata:
+        return costos_data
+
+    meses = set(costos_data.get("meses", []))
+    for item in lata:
+        meses_dict = {}
+        for p in item.get("periods", []):
+            ym = p.get("ym")
+            if not ym:
+                continue
+            meses_dict[ym] = {"costo": p.get("costo"), "pvp": p.get("pvp"), "mb": p.get("mb")}
+            meses.add(ym)
+        costos_data["productos"].append({
+            "cod":      str(item["cod"]),
+            "desc":     item.get("art") or item.get("producto") or "",
+            "rubro":    "CERVEZAS",
+            "sub":      item.get("fason", ""),
+            "linea":    "",
+            "estado":   "ACTIVO",
+            "costo":    item.get("costo_fab"),
+            "pvp":      item.get("pvp"),
+            "mb":       item.get("mb"),
+            "periodos": {},
+            "meses":    meses_dict,
+        })
+
+    costos_data["meses"] = sorted(meses)
+    print(f"  Costos: +{len(lata)} cervezas (lata) sumadas a Lista de Precios")
+    return costos_data
+
+
 def _build_ventas_output(monthly):
     """
     Convierte el dict monthly {yr -> mo_str -> {deps, prods}} a las estructuras
@@ -3377,6 +3419,12 @@ def fetch_cervezas():
         try: return round(float(s), 2)
         except: return None
 
+    def _pct(s):
+        if not s or not s.strip(): return None
+        s = s.strip().replace("%","").replace(" ","").replace(",",".")
+        try: return round(float(s), 2)
+        except: return None
+
     def _is_csv(text):
         """True si el texto parece CSV real (no HTML ni JSON de error)."""
         if not text: return False
@@ -3530,13 +3578,18 @@ def fetch_cervezas():
             idx   = cost_col if cost_col is not None else 10
             costo = _money(row[idx]) if idx < len(row) else None
             if costo is None: continue
+            # Mismo patrón en todas las filas de esta hoja: costo en idx, %var en
+            # idx+1, PVP en idx+2, MB en idx+3 (verificado numéricamente: MB ==
+            # (pvp-costo)/pvp para cada fila de la hoja de cervezas 2026-07).
+            pvp = _money(row[idx+2]) if idx+2 < len(row) else None
+            mb  = _pct(row[idx+3])   if idx+3 < len(row) else None
 
             norm = c0.lower().strip()
             for key in sorted(_LATA_CODES, key=len, reverse=True):
                 if key in norm:
                     # Primer match gana: evita sobrescribir con filas de referencia/resumen
                     if key not in costs:
-                        costs[key]  = costo
+                        costs[key]  = {"costo": costo, "pvp": pvp, "mb": mb}
                         fasons[key] = c1.upper()
                     break
         return costs, fasons
@@ -3621,13 +3674,19 @@ def fetch_cervezas():
         periods = []
         prev    = None
         for sheet in sorted_sheets:
-            costo = month_costs[sheet].get(key)
+            entry = month_costs[sheet].get(key)
+            costo = entry.get("costo") if isinstance(entry, dict) else entry
             if costo is None: continue
             m  = int(sheet[:2])
             yy = sheet[3:]
             label    = f"{_MESES_ES[m-1]} {yy}"
             costo_var = round((costo - prev) / prev, 4) if prev else None
-            periods.append({"label": label, "costo": costo, "costo_var": costo_var})
+            periods.append({
+                "label": label, "ym": f"20{yy}-{m:02d}", "costo": costo,
+                "pvp": entry.get("pvp") if isinstance(entry, dict) else None,
+                "mb":  entry.get("mb")  if isinstance(entry, dict) else None,
+                "costo_var": costo_var,
+            })
             prev = costo
         if not periods: continue
         lata.append({
@@ -3638,6 +3697,8 @@ def fetch_cervezas():
             "costo_fab": periods[-1]["costo"],
             "costo_ant": periods[-2]["costo"] if len(periods) >= 2 else None,
             "costo_var": periods[-1]["costo_var"],
+            "pvp":       periods[-1]["pvp"],
+            "mb":        periods[-1]["mb"],
             "periods":   periods,
         })
 
@@ -4002,6 +4063,7 @@ def main():
     _paso("[4/5] Actualizando costos desde Google Sheets...")
     try:
         costos, costos_data = fetch_costos_completo()   # descarga automática incluida
+        costos_data = agregar_cervezas_a_lista_precios(costos_data, cervezas)
         _ok("Costos")
     except Exception as e:
         print("  Advertencia costos: %s" % e)
