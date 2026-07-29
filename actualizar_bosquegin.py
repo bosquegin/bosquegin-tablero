@@ -3544,7 +3544,16 @@ def fetch_cervezas():
     # ── Descargar hojas mensuales ─────────────────────────────────────────────
     month_costs  = {}
     month_fasons = {}
+    # Arranca un mes ADELANTE del actual: el costo del mes siguiente suele
+    # cargarse con anticipación (confirmado 2026-07-29: la hoja "08/26" ya
+    # tenía datos reales el 29/07). Antes se arrancaba en el mes actual y
+    # solo se retrocedía, así que ese mes cargado por adelantado nunca se
+    # llegaba a pedir. Si la hoja del mes siguiente no existe o está vacía,
+    # sigue igual de bien (mismo manejo de "sin datos lata"/fallos).
     yr, mo = today.year, today.month
+    mo += 1
+    if mo == 13:
+        mo, yr = 1, yr + 1
     fails  = 0
 
     known_sheets = set(_gid_map.keys())
