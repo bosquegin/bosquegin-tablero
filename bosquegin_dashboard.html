@@ -822,7 +822,7 @@
           <th data-col="pareto" class="sortable" title="Pareto acumulado">Acum % <span class="sort-icon">⇅</span></th>
           <th data-col="costo"  class="sortable" title="Costo unitario vigente (ARS)">Costo ⓘ<br><span style="font-weight:400;color:var(--muted)">(ARS)</span> <span class="sort-icon">⇅</span></th>
           <th data-col="valor"  class="sortable" title="Stock × costo unitario (ARS)">Monto ⓘ<br><span style="font-weight:400;color:var(--muted)">(ARS)</span> <span class="sort-icon">⇅</span></th>
-          <th>Estado</th>
+          <th data-col="estado" class="sortable" title="Sin stock < Crítico < Stock bajo < Bajo < Sin rotación < Normal">Estado <span class="sort-icon">⇅</span></th>
         </tr>
       </thead>
       <tbody id="inv-tbody"></tbody>
@@ -1439,6 +1439,16 @@ function estadoBadge(meses, min, stock) {
   if (meses < 1.5)                    return '<span class="badge badge-yellow">Bajo</span>';
   return '<span class="badge badge-green">Normal</span>';
 }
+// Mismo criterio que estadoBadge, pero como rango numérico para poder
+// ordenar la columna Estado (0 = más urgente).
+function estadoRank(meses, min, stock) {
+  if (stock === 0)              return 0;  // Sin stock
+  if (meses < 1)                return 1;  // Crítico
+  if (min > 0 && stock < min)   return 2;  // Stock bajo
+  if (meses < 1.5)              return 3;  // Bajo
+  if (meses === 0 && min === 0) return 4;  // Sin rotación
+  return 5;                                // Normal
+}
 function paretoBadge(pct) {
   const cls   = pct <= 70 ? 'A' : pct <= 90 ? 'B' : 'C';
   const color = cls === 'A' ? 'badge-green' : cls === 'B' ? 'badge-blue' : 'badge-gray';
@@ -1553,13 +1563,14 @@ function sortValue(item, col, dep) {
     case 'dias':   return getParetoPct(item, dep) ?? 99999;
     case 'peso':   return item.localPeso ?? 0;
     case 'pareto': return getParetoPct(item, dep);
+    case 'estado': return estadoRank(getParetoPct(item, dep), getMin(item, dep), stock);
     default:       return 0;
   }
 }
 
 function setSortCol(col) {
   if (sortCol === col) { sortAsc = !sortAsc; }
-  else                 { sortCol = col; sortAsc = col === 'cod' || col === 'art' || col === 'rub' || col === 'sub'; }
+  else                 { sortCol = col; sortAsc = col === 'cod' || col === 'art' || col === 'rub' || col === 'sub' || col === 'estado'; }
   renderInvTable();
 }
 
@@ -6620,23 +6631,38 @@ const UPD_STEPS = [
   [/\[7\/7\]/,   'Publicando datos…',                   99],
 ];
 
-// El progreso "escrubea" el video real de la botella sirviendo el vaso
-// (img/Actualizar-pour.mp4, ya recortado al tramo vacío->lleno) en vez de
-// reproducirlo — así el nivel del vaso queda sincronizado con el avance real.
+// El progreso reproduce el video real de la botella sirviendo el vaso
+// (img/Actualizar-pour.mp4, ya recortado al tramo vacío->lleno) EN VEZ de
+// saltar directo al frame del % actual -- eso se sentía como un salto/corte
+// en vez de un llenado fluido. Ahora _syncVideoProgress solo mueve un
+// "objetivo" (_videoTarget); el video reproduce normal hacia ese punto y se
+// pausa apenas lo alcanza, así dura naturalmente lo que tarda la
+// actualización real: si un paso tarda poco, el video llega al objetivo y
+// espera ahí (frame quieto) hasta el próximo avance; si tarda más que el
+// tramo de video restante, igual no se adelanta de más.
+var _videoTarget = 0;
+
 function _syncVideoProgress(pct) {
   var v = document.getElementById('upd-video');
   if (!v) return;
+  var apply = function() {
+    _videoTarget = (pct / 100) * v.duration;
+    if (v.currentTime < _videoTarget - 0.05) {
+      v.play().catch(function() {});
+    } else if (v.currentTime > _videoTarget + 0.05) {
+      // Retrocede (reset de una corrida anterior) -- ahí sí saltar directo.
+      v.pause();
+      v.currentTime = _videoTarget;
+    }
+  };
   // isFinite() descarta tanto "todavia no cargó" (duration=NaN) como el bug
   // de Chrome/Brave que reporta duration=Infinity cuando el servidor no
   // soporta HTTP Range (ver servidor_bosquegin.py send_head) -- en ambos
   // casos hay que esperar a que el navegador realmente sepa la duración.
-  if (isFinite(v.duration) && v.duration > 0) {
-    v.currentTime = (pct / 100) * v.duration;
-    return;
-  }
+  if (isFinite(v.duration) && v.duration > 0) { apply(); return; }
   var retry = function() {
     if (isFinite(v.duration) && v.duration > 0) {
-      v.currentTime = (pct / 100) * v.duration;
+      apply();
       v.removeEventListener('loadedmetadata', retry);
       v.removeEventListener('durationchange', retry);
     }
@@ -6644,6 +6670,19 @@ function _syncVideoProgress(pct) {
   v.addEventListener('loadedmetadata', retry);
   v.addEventListener('durationchange', retry);
 }
+
+// Frena el video apenas alcanza el objetivo actual, para que no se adelante
+// al progreso real del pipeline.
+document.addEventListener('DOMContentLoaded', function() {
+  var v = document.getElementById('upd-video');
+  if (!v) return;
+  v.addEventListener('timeupdate', function() {
+    if (!v.paused && v.currentTime >= _videoTarget - 0.03) {
+      v.pause();
+      v.currentTime = Math.min(_videoTarget, v.duration || _videoTarget);
+    }
+  });
+});
 
 // ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
 async function _runCloudUpdate() {
