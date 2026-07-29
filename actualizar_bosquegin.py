@@ -3464,8 +3464,17 @@ def fetch_cervezas():
             if content and len(content.splitlines()) >= 5:
                 with open(cache, "w", encoding="utf-8-sig", newline="") as f:
                     f.write(content)
-            else:
+            elif not os.path.exists(cache):
                 return None
+            # else: el refresco falló (CDP caído, etc.) pero ya había un
+            # caché de una descarga anterior — servir ESE en vez de
+            # descartar el mes entero. Antes, un fallo de refresco acá
+            # hacía "desaparecer" del publicado un mes que ya se había
+            # descargado bien un día anterior (bug real detectado
+            # 2026-07-29: julio tenía caché del 23/07 pero se perdía del
+            # dashboard en corridas posteriores donde CDP fallaba).
+            print(f"    {sheet_name}: refresco falló, usando caché existente "
+                  f"({date.fromtimestamp(os.path.getmtime(cache)):%Y-%m-%d})")
         if not os.path.exists(cache): return None
         with open(cache, encoding="utf-8-sig") as f:
             return list(_csv.reader(f))
