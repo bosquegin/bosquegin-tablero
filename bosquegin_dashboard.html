@@ -38,7 +38,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tablero Operativo Supply Chain — Bosque Gin v3.3</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&display=swap" rel="stylesheet">
   <script src="auth_static.js" onerror="if(!window.BG_AUTH)window.BG_AUTH=[];"></script>
   <script src="cloud_config.js" onerror="if(!window.BG_CLOUD_URL)window.BG_CLOUD_URL='';"></script>
@@ -494,14 +493,6 @@
     .badge-yellow { background: rgba(234,179,8,.15); color: #fbbf24; }
     .badge-blue { background: rgba(56,189,248,.15); color: #38bdf8; }
     .badge-gray { background: rgba(148,163,184,.1); color: #94a3b8; }
-
-    /* RETRO 80s ANIMATIONS */
-    @keyframes retro-blink   { 0%,49%{opacity:1} 50%,100%{opacity:0} }
-    @keyframes retro-glow    { 0%,100%{text-shadow:0 0 12px #39ff14,0 0 24px rgba(57,255,20,.3)} 50%{text-shadow:0 0 5px #39ff14,0 0 10px rgba(57,255,20,.15)} }
-    @keyframes retro-glow-y  { 0%,100%{text-shadow:0 0 10px #ff0,0 0 20px rgba(255,255,0,.3)} 50%{text-shadow:0 0 4px #ff0,0 0 8px rgba(255,255,0,.15)} }
-    @keyframes retro-flicker { 0%,89%,91%,93%,95%,100%{opacity:1} 90%{opacity:.94} 92%{opacity:.97} 94%{opacity:.93} }
-    @keyframes retro-march   { 0%{transform:translateX(-2px)} 100%{transform:translateX(2px)} }
-    @keyframes retro-blocks  { 0%,100%{color:#39ff14;text-shadow:0 0 8px #39ff14} 50%{color:#2bcc10;text-shadow:0 0 4px #2bcc10} }
 
     /* PROGRESS BAR */
     .progress-wrap { background: var(--border); border-radius: 4px; height: 6px; flex: 1; min-width: 80px; }
@@ -6496,125 +6487,54 @@ document.getElementById('current-date').textContent =
 </script>
 
 
-<!-- UPDATE MODAL (RETRO 80s) -->
+<!-- UPDATE MODAL (botella sirviendo el vaso = progreso) -->
 <div id="update-modal" style="display:none;position:fixed;inset:0;z-index:9999;
-     background:rgba(0,0,0,.80);align-items:center;justify-content:center">
-  <div style="background:#000811;border:2px solid #0d3d1a;border-radius:6px;
-              box-shadow:0 0 0 4px #050c08,0 0 60px rgba(0,255,80,.14),inset 0 0 80px rgba(0,0,0,.5);
-              width:400px;padding:28px 24px 22px;position:relative;overflow:hidden;
-              font-family:'Press Start 2P',monospace;animation:retro-flicker 9s infinite">
+     background:rgba(0,0,0,.6);align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;
+              width:100%;max-width:380px;padding:28px;box-shadow:0 24px 64px rgba(0,0,0,.5)">
 
-    <!-- Scanlines -->
-    <div style="position:absolute;inset:0;pointer-events:none;z-index:20;
-      background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,
-      rgba(0,0,0,.22) 3px,rgba(0,0,0,.22) 4px)"></div>
-    <!-- Vignette -->
-    <div style="position:absolute;inset:0;pointer-events:none;z-index:19;
-      background:radial-gradient(ellipse at 50% 40%,transparent 55%,rgba(0,0,0,.5) 100%)"></div>
-
-    <!-- Header deco -->
-    <div style="color:#0d3d1a;font-size:8px;text-align:center;margin-bottom:4px;
-                font-family:monospace;letter-spacing:1px">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</div>
-    <div style="color:#39ff14;font-size:11px;text-align:center;letter-spacing:4px;
-                margin-bottom:3px;animation:retro-glow 2.5s ease-in-out infinite">
-      BOSQUE &nbsp; GIN</div>
-    <div style="color:#0af;font-size:6px;text-align:center;letter-spacing:3px;margin-bottom:4px">
-      SUPPLY CHAIN SYS</div>
-    <div style="color:#0d3d1a;font-size:8px;text-align:center;margin-bottom:20px;
-                font-family:monospace;letter-spacing:1px">▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬</div>
-
-    <!-- Sprite / icon -->
-    <div id="upd-icon" style="text-align:center;font-size:32px;line-height:1;
-         margin-bottom:14px;animation:retro-march .45s ease-in-out alternate infinite">⏳</div>
-
-    <!-- Title + step -->
-    <div id="upd-title" style="color:#ff0;font-size:7px;text-align:center;letter-spacing:2px;
-         margin-bottom:6px;animation:retro-glow-y 2s ease-in-out infinite">ACTUALIZANDO</div>
-    <div id="upd-step"  style="color:#0af;font-size:6px;text-align:center;
-         min-height:14px;margin-bottom:18px;letter-spacing:1px">INICIANDO...</div>
-
-    <!-- Block progress bar (visual) -->
-    <div style="text-align:center;font-family:monospace;margin-bottom:4px">
-      <span style="color:#0d3d1a;font-size:13px">[</span><span id="upd-blocks"
-        style="font-size:13px;animation:retro-blocks 1.8s ease-in-out infinite">░░░░░░░░░░░░░░░░░░░░</span><span
-        style="color:#0d3d1a;font-size:13px">]</span>
-      <span id="upd-pct" style="color:#ff0;font-size:7px;margin-left:8px;
-            animation:retro-glow-y 2s ease-in-out infinite">0%</span>
-    </div>
-    <div style="color:#0d3d1a;font-size:7px;text-align:center;margin-bottom:18px;font-family:monospace">
-      INSERT COIN TO CONTINUE</div>
-
-    <!-- Hidden real bar (keeps existing JS working) -->
-    <div id="upd-bar" style="position:absolute;opacity:0;width:0%;height:0;pointer-events:none"></div>
-
-    <!-- Terminal log line -->
-    <div style="background:#000;border:1px solid #0d3d1a;padding:8px 10px;
-         border-radius:2px;min-height:36px;margin-bottom:12px">
-      <span style="color:#0d3d1a;font-size:7px;font-family:monospace">&gt;&gt; </span><span
-        id="upd-detail" style="color:#39ff14;font-size:7px;font-family:monospace"></span><span
-        style="color:#39ff14;font-size:8px;animation:retro-blink 1s step-end infinite">█</span>
+    <div style="position:relative;border-radius:12px;overflow:hidden;background:#000;margin-bottom:16px">
+      <video id="upd-video" muted playsinline preload="auto" style="display:block;width:100%">
+        <source src="img/Actualizar-pour.mp4" type="video/mp4">
+      </video>
+      <div id="upd-icon" style="position:absolute;right:8px;bottom:8px;width:30px;height:30px;
+           background:linear-gradient(135deg,var(--accent),var(--green));border-radius:9px;
+           display:flex;align-items:center;justify-content:center;font-size:15px;
+           box-shadow:0 2px 8px rgba(0,0,0,.5)">⏳</div>
     </div>
 
-    <!-- Error box -->
-    <div id="upd-error" style="display:none;background:#1a0000;border:1px solid #550000;
-         padding:8px;border-radius:2px;font-size:7px;color:#ff4444;margin-bottom:12px;
-         max-height:80px;overflow-y:auto;white-space:pre-wrap;font-family:monospace"></div>
+    <div style="margin-bottom:12px">
+      <div id="upd-title" style="font-size:15px;font-weight:700;color:var(--text)">Actualizando</div>
+      <div id="upd-step" style="font-size:11px;color:var(--muted);margin-top:2px;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Iniciando…</div>
+    </div>
 
-    <!-- Close button (error only) -->
-    <button id="upd-close-btn" onclick="closeUpdateModal()" style="display:none;
-      width:100%;padding:10px 8px;background:#000;border:2px solid #39ff14;color:#39ff14;
-      font-family:'Press Start 2P',monospace;font-size:7px;cursor:pointer;
-      letter-spacing:2px;text-shadow:0 0 8px #39ff14;transition:all .1s">
-      ▶ &nbsp; CERRAR &nbsp; ◀
+    <div style="background:var(--card);border-radius:999px;height:8px;overflow:hidden">
+      <div id="upd-bar" style="height:100%;width:4%;background:var(--accent);border-radius:999px;
+           transition:width .3s ease, background .2s ease"></div>
+    </div>
+
+    <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;
+         padding:10px 12px;margin-top:16px;min-height:16px">
+      <span style="color:var(--accent)">›</span>
+      <span id="upd-detail" style="color:var(--muted);font-size:10.5px;font-family:monospace"></span>
+    </div>
+
+    <div id="upd-error" style="display:none;background:rgba(239,68,68,.1);
+         border:1px solid rgba(239,68,68,.3);color:#fca5a5;border-radius:8px;padding:10px 14px;
+         font-size:11px;margin-top:14px;max-height:120px;overflow-y:auto;white-space:pre-wrap"></div>
+
+    <button id="upd-close-btn" onclick="closeUpdateModal()" style="display:none;width:100%;
+      margin-top:16px;background:var(--card);color:var(--text);border:1px solid var(--border);
+      border-radius:8px;padding:10px;font-size:12px;font-weight:600;cursor:pointer;
+      transition:background .15s"
+      onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background='var(--card)'">
+      Cerrar
     </button>
   </div>
 </div>
 
 <script>
-// ── Retro block bar sync ──────────────────────────────────────────────────────
-(function() {
-  function _syncBlocks() {
-    var barEl    = document.getElementById('upd-bar');
-    var blocks   = document.getElementById('upd-blocks');
-    var pctEl    = document.getElementById('upd-pct');
-    if (!barEl || !blocks) return;
-    var pct    = parseFloat(barEl.style.width) || 0;
-    var isErr  = (barEl.style.background || '').indexOf('red') !== -1;
-    var filled = Math.min(20, Math.round(pct / 5));
-    var bar    = '█'.repeat(filled) + '░'.repeat(20 - filled);
-    blocks.textContent = bar;
-    blocks.style.color       = isErr ? '#ff4444' : '#39ff14';
-    blocks.style.textShadow  = isErr ? '0 0 6px #ff4444' : '';
-    blocks.style.animation   = isErr ? 'none' : 'retro-blocks 1.8s ease-in-out infinite';
-    if (pctEl) {
-      pctEl.textContent      = Math.round(pct) + '%';
-      pctEl.style.color      = isErr ? '#ff4444' : '#ff0';
-      pctEl.style.animation  = isErr ? 'none' : 'retro-glow-y 2s ease-in-out infinite';
-    }
-  }
-  // Sprite cycling during update
-  var _spriteIdx = 0;
-  var _spriteFrames = ['⏳','🚀','👾','🛸'];
-  var _spriteTimer  = null;
-  window._retroStartSprite = function() {
-    _spriteIdx = 0;
-    var el = document.getElementById('upd-icon');
-    _spriteTimer = setInterval(function() {
-      _spriteIdx = (_spriteIdx + 1) % _spriteFrames.length;
-      if (el) el.textContent = _spriteFrames[_spriteIdx];
-    }, 500);
-  };
-  window._retroStopSprite = function() {
-    if (_spriteTimer) { clearInterval(_spriteTimer); _spriteTimer = null; }
-  };
-  // Observe upd-bar style changes
-  document.addEventListener('DOMContentLoaded', function() {
-    var barEl = document.getElementById('upd-bar');
-    if (!barEl) return;
-    new MutationObserver(_syncBlocks).observe(barEl, {attributes: true, attributeFilter: ['style']});
-  });
-})();
-
 // ── Update modal ──────────────────────────────────────────────────────────────
 const UPDATE_URL     = '/actualizar';
 const TUNNEL_URL_RAW = 'https://raw.githubusercontent.com/bosquegin/bosquegin-tablero/main/tunnel_url.txt';
@@ -6700,6 +6620,20 @@ const UPD_STEPS = [
   [/\[7\/7\]/,   'Publicando datos…',                   99],
 ];
 
+// El progreso "escrubea" el video real de la botella sirviendo el vaso
+// (img/Actualizar-pour.mp4, ya recortado al tramo vacío->lleno) en vez de
+// reproducirlo — así el nivel del vaso queda sincronizado con el avance real.
+function _syncVideoProgress(pct) {
+  var v = document.getElementById('upd-video');
+  if (!v) return;
+  if (v.duration) { v.currentTime = (pct / 100) * v.duration; return; }
+  // Metadata todavía no cargó (primera apertura del modal) -- reintentar apenas esté lista
+  v.addEventListener('loadedmetadata', function once() {
+    v.removeEventListener('loadedmetadata', once);
+    v.currentTime = (pct / 100) * v.duration;
+  });
+}
+
 // ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
 async function _runCloudUpdate() {
   const modal    = document.getElementById('update-modal');
@@ -6717,10 +6651,10 @@ async function _runCloudUpdate() {
   // Reset modal
   bar.style.width        = '4%';
   bar.style.background   = '';
+  _syncVideoProgress(4);
   icon.textContent       = '⏳';
-  title.textContent      = 'ACTUALIZANDO';
-  step.textContent       = 'VERIFICANDO SERVIDOR..';
-  if (window._retroStartSprite) _retroStartSprite();
+  title.textContent      = 'Actualizando';
+  step.textContent       = 'Verificando servidor…';
   detail.textContent     = '';
   errBox.style.display   = 'none';
   closeBtn.style.display = 'none';
@@ -6731,10 +6665,9 @@ async function _runCloudUpdate() {
   dot.style.boxShadow    = '0 0 8px #eab308';
 
   function _fail(msg) {
-    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background   = 'var(--red)';
-    icon.textContent       = '💀';
-    title.textContent      = 'GAME OVER';
+    icon.textContent       = '⚠️';
+    title.textContent      = 'Error al actualizar';
     step.textContent       = msg;
     errBox.style.display   = 'none';
     closeBtn.style.display = 'block';
@@ -6775,6 +6708,7 @@ async function _runCloudUpdate() {
     //    con reintentos hasta 60s para darle tiempo de arrancar
     step.textContent = 'Despertando servidor…';
     bar.style.width  = '8%';
+    _syncVideoProgress(8);
     var _awake = false;
     for (var _wi = 0; _wi < 12; _wi++) {
       try {
@@ -6786,6 +6720,7 @@ async function _runCloudUpdate() {
       } catch(e) {}
       step.textContent = 'Despertando servidor… (' + ((_wi+1)*5) + 's)';
       bar.style.width  = (8 + _wi * 2) + '%';
+      _syncVideoProgress(8 + _wi * 2);
       await new Promise(function(r){ setTimeout(r, 5000); });
     }
     if (!_awake) {
@@ -6794,6 +6729,7 @@ async function _runCloudUpdate() {
 
     step.textContent = 'Conectando con el servidor…';
     bar.style.width  = '35%';
+    _syncVideoProgress(35);
 
     // 4. Llamar al endpoint de actualización
     var res = await fetch(serverUrl + endpoint, {
@@ -6824,6 +6760,7 @@ async function _runCloudUpdate() {
         for (var i = UPD_STEPS.length - 1; i >= 0; i--) {
           if (UPD_STEPS[i][0].test(fullLog)) {
             bar.style.width  = UPD_STEPS[i][2] + '%';
+            _syncVideoProgress(UPD_STEPS[i][2]);
             step.textContent = UPD_STEPS[i][1];
             break;
           }
@@ -6839,11 +6776,11 @@ async function _runCloudUpdate() {
     await read();
 
     // Éxito
-    if (window._retroStopSprite) _retroStopSprite();
     bar.style.width      = '100%';
-    icon.textContent     = '🏆';
-    title.textContent    = 'LISTO';
-    step.textContent     = 'DATOS ACTUALIZADOS';
+    _syncVideoProgress(100);
+    icon.textContent     = '✅';
+    title.textContent    = 'Listo';
+    step.textContent     = 'Datos actualizados';
     detail.textContent   = '';
     btnIcon.textContent  = '✅';
     btnLbl.textContent   = 'Actualizar';
@@ -6853,10 +6790,9 @@ async function _runCloudUpdate() {
     setTimeout(function(){ modal.style.display = 'none'; location.reload(); }, 1200);
 
   } catch(err) {
-    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background   = 'var(--red)';
-    icon.textContent       = '💀';
-    title.textContent      = 'GAME OVER';
+    icon.textContent       = '⚠️';
+    title.textContent      = 'Error al actualizar';
     step.textContent       = String(err.message || err);
     errBox.style.display   = 'none';
     closeBtn.style.display = 'block';
@@ -6895,9 +6831,10 @@ async function runUpdate() {
   // Reset
   bar.style.width      = '4%';
   bar.style.background = '';
+  _syncVideoProgress(4);
   icon.textContent     = '⏳';
-  title.textContent    = 'ACTUALIZANDO';
-  step.textContent     = 'INICIANDO...';
+  title.textContent    = 'Actualizando';
+  step.textContent     = 'Iniciando…';
   detail.textContent   = '';
   errBox.style.display = 'none';
   errBox.textContent   = '';
@@ -6905,7 +6842,6 @@ async function runUpdate() {
   modal.style.display  = 'flex';
   btnIcon.textContent  = '⏳';
   btnLbl.textContent   = 'Actualizando…';
-  if (window._retroStartSprite) _retroStartSprite();
   dot.style.background = '#eab308';
   dot.style.boxShadow  = '0 0 8px #eab308';
 
@@ -6916,6 +6852,7 @@ async function runUpdate() {
     for (let i = UPD_STEPS.length - 1; i >= 0; i--) {
       if (UPD_STEPS[i][0].test(fullLog)) {
         bar.style.width    = UPD_STEPS[i][2] + '%';
+        _syncVideoProgress(UPD_STEPS[i][2]);
         step.textContent   = UPD_STEPS[i][1];
         break;
       }
@@ -6939,11 +6876,11 @@ async function runUpdate() {
     await read();
 
     // Éxito
-    if (window._retroStopSprite) _retroStopSprite();
     bar.style.width   = '100%';
-    icon.textContent  = '🏆';
-    title.textContent = 'LISTO';
-    step.textContent  = 'DATOS ACTUALIZADOS';
+    _syncVideoProgress(100);
+    icon.textContent  = '✅';
+    title.textContent = 'Listo';
+    step.textContent  = 'Datos actualizados';
     detail.textContent = '';
     btnIcon.textContent = '✅';
     btnLbl.textContent  = 'Actualizar';
@@ -6953,11 +6890,10 @@ async function runUpdate() {
     setTimeout(() => { modal.style.display = 'none'; location.reload(); }, 1200);
 
   } catch(err) {
-    if (window._retroStopSprite) _retroStopSprite();
     bar.style.background = 'var(--red)';
-    icon.textContent     = '💀';
-    title.textContent    = 'GAME OVER';
-    step.textContent     = 'EL SERVIDOR NO RESPONDE';
+    icon.textContent     = '⚠️';
+    title.textContent    = 'Error al actualizar';
+    step.textContent     = 'El servidor no responde';
     errBox.textContent   = String(err.message || err);
     errBox.style.display = 'block';
     closeBtn.style.display = 'block';
