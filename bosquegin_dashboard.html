@@ -4577,6 +4577,37 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
     });
 }
 
+// Tilde "ya ingresó" al lado de "Proyección abastecimiento": cuando está
+// tildado, ese mes deja de sumarse al saldo de stock (se asume que el
+// ingreso ya está reflejado en el stock en vivo, sumarlo de nuevo lo
+// duplicaría). Mismo patrón que proyGuardarAbastecimiento — se persiste en
+// el servidor y se recalculan los campos derivados sin recargar la página.
+function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
+  const ingreso = checkboxEl.checked;
+  checkboxEl.disabled = true;
+  fetch('/guardar_proyeccion_ingreso', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ trimestre: trimestreKey, cod: cod, mes: mk, ingreso: ingreso })
+  })
+    .then(function (r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function (d) {
+      if (!d.ok) { checkboxEl.disabled = false; checkboxEl.checked = !ingreso; alert('No se pudo guardar: ' + (d.error || 'error desconocido')); return; }
+      const T = window.BOSQUE_DATA.proyeccion.trimestres[trimestreKey];
+      if (T && d.producto) {
+        const idx = T.productos.findIndex(function (p) { return String(p.cod) === String(cod); });
+        if (idx >= 0) T.productos[idx] = d.producto;
+      }
+      renderProyeccion();
+    })
+    .catch(function (e) {
+      checkboxEl.disabled = false;
+      checkboxEl.checked = !ingreso;
+      if (e.message !== 'auth') alert('No se pudo guardar: ' + e.message);
+    });
+}
+
 // Mini gráfico de barras (SVG inline, sin dependencias) con la venta real
 // mensual de los últimos 12 meses de un producto: cantidad vendida en cada
 // mes (etiqueta arriba de cada barra), el último mes resaltado, y una línea
@@ -4677,12 +4708,16 @@ function _proyGridHtml(trimestreKey, T) {
       <div style="font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px">${lbl}${esMesActual ? ' <span style="color:var(--accent2)">· en curso</span>' : ''}</div>
       ${esFuturo ? `
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:2px 0"><span style="color:var(--muted)">Saldo mes anterior</span><span>${n(saldoAnterior)}</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0">
-        <span style="color:var(--muted)">Proyección abastecimiento</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:10.5px;padding:2px 0;gap:6px">
+        <span style="color:var(--muted)" title="Marcar como 'ya ingresó' para que este mes no se sume al saldo de stock (evita contarlo dos veces si ya está en el stock en vivo)">
+          <input type="checkbox" ${m.ingreso ? 'checked' : ''}
+            data-proy-ingreso="${trimestreKey}__${cod}__${mk}"
+            onchange="proyGuardarIngreso('${trimestreKey}','${cod}','${mk}',this)"
+            style="vertical-align:-2px;margin-right:4px;cursor:pointer">Proyección abastecimiento</span>
         <input type="number" step="1" value="${Math.round(m.proyeccion_abastecimiento || 0)}"
           data-proy-abast="${trimestreKey}__${cod}__${mk}"
           onchange="proyGuardarAbastecimiento('${trimestreKey}','${cod}','${mk}',this)"
-          style="width:62px;text-align:right;background:var(--card);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10.5px;padding:2px 5px;font-family:inherit">
+          style="width:62px;text-align:right;background:var(--card);border:1px solid var(--border);border-radius:5px;color:${m.ingreso ? 'var(--muted)' : 'var(--text)'};font-size:10.5px;padding:2px 5px;font-family:inherit;${m.ingreso ? 'text-decoration:line-through' : ''}">
       </div>
       ${esFuturo ? `
       <div style="display:flex;justify-content:space-between;font-size:10.5px;padding:3px 6px;margin:2px -6px;background:rgba(99,102,241,.10);border-radius:4px"><span style="color:var(--muted)">Disponible</span><span style="font-weight:700">${n(disponible)}</span></div>` : ''}
