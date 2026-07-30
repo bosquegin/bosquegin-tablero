@@ -1292,6 +1292,7 @@ VENTAS_OBJ_2026_SHEET_GID = "702882960"  # pestaña "Rolling - Mensual x Etiquet
 VENTAS_OBJ_2026_FILAS     = (50, 70)     # rango A50:P70 indicado por el usuario
 VENTAS_OBJ_2026_CACHE     = os.path.join(DATA_DIR, "Costos y PVP", "Ventas_objetivo_2026_cache.json")
 PROY_ABAST_CORR = os.path.join(DATA_DIR, "Costos y PVP", "Proyeccion_abastecimiento_correcciones.json")
+PROY_ABAST_INGRESOS = os.path.join(DATA_DIR, "Costos y PVP", "Proyeccion_abastecimiento_ingresos.json")
 CERV_SHEET_ID    = "1ekfbqVEqgGBlB_1cD3pqxC60Mn64LgbwNdsJsGIiT58"
 CERV_SHEET_GID   = "2130605343"
 CERV_CSV         = os.path.join(DATA_DIR, "Costos y PVP", "Analisis_costos_cervezas.csv")
@@ -2735,6 +2736,7 @@ def fetch_proyeccion_trimestral():
             with open(PROYECCION_CACHE, encoding="utf-8") as f:
                 cache = json.load(f)
             aplicar_correcciones_abastecimiento(cache.get("trimestres", {}))
+            aplicar_ingresos_abastecimiento(cache.get("trimestres", {}))
             print(f"  Proyección trimestral al día (caché), {len(cache.get('trimestres', {}))} trimestre(s)")
             return cache
         except Exception:
@@ -2776,6 +2778,7 @@ def fetch_proyeccion_trimestral():
         print(f"  Proyección trimestral: {trimestre} (fila {fila_inicio}) — {len(productos)} productos")
 
     aplicar_correcciones_abastecimiento(trimestres)
+    aplicar_ingresos_abastecimiento(trimestres)
     resultado = {"trimestres": trimestres, "error": None if trimestres else "Ningún bloque con datos"}
 
     # Cachear el resultado completo (evita repetir el sondeo celda por celda,
@@ -3044,13 +3047,20 @@ def _proy_recalcular_derivados(p, meses_keys):
     descontaría dos veces lo ya vendido. Sin esta distinción, editar el
     abastecimiento desde el tablero recalcularía el saldo del mes en curso
     con venta objetivo y pisaría la lógica del pipeline.
+
+    Si un mes tiene "ingreso": true (tilde "ya ingresó", ver
+    aplicar_ingresos_abastecimiento), su proyeccion_abastecimiento NO se
+    suma al saldo — se asume que ese ingreso ya está reflejado en
+    stock_actual (el inventario en vivo), así que sumarlo de nuevo
+    duplicaría la mercadería. El valor de proyeccion_abastecimiento no se
+    borra, sólo se deja de contar en la cuenta corriente del saldo.
     """
     saldo_prev = p["stock_actual"]
     total_obj = 0.0
     proy_total = 0.0
     for mk in meses_keys:
         m = p["mensual"][mk]
-        proy = m.get("proyeccion_abastecimiento") or 0
+        proy = 0 if m.get("ingreso") else (m.get("proyeccion_abastecimiento") or 0)
         vobj = m.get("venta_objetivo") or 0
         if m.get("proyeccion_mensual") is not None:      # mes en curso
             salida = m["proyeccion_mensual"] - (m.get("venta_actual") or 0)
@@ -3216,13 +3226,13 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         # real del mes a la fecha. Por eso sólo se resta lo que FALTA vender de
         # hoy a fin de mes (proyeccion_mensual - venta_actual), no la proyección
         # completa — si no, la venta ya realizada se descontaría dos veces.
-        proy_abast     = m.get("proyeccion_abastecimiento") or 0
+        proy_abast     = 0 if m.get("ingreso") else (m.get("proyeccion_abastecimiento") or 0)
         venta_restante = m["proyeccion_mensual"] - m["venta_actual"]
         saldo_prev     = p["stock_actual"] + proy_abast - venta_restante
         m["saldo_stock"] = saldo_prev
         for mk in meses_keys[idx_actual + 1:]:
             m2 = p["mensual"][mk]
-            proy2 = m2.get("proyeccion_abastecimiento") or 0
+            proy2 = 0 if m2.get("ingreso") else (m2.get("proyeccion_abastecimiento") or 0)
             vobj2 = m2.get("venta_objetivo") or 0
             saldo_prev = saldo_prev + proy2 - vobj2
             m2["saldo_stock"] = saldo_prev
@@ -3271,6 +3281,50 @@ def aplicar_correcciones_abastecimiento(trimestres):
             for mk, val in valores.items():
                 if mk in p.get("mensual", {}):
                     p["mensual"][mk]["proyeccion_abastecimiento"] = float(val)
+                    cambio = True
+            if cambio:
+                _proy_recalcular_derivados(p, meses_keys)
+                aplicadas += 1
+    return aplicadas
+
+
+def aplicar_ingresos_abastecimiento(trimestres):
+    """
+    Aplica el tilde "ya ingresó" (marcado desde el detalle de producto, al
+    lado del campo "Proyección abastecimiento"), guardado por el servidor
+    en PROY_ABAST_INGRESOS. Cuando un mes está marcado, su
+    proyeccion_abastecimiento deja de sumarse al saldo de stock (ver
+    _proy_recalcular_derivados y aplicar_venta_real_mes_actual) porque se
+    asume que ese ingreso ya está reflejado en el stock en vivo. Se vuelve
+    a aplicar en cada fetch_proyeccion_trimestral() para que el tilde
+    persista a través de cada Actualizar, igual que las correcciones de
+    abastecimiento. Formato del archivo:
+      {"<trimestre>": {"<cod>": {"<mes1|mes2|mes3>": true, ...}}}
+    Devuelve la cantidad de productos con al menos un tilde aplicado.
+    """
+    if not os.path.exists(PROY_ABAST_INGRESOS):
+        return 0
+    try:
+        with open(PROY_ABAST_INGRESOS, encoding="utf-8") as f:
+            ingresos = json.load(f)
+    except Exception as e:
+        print(f"  Advertencia leyendo ingresos de abastecimiento: {e}")
+        return 0
+
+    aplicadas = 0
+    for trimestre, por_cod in ingresos.items():
+        T = trimestres.get(trimestre)
+        if not T:
+            continue
+        for p in T.get("productos", []):
+            marcas = por_cod.get(str(p["cod"]))
+            if not marcas:
+                continue
+            meses_keys = list(p.get("mensual", {}).keys())
+            cambio = False
+            for mk, val in marcas.items():
+                if mk in p.get("mensual", {}):
+                    p["mensual"][mk]["ingreso"] = bool(val)
                     cambio = True
             if cambio:
                 _proy_recalcular_derivados(p, meses_keys)
