@@ -471,7 +471,7 @@ window.STOCK_CIERRE_MES={
     "700022": 7, "700023": 2, "700024": 1, "900003": 10,
     "900008": 1
   },
-  // 2026_7: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — 2026-07-29
+  // 2026_7: Stock_consolidado_por_deposito_y_dia.xlsx — KLOZER+OFI — 2026-07-30
   "2026_7": {
     "100001": 60, "100002": 525, "100003": 426, "100004": 1879,
     "100010": 467, "100011": 479, "100012": 716, "100014": 229,
