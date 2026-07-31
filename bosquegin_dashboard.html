@@ -36,7 +36,7 @@
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tablero Operativo Supply Chain — Bosque Gin v3.9</title>
+  <title>Tablero Operativo Supply Chain — Bosque Gin v3.10</title>
   <link rel="manifest" href="manifest.json" />
   <meta name="theme-color" content="#0d1117" />
   <link rel="icon" href="icons/icon-192.png" type="image/png" />
@@ -657,7 +657,7 @@
   <div class="header-title">
     <span class="supra">Tablero Operativo</span>
     <h1>Bosque <span class="sep">·</span> Feriado <span class="sep">·</span> Temple</h1>
-    <span class="sub">Supply Chain &nbsp;<span class="ver">v3.9</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
+    <span class="sub">Supply Chain &nbsp;<span class="ver">v3.10</span> &nbsp;·&nbsp; <span id="current-date" style="pointer-events:auto"></span></span>
     <div class="header-below">
       <!-- User info + logout -->
       <div id="user-chip" style="display:none;align-items:center;gap:8px;font-size:9px;cursor:default;
@@ -1774,9 +1774,16 @@ function renderStockSemanal() {
     { key: 'art', label: 'Artículo' },
   ];
   const icon = (key) => _invSemSortCol === key ? (_invSemSortAsc ? ' ▲' : ' ▼') : ' ⇅';
+  const _WK_RANGES = {"1":"1–7","2":"8–14","3":"15–21","4":"22–28","5":"29–31"};
+  const _MESES_ABR = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   document.getElementById('inv-semanal-thead').innerHTML = '<tr>' +
     staticCols.map(c => `<th class="sortable" onclick="sortInvSemanal('${c.key}')" style="cursor:pointer">${c.label}<span style="color:var(--muted);font-size:8px">${icon(c.key)}</span></th>`).join('') +
-    semanas.map(s => `<th class="sortable" onclick="sortInvSemanal('${s}')" style="cursor:pointer;text-align:right">${s.replace(/^\d{4}-/,'')}<span style="color:var(--muted);font-size:8px">${icon(s)}</span><br><span style="font-weight:400;color:var(--muted)">${fechaPorSemana[s]||''}</span></th>`).join('') +
+    semanas.map(s => {
+      const wkNum = s.slice(-1);
+      const mo = parseInt(s.slice(5, 7), 10);
+      const rango = `${_WK_RANGES[wkNum] || ''} ${_MESES_ABR[mo] || ''}`;
+      return `<th class="sortable" onclick="sortInvSemanal('${s}')" style="cursor:pointer;text-align:right">Semana ${wkNum}<span style="color:var(--muted);font-size:8px">${icon(s)}</span><br><span style="font-weight:400;color:var(--muted)">${rango} · ${fechaPorSemana[s] || ''}</span></th>`;
+    }).join('') +
     '</tr>';
 
   // Armar filas con su desglose semanal ya resuelto (para poder ordenar por cualquier columna, incluidas las semanas)
@@ -3080,7 +3087,7 @@ function _weeklyFromProds(prods, mesLabel) {
     }
   }
   return Object.entries(wkMap)
-    .map(([wk, wv]) => ({w: wk, label: `${_WK_RANGES_JS[wk]||wk} ${mesLabel}`,
+    .map(([wk, wv]) => ({w: wk, label: `Semana ${wk} · ${_WK_RANGES_JS[wk]||wk} ${mesLabel}`,
                           u: Math.round(wv.u*100)/100, c: Math.round(wv.c*100)/100}))
     .sort((a,b) => parseInt(a.w) - parseInt(b.w));
 }
