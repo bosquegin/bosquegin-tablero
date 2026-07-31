@@ -1710,6 +1710,36 @@ function renderInvTable() {
   renderStockSemanal();
 }
 
+// ── Semana calendario gregoriano (continua, no reinicia por mes) ──────────────
+// Misma lógica que _semana_greg_rango/_semana_greg_label en actualizar_bosquegin.py:
+// bloques fijos de 7 días desde el 1 de enero, número de semana corrido para
+// todo el año (puede cruzar de un mes a otro, ej. "25 jun-1 jul").
+const _MESES_ABR_GREG = ['', 'ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+function _semanaGregRango(semKey) {
+  const y = parseInt(semKey.slice(0, 4), 10);
+  const n = parseInt(semKey.slice(6), 10);
+  const inicio = new Date(Date.UTC(y, 0, 1));
+  inicio.setUTCDate(inicio.getUTCDate() + 7 * (n - 1));
+  let fin = new Date(inicio);
+  fin.setUTCDate(fin.getUTCDate() + 6);
+  const finAnio = new Date(Date.UTC(y, 11, 31));
+  if (fin > finAnio) fin = finAnio;
+  return [inicio, fin];
+}
+function _semanaGregLabel(semKey) {
+  const n = parseInt(semKey.slice(6), 10);
+  const [inicio, fin] = _semanaGregRango(semKey);
+  let rango;
+  if (inicio.getTime() === fin.getTime()) {
+    rango = `${inicio.getUTCDate()} ${_MESES_ABR_GREG[inicio.getUTCMonth() + 1]}`;
+  } else if (inicio.getUTCMonth() === fin.getUTCMonth()) {
+    rango = `${inicio.getUTCDate()}-${fin.getUTCDate()} ${_MESES_ABR_GREG[fin.getUTCMonth() + 1]}`;
+  } else {
+    rango = `${inicio.getUTCDate()} ${_MESES_ABR_GREG[inicio.getUTCMonth() + 1]}-${fin.getUTCDate()} ${_MESES_ABR_GREG[fin.getUTCMonth() + 1]}`;
+  }
+  return { n, rango };
+}
+
 // ── Desglose de stock por semana — todos los artículos, semanas del mes elegido como columnas ──
 let _invSemSortCol = 'art';
 let _invSemSortAsc = true;
@@ -1774,15 +1804,11 @@ function renderStockSemanal() {
     { key: 'art', label: 'Artículo' },
   ];
   const icon = (key) => _invSemSortCol === key ? (_invSemSortAsc ? ' ▲' : ' ▼') : ' ⇅';
-  const _WK_RANGES = {"1":"1–7","2":"8–14","3":"15–21","4":"22–28","5":"29–31"};
-  const _MESES_ABR = ['','ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
   document.getElementById('inv-semanal-thead').innerHTML = '<tr>' +
     staticCols.map(c => `<th class="sortable" onclick="sortInvSemanal('${c.key}')" style="cursor:pointer">${c.label}<span style="color:var(--muted);font-size:8px">${icon(c.key)}</span></th>`).join('') +
     semanas.map(s => {
-      const wkNum = s.slice(-1);
-      const mo = parseInt(s.slice(5, 7), 10);
-      const rango = `${_WK_RANGES[wkNum] || ''} ${_MESES_ABR[mo] || ''}`;
-      return `<th class="sortable" onclick="sortInvSemanal('${s}')" style="cursor:pointer;text-align:right">Semana ${wkNum}<span style="color:var(--muted);font-size:8px">${icon(s)}</span><br><span style="font-weight:400;color:var(--muted)">${rango} · ${fechaPorSemana[s] || ''}</span></th>`;
+      const { n, rango } = _semanaGregLabel(s);
+      return `<th class="sortable" onclick="sortInvSemanal('${s}')" style="cursor:pointer;text-align:right">Semana ${n}<span style="color:var(--muted);font-size:8px">${icon(s)}</span><br><span style="font-weight:400;color:var(--muted)">${rango} · ${fechaPorSemana[s] || ''}</span></th>`;
     }).join('') +
     '</tr>';
 
@@ -3076,8 +3102,7 @@ function renderVentas() {
 
 
 // ── SEMANAL ───────────────────────────────────────────────────────────────────
-const _WK_RANGES_JS = {"1":"1–7","2":"8–14","3":"15–21","4":"22–28","5":"29–31"};
-function _weeklyFromProds(prods, mesLabel) {
+function _weeklyFromProds(prods, yr) {
   const wkMap = {};
   for (const p of (prods||[])) {
     for (const [wk, wv] of Object.entries(p.weekly || {})) {
@@ -3087,8 +3112,11 @@ function _weeklyFromProds(prods, mesLabel) {
     }
   }
   return Object.entries(wkMap)
-    .map(([wk, wv]) => ({w: wk, label: `Semana ${wk} · ${_WK_RANGES_JS[wk]||wk} ${mesLabel}`,
-                          u: Math.round(wv.u*100)/100, c: Math.round(wv.c*100)/100}))
+    .map(([wk, wv]) => {
+      const { n, rango } = _semanaGregLabel(`${yr}-S${String(wk).padStart(2,'0')}`);
+      return {w: wk, label: `Semana ${n} · ${rango}`,
+              u: Math.round(wv.u*100)/100, c: Math.round(wv.c*100)/100};
+    })
     .sort((a,b) => parseInt(a.w) - parseInt(b.w));
 }
 function renderSemanal(mes, series, clData, mesCostoTotal) {
@@ -3113,7 +3141,7 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
       // Filtrado por producto dentro del cliente: reconstruir desde prods del mes
       const moE = (clData.monthly || []).find(s => s.mes === mes);
       const fp  = applyProdFilter((moE && moE.prods) || [], pf.rub, pf.search);
-      weeks = _weeklyFromProds(fp, mesLabel);
+      weeks = _weeklyFromProds(fp, yr);
     } else {
       // Buscar en la serie efectiva
       const moEntry = series.find(s => s.mes === mes);
@@ -3127,7 +3155,7 @@ function renderSemanal(mes, series, clData, mesCostoTotal) {
   } else if (pf.active) {
     // Filtrado por producto/rubro: reconstruir semanal desde productos filtrados del mes
     const mp = applyProdFilter(((MONTHLY_DATA[yr]||{}).prods||{})[mesStr]||[], pf.rub, pf.search);
-    weeks = _weeklyFromProds(mp, mesLabel);
+    weeks = _weeklyFromProds(mp, yr);
   } else {
     // Global: desde MONTHLY_DATA
     const wkRaw = ((MONTHLY_DATA[yr] || {}).weekly || {})[mesStr] || [];
