@@ -1,0 +1,19 @@
+name: Keep Render awake
+
+# Render free tier duerme el servidor tras ~15 min sin pedidos, y despertarlo
+# (cold start) puede tardar mas de un minuto -- eso es lo que hacia lento el
+# boton "Actualizar" del tablero. Este ping periodico evita que llegue a
+# dormirse.
+on:
+  schedule:
+    - cron: '*/14 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render /health
+        run: |
+          curl -sf --max-time 30 https://bosquegin-tablero.onrender.com/health \
+            || echo "Ping fallo (el servidor puede estar recien arrancando)"
