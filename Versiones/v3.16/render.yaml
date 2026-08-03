@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: bosquegin-tablero
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn servidor_render:app --bind 0.0.0.0:$PORT --timeout 300 --workers 1
+    plan: free
+    envVars:
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REFRESH_TOKEN
+        sync: false
+      - key: DRIVE_ROOT_FOLDER_ID
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: CLOUD_COOLDOWN
+        value: "180"
