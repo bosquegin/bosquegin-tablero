@@ -1,2 +1,0 @@
-linea 1 - prueba de mecanismo cloud push
-linea 2 - actualizado
