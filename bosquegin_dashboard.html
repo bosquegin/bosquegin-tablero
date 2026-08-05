@@ -6801,7 +6801,10 @@ function _syncVideoProgress(pct) {
   img.src = 'img/actualizar-frame-' + String(nearest).padStart(3, '0') + '.jpg';
 }
 
-// ── Actualizar remoto via túnel (modo estático / GitHub Pages) ────────────────
+// ── Actualizar remoto via Cloudflare Worker + GitHub Actions ──────────────────
+// Reemplaza al servidor Flask en Render (sin cold-start: el Worker dispara
+// un workflow_dispatch en GitHub Actions y el tablero hace polling de su
+// estado en vez de leer un log en streaming).
 async function _runCloudUpdate() {
   const modal    = document.getElementById('update-modal');
   const bar      = document.getElementById('upd-bar');
@@ -6821,7 +6824,7 @@ async function _runCloudUpdate() {
   _syncVideoProgress(4);
   icon.textContent       = '⏳';
   title.textContent      = 'Actualizando';
-  step.textContent       = 'Verificando servidor…';
+  step.textContent       = 'Conectando…';
   detail.textContent     = '';
   errBox.style.display   = 'none';
   closeBtn.style.display = 'none';
@@ -6846,123 +6849,85 @@ async function _runCloudUpdate() {
   }
 
   try {
-    // 1. Determinar URL del servidor (Render tiene prioridad sobre túnel)
     var serverUrl = (window.BG_CLOUD_URL || '').trim();
-    var endpoint  = '/actualizar';
-
     if (!serverUrl) {
-      // Fallback: obtener URL del túnel desde GitHub
-      step.textContent = 'Buscando servidor…';
-      try {
-        var r = await fetch(TUNNEL_URL_RAW + '?t=' + Date.now(), {cache: 'no-store'});
-        if (r.ok) serverUrl = (await r.text()).trim();
-      } catch(e) {}
-      endpoint = '/actualizar-cloud';
+      return _fail('Servidor de actualización no configurado (cloud_config.js)');
     }
 
-    if (!serverUrl) {
-      return _fail('Servidor offline — no hay servidor cloud configurado ni túnel activo');
-    }
-
-    // 2. Obtener credenciales de la sesión localStorage
+    // 1. Credenciales de la sesión localStorage
     var sess = null;
     try { sess = JSON.parse(localStorage.getItem('_bg_sess')); } catch(e) {}
     if (!sess || !sess.cloud_token || sess.expires < Date.now()) {
       return _fail('Sesión expirada — recargá la página e ingresá de nuevo');
     }
 
-    // 3. Wake-up: Render free tier duerme tras inactividad (y a veces el cold
-    //    start tarda mas de 60s pese al keep-alive externo) — hacer ping
-    //    /health con reintentos hasta 150s, medido por tiempo real transcurrido
-    //    (no por cantidad de intentos) para no depender de cuanto tarda cada
-    //    fetch individual.
-    step.textContent = 'Despertando servidor…';
-    bar.style.width  = '8%';
-    _syncVideoProgress(8);
-    var _awake = false;
-    var _wakeStart    = Date.now();
-    var _wakeBudgetMs = 150000;
-    var _wi = 0;
-    while (Date.now() - _wakeStart < _wakeBudgetMs) {
-      try {
-        var _ctrl = new AbortController();
-        var _tid  = setTimeout(function(){ _ctrl.abort(); }, 5000);
-        var _hr   = await fetch(serverUrl + '/health', { signal: _ctrl.signal, cache: 'no-store' });
-        clearTimeout(_tid);
-        if (_hr.ok) { _awake = true; break; }
-      } catch(e) {}
-      _wi++;
-      var _elapsedS = Math.round((Date.now() - _wakeStart) / 1000);
-      step.textContent = 'Despertando servidor… (' + _elapsedS + 's)';
-      bar.style.width  = Math.min(34, 8 + _wi * 1.5) + '%';
-      _syncVideoProgress(Math.min(34, 8 + _wi * 1.5));
-      await new Promise(function(r){ setTimeout(r, 2000); });
-    }
-    if (!_awake) {
-      return _fail('El servidor no responde después de 150s. Verificá que esté activo en Render.com');
-    }
-
-    step.textContent = 'Conectando con el servidor…';
-    bar.style.width  = '35%';
-    _syncVideoProgress(35);
-
-    // 4. Llamar al endpoint de actualización
-    var res = await fetch(serverUrl + endpoint, {
+    // 2. Disparar la actualización
+    var res = await fetch(serverUrl + '/actualizar', {
       method:  'POST',
       headers: {'Content-Type': 'application/json'},
       body:    JSON.stringify({username: sess.username, cloud_token: sess.cloud_token})
     });
+    var payload = await res.json().catch(function(){ return {}; });
 
-    if (res.status === 429) {
-      var e = await res.json().catch(function(){ return {}; });
-      return _fail(e.error || 'Espera unos minutos antes de volver a actualizar');
-    }
-    if (res.status === 401 || res.status === 403) {
-      var e = await res.json().catch(function(){ return {}; });
-      return _fail(e.error || 'No autorizado');
-    }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (res.status === 429) return _fail(payload.error || 'Ya hay una actualización en curso');
+    if (res.status === 401 || res.status === 403) return _fail(payload.error || 'No autorizado');
+    if (!res.ok || !payload.ok) throw new Error(payload.error || ('HTTP ' + res.status));
 
-    // 4. Leer respuesta en streaming
-    let fullLog = '';
-    const reader  = res.body.getReader();
-    const decoder = new TextDecoder();
-    const read = function() {
-      return reader.read().then(function(chunk) {
-        if (chunk.done) return;
-        const txt = decoder.decode(chunk.value, {stream: true});
-        fullLog += txt;
-        for (var i = UPD_STEPS.length - 1; i >= 0; i--) {
-          if (UPD_STEPS[i][0].test(fullLog)) {
-            bar.style.width  = UPD_STEPS[i][2] + '%';
-            _syncVideoProgress(UPD_STEPS[i][2]);
-            step.textContent = UPD_STEPS[i][1];
-            break;
-          }
+    var since = payload.dispatchedAt || Date.now();
+
+    step.textContent = 'Encolado en GitHub Actions…';
+    bar.style.width   = '10%';
+    _syncVideoProgress(10);
+
+    // 3. Polling de estado hasta que termine (o hasta 15 min)
+    var pollStart  = Date.now();
+    var pollBudget = 15 * 60 * 1000;
+    var runUrl     = null;
+
+    while (Date.now() - pollStart < pollBudget) {
+      await new Promise(function(r){ setTimeout(r, 4000); });
+
+      var er = await fetch(serverUrl + '/estado?' + new URLSearchParams({
+        username: sess.username, cloud_token: sess.cloud_token, since: String(since)
+      }));
+      var edata = await er.json().catch(function(){ return {}; });
+      if (!er.ok || !edata.ok) continue; // error transitorio, reintentar
+
+      runUrl = edata.html_url || runUrl;
+      var elapsedS = Math.round((Date.now() - pollStart) / 1000);
+
+      if (edata.status === 'completed') {
+        if (edata.conclusion === 'success') {
+          bar.style.width      = '100%';
+          _syncVideoProgress(100);
+          icon.textContent     = '✅';
+          title.textContent    = 'Listo';
+          step.textContent     = 'Datos actualizados';
+          detail.textContent   = '';
+          btnIcon.textContent  = '✅';
+          btnLbl.textContent   = 'Actualizar';
+          dot.style.background = 'var(--green)';
+          dot.style.boxShadow  = '0 0 8px var(--green)';
+          dot.title = 'Datos actualizados ahora';
+          setTimeout(function(){ modal.style.display = 'none'; location.reload(); }, 1200);
+          return;
         }
-        // Filtrar keep-alives ("." sueltos) del detail
-        var lines = fullLog.split('\n')
-          .map(function(l){ return l.trim(); })
-          .filter(function(l){ return l && l !== '.' && !/^[=\-\*]{3,}$/.test(l); });
-        if (lines.length) detail.textContent = lines[lines.length - 1].slice(0, 80);
-        return read();
-      });
-    };
-    await read();
+        return _fail('Falló la actualización' + (runUrl ? ' — ver ' + runUrl : ''));
+      }
 
-    // Éxito
-    bar.style.width      = '100%';
-    _syncVideoProgress(100);
-    icon.textContent     = '✅';
-    title.textContent    = 'Listo';
-    step.textContent     = 'Datos actualizados';
-    detail.textContent   = '';
-    btnIcon.textContent  = '✅';
-    btnLbl.textContent   = 'Actualizar';
-    dot.style.background = 'var(--green)';
-    dot.style.boxShadow  = '0 0 8px var(--green)';
-    dot.title = 'Datos actualizados ahora';
-    setTimeout(function(){ modal.style.display = 'none'; location.reload(); }, 1200);
+      // En curso: barra simulada por tiempo transcurrido (no hay pasos finos
+      // disponibles vía polling, a diferencia del streaming anterior).
+      var pct = edata.status === 'in_progress'
+        ? Math.min(92, 15 + elapsedS * 0.6)
+        : Math.min(14, 10 + elapsedS * 0.3);
+      bar.style.width   = pct + '%';
+      _syncVideoProgress(pct);
+      step.textContent  = edata.status === 'in_progress'
+        ? 'Actualizando… (' + elapsedS + 's)'
+        : 'En cola… (' + elapsedS + 's)';
+    }
+
+    return _fail('No terminó después de 15 min' + (runUrl ? ' — ver ' + runUrl : ''));
 
   } catch(err) {
     bar.style.background   = 'var(--red)';
