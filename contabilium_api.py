@@ -12,7 +12,7 @@ exports manuales de Contabilium.
 import os, json, time
 import urllib.request, urllib.parse, urllib.error
 
-BASE          = r"C:\Users\SupplyDestileria\Documents\Bosque\Claude\Tablero operativo"
+BASE          = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE   = os.path.join(BASE, "contabilium_config.json")
 TOKEN_CACHE   = os.path.join(BASE, "contabilium_token_cache.json")
 TOKEN_URL     = "https://rest.contabilium.com/token"
