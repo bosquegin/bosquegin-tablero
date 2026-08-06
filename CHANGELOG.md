@@ -12,6 +12,13 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.26 — 2026-08-06
+
+- **feat:** límite de **1 corrida de Actualizar por hora**, sin importar quién lo dispare — para no volver a saturar la API de Contabilium (dos corridas seguidas alcanzan para gatillar el 429 del incidente de hoy). Implementado en el Cloudflare Worker (rechaza con 429 y minutos restantes) y en `servidor_bosquegin.py` (mismo límite para el Actualizar local).
+- **fix:** el modal de Actualizar mostraba solo "HTTP 429"/"HTTP 503" genérico ante un error — ahora muestra el mensaje real del servidor (ej. "probá de nuevo en 42 min").
+
+---
+
 ## v3.25 — 2026-08-06
 
 - **fix:** tildar/destildar "ya ingresó" o corregir el abastecimiento de un mes **cerrado** todavía cambiaba `stock_total`, `total_objetivo_ventas`, `meses_stock` y `comprar` del producto (el fix anterior solo protegía `saldo_stock`). Ahora un mes cerrado no aporta nada a esos totales — tildarlo queda 100% informativo. Verificado con prueba aislada.
