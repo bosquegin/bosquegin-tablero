@@ -6828,6 +6828,7 @@ async function _runCloudUpdate() {
   title.textContent      = 'Actualizando';
   step.textContent       = 'Conectando…';
   detail.textContent     = '';
+  errBox.textContent     = '';
   errBox.style.display   = 'none';
   closeBtn.style.display = 'none';
   modal.style.display    = 'flex';
@@ -6840,8 +6841,18 @@ async function _runCloudUpdate() {
     bar.style.background   = 'var(--red)';
     icon.textContent       = '⚠️';
     title.textContent      = 'Error al actualizar';
-    step.textContent       = msg;
-    errBox.style.display   = 'none';
+    // Mensajes cortos (ej. "No autorizado") van directo en el step; los
+    // largos (ej. el límite de 1 hora, con los minutos restantes) se
+    // truncaban con "…" en el step de una sola línea -- van en el cuadro
+    // de error, que envuelve el texto completo y no lo corta.
+    if (msg.length > 40) {
+      step.textContent     = 'No se pudo actualizar';
+      errBox.textContent   = msg;
+      errBox.style.display = 'block';
+    } else {
+      step.textContent     = msg;
+      errBox.style.display = 'none';
+    }
     closeBtn.style.display = 'block';
     btnIcon.textContent    = '🔄';
     btnLbl.textContent     = 'Actualizar';
@@ -6932,16 +6943,7 @@ async function _runCloudUpdate() {
     return _fail('No terminó después de 15 min' + (runUrl ? ' — ver ' + runUrl : ''));
 
   } catch(err) {
-    bar.style.background   = 'var(--red)';
-    icon.textContent       = '⚠️';
-    title.textContent      = 'Error al actualizar';
-    step.textContent       = String(err.message || err);
-    errBox.style.display   = 'none';
-    closeBtn.style.display = 'block';
-    btnIcon.textContent    = '🔄';
-    btnLbl.textContent     = 'Actualizar';
-    dot.style.background   = 'var(--red)';
-    dot.style.boxShadow    = '0 0 8px var(--red)';
+    _fail(String(err.message || err));
   } finally {
     _updating = false;
   }
