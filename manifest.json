@@ -2,7 +2,7 @@
   "name": "SupplyBosquegin",
   "short_name": "SupplyBosquegin",
   "description": "Tablero Operativo Supply Chain — Bosque Gin",
-  "start_url": "bosquegin_dashboard.html",
+  "start_url": "SupplyBosquegin.html",
   "scope": "./",
   "id": "supplybosquegin",
   "display": "standalone",

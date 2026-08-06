@@ -1,9 +1,9 @@
 // SupplyBosquegin — cachea la "cáscara" de la app (HTML/manifest/íconos) para
 // que instale como PWA y abra rápido; los datos en vivo (data_*.js) siempre
 // se piden a la red primero y nunca se guardan en caché (deben estar frescos).
-const CACHE = 'supplybosquegin-v2';
+const CACHE = 'supplybosquegin-v3';
 const PRECACHE_URLS = [
-  'bosquegin_dashboard.html',
+  'SupplyBosquegin.html',
   'manifest.json',
   'icons/icon-192.png',
   'icons/icon-512.png',

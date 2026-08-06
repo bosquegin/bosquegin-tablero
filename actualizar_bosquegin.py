@@ -3871,7 +3871,7 @@ def update_stock_cierre_mes():
     """
     Lee Stock_consolidado_por_deposito_y_dia.xlsx (KLOZER+OFI), encuentra el
     último día disponible por mes, suma stock por código y reemplaza el bloque
-    STOCK_CIERRE_MES en bosquegin_dashboard.html.
+    STOCK_CIERRE_MES en SupplyBosquegin.html.
     """
     import re as _re
     try:
@@ -3882,7 +3882,7 @@ def update_stock_cierre_mes():
                         "--break-system-packages", "-q"])
         import openpyxl
 
-    DASHBOARD = os.path.join(BASE, "bosquegin_dashboard.html")
+    DASHBOARD = os.path.join(BASE, "SupplyBosquegin.html")
     if not os.path.exists(DASHBOARD):
         print("  Dashboard HTML no encontrado — omitiendo (modo cloud?)")
         return
@@ -4400,7 +4400,7 @@ def main():
         for cmd in [
             ["git", "add", "data_meta.js", "data_ventas.js", "data_clientes.js",
               "data_stock.js", "data_stock_cierre.js", "data_destileria.js", "data_costos.js", "data_insumos.js",
-              "data_proyeccion.js", "auth_static.js", "bosquegin_dashboard.html"],
+              "data_proyeccion.js", "auth_static.js", "SupplyBosquegin.html"],
             ["git", "commit", "-m", "data: actualizar " + datetime.now(_AR).strftime("%Y-%m-%d %H:%M")],
         ]:
             code, out = _run(cmd)
@@ -4449,7 +4449,7 @@ def _sync_to_drive():
         return   # Drive Desktop no montado — saltar silenciosamente
 
     FILES = [
-        "bosquegin_dashboard.html",
+        "SupplyBosquegin.html",
         "actualizar_bosquegin.py",
         "gc_downloader.py",
         "servidor_render.py",
