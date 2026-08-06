@@ -4667,6 +4667,10 @@ function proyToggleRow(trimestreKey, cod) {
 // actualiza el producto en memoria con los campos derivados ya recalculados
 // (saldo, stock+proyección, meses de stock, comprar, alerta) sin recargar la página.
 function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
+  if (!_isLocal) {
+    alert('Editar la proyección de abastecimiento solo se puede hacer desde el tablero local (http://localhost:7891) — el sitio publicado no tiene dónde guardarlo.');
+    return;
+  }
   const valor = parseFloat(inputEl.value) || 0;
   inputEl.disabled = true;
   fetch('/guardar_proyeccion_abastecimiento', {
@@ -4699,6 +4703,11 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
 // el servidor y se recalculan los campos derivados sin recargar la página.
 function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
   const ingreso = checkboxEl.checked;
+  if (!_isLocal) {
+    checkboxEl.checked = !ingreso;
+    alert('Tildar "ya ingresó" solo se puede hacer desde el tablero local (http://localhost:7891) — el sitio publicado no tiene dónde guardarlo.');
+    return;
+  }
   checkboxEl.disabled = true;
   fetch('/guardar_proyeccion_ingreso', {
     method: 'POST',
