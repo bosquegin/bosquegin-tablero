@@ -3135,16 +3135,18 @@ def _proy_recalcular_derivados(p, meses_keys):
     duplicaría la mercadería. El valor de proyeccion_abastecimiento no se
     borra, sólo se deja de contar en la cuenta corriente del saldo.
 
-    Los meses YA CERRADOS (anteriores al mes en curso) NO se recalculan:
-    su "saldo_stock" es el cierre de stock real (aplicar_venta_real_mes_actual)
-    y no depende de abastecimiento ni venta objetivo, así que tildar
-    "ya ingresó" o corregir el abastecimiento de un mes cerrado sólo queda
-    como dato informativo — no le cambia el saldo a ese mes. Se identifica
-    el mes en curso por ser el único con "proyeccion_mensual" cargada; si
-    todavía no se cargó (llamada temprana del pipeline, antes de
-    aplicar_venta_real_mes_actual) no hay forma de distinguir cerrado de
-    futuro y se cascadea todo desde stock_actual como antes — se vuelve a
-    pisar más adelante en el mismo Actualizar.
+    Los meses YA CERRADOS (anteriores al mes en curso) quedan totalmente
+    afuera de este recálculo — ni su "saldo_stock" (es el cierre de stock
+    real, ver aplicar_venta_real_mes_actual) ni su proyeccion_abastecimiento
+    ni su venta_objetivo se suman a "stock_total"/"total_objetivo_ventas"/
+    "meses_stock"/"comprar" del producto. Tildar "ya ingresó" o corregir el
+    abastecimiento de un mes cerrado queda solo como dato informativo — no
+    cambia ningún número del producto. Se identifica el mes en curso por ser
+    el único con "proyeccion_mensual" cargada; si todavía no se cargó
+    (llamada temprana del pipeline, antes de aplicar_venta_real_mes_actual)
+    no hay forma de distinguir cerrado de futuro y se cascadea todo desde
+    stock_actual como antes — se vuelve a pisar más adelante en el mismo
+    Actualizar.
     """
     # El ancla del saldo SIEMPRE es stock_actual (inventario en vivo, ya
     # actualizado a hoy) — nunca el saldo de un mes cerrado anterior. El mes
@@ -3159,12 +3161,12 @@ def _proy_recalcular_derivados(p, meses_keys):
     proy_total = 0.0
     for mk in meses_keys:
         m = p["mensual"][mk]
+        if mk not in meses_recalc:
+            continue   # mes cerrado: no aporta nada -- ni saldo, ni totales del trimestre
         proy = 0 if m.get("ingreso") else (m.get("proyeccion_abastecimiento") or 0)
         vobj = m.get("venta_objetivo") or 0
         total_obj += vobj
         proy_total += proy
-        if mk not in meses_recalc:
-            continue   # mes cerrado: no tocar su saldo_stock (cierre real)
         if m.get("proyeccion_mensual") is not None:      # mes en curso
             salida = m["proyeccion_mensual"]
         else:                                            # meses futuros
