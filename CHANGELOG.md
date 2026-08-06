@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.29 — 2026-08-06
+
+- **feat:** editar la proyección de abastecimiento y tildar "ya ingresó" en Proyección Producción ahora funciona también en el **sitio publicado** (antes solo en el tablero local). El Cloudflare Worker suma dos endpoints (`/guardar_proyeccion_abastecimiento`, `/guardar_proyeccion_ingreso`) que leen y escriben directo en GitHub via Contents API, con el mismo cálculo de `actualizar_bosquegin.py` portado a JS — mismo resultado en los dos lugares, verificado con una prueba real de punta a punta (ida y vuelta sobre un mes cerrado, sin tocar ningún número).
+- **operativo:** el token de GitHub del Worker (`GH_TOKEN`) tenía permiso "Contents: Read-only" — alcanzaba para disparar Actualizar, pero no para guardar ediciones. Se subió a "Read and write".
+- **fix:** `stock_total`/`total_objetivo_ventas`/`meses_stock` de un producto podían mostrar un valor distinto según si lo había tocado por última vez el Actualizar (sumaba TODOS los meses del trimestre, incluidos los cerrados) o una edición manual (excluye los cerrados, correcto) — detectado comparando el resultado real de la nueva función contra el del Actualizar. Ahora los dos caminos calculan igual.
+
+---
+
 ## v3.28 — 2026-08-06
 
 - **fix:** los cargos de servicio de Contabilium (ej. "ROYALTIES julio", `Codigo "000"`, `Tipo "S"`) se procesaban igual que un producto y aparecían como fila fantasma "código 0 / SIN RUBRO" en Salidas. Ahora solo se cuentan ítems con `Tipo "P"` (producto) — confirmado contra la API real que todo producto físico viene con `Tipo "P"`.
