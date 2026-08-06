@@ -1197,6 +1197,12 @@ def update_salidas_consolidado():
             rs = str(c.get("RazonSocial", "")).strip().upper() if c.get("RazonSocial") not in (None, "", "nan", "None") else ""
             fantasia = rs if rs else "SIN CLIENTE"
             for item in (det.get("Items") or []):
+                # "Tipo" distingue producto (P) de servicio (S) -- cargos como
+                # "ROYALTIES julio" vienen con Codigo "000" y Tipo "S", y no
+                # son mercadería saliendo de stock (bug real detectado
+                # 2026-08-06: aparecían como código "0" / SIN RUBRO en Salidas).
+                if str(item.get("Tipo", "")).strip().upper() != "P":
+                    continue
                 cod_raw = item.get("Codigo")
                 if cod_raw is None: continue
                 try: cod = str(int(float(str(cod_raw).strip())))
