@@ -7007,7 +7007,10 @@ async function runUpdate() {
   try {
     const res = await fetch(UPDATE_URL, {credentials: 'same-origin'});
     if (_auth401(res)) return;
-    if (!res.ok && res.status !== 200) throw new Error('HTTP ' + res.status);
+    if (!res.ok && res.status !== 200) {
+      const msg = await res.text().catch(() => '');
+      throw new Error(msg.trim() || ('HTTP ' + res.status));
+    }
     const reader  = res.body.getReader();
     const decoder = new TextDecoder();
     const read = () => reader.read().then(({done, value}) => {

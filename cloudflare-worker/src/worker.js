@@ -119,15 +119,35 @@ async function handleActualizar(request, env, origin) {
   }
 
   const data = await getRuns(env, { per_page: "5" });
-  const running = (data.workflow_runs || []).some((r) =>
-    ["queued", "in_progress"].includes(r.status)
-  );
+  const runs = data.workflow_runs || [];
+  const running = runs.some((r) => ["queued", "in_progress"].includes(r.status));
   if (running) {
     return json(
       { ok: false, error: "Ya hay una actualización en curso" },
       429,
       origin
     );
+  }
+
+  // Límite de 1 corrida por hora: cada Actualizar hace ~200 llamadas a la
+  // API de Contabilium (stock por depósito + detalle de cada comprobante) y
+  // dos corridas seguidas alcanzan para que Contabilium devuelva 429 y la
+  // corrida quede a medias (ver incidente 2026-08-06).
+  const COOLDOWN_MS = 60 * 60 * 1000;
+  const lastRun = runs[0];
+  if (lastRun) {
+    const elapsedMs = Date.now() - new Date(lastRun.created_at).getTime();
+    if (elapsedMs < COOLDOWN_MS) {
+      const restanteMin = Math.ceil((COOLDOWN_MS - elapsedMs) / 60000);
+      return json(
+        {
+          ok: false,
+          error: `Actualizar tiene un límite de una vez por hora (para no saturar la API de Contabilium) — probá de nuevo en ${restanteMin} min.`,
+        },
+        429,
+        origin
+      );
+    }
   }
 
   const dispatchedAt = Date.now();
