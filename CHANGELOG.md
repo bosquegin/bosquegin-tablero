@@ -12,6 +12,13 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.27 — 2026-08-06
+
+- **fix:** el mensaje de error largo del límite de 1 hora (con los minutos restantes) se mostraba cortado con "…" — el modal lo ponía en una línea de una sola fila (`text-overflow:ellipsis`) en vez del cuadro de error dedicado, que sí envuelve el texto completo. Se unificó también el manejo de excepciones inesperadas del flujo cloud, que tenía el mismo problema duplicado.
+- **fix:** el cooldown de 1 hora del servidor local vivía solo en memoria — reiniciar el servidor lo reseteaba, justo lo que pasó hoy al reiniciar para aplicar el fix anterior. Ahora se persiste en disco (`Data/_ultima_actualizacion_local.txt`, no trackeado) y sobrevive a un reinicio. Se sembró con la hora de la última corrida real para que quede protegido también contra la corrida en la nube de hoy (local y nube no comparten el cooldown automáticamente, cada uno cuenta el suyo).
+
+---
+
 ## v3.26 — 2026-08-06
 
 - **feat:** límite de **1 corrida de Actualizar por hora**, sin importar quién lo dispare — para no volver a saturar la API de Contabilium (dos corridas seguidas alcanzan para gatillar el 429 del incidente de hoy). Implementado en el Cloudflare Worker (rechaza con 429 y minutos restantes) y en `servidor_bosquegin.py` (mismo límite para el Actualizar local).
