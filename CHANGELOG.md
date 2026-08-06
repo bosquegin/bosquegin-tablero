@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.25 — 2026-08-06
+
+- **fix:** tildar/destildar "ya ingresó" o corregir el abastecimiento de un mes **cerrado** todavía cambiaba `stock_total`, `total_objetivo_ventas`, `meses_stock` y `comprar` del producto (el fix anterior solo protegía `saldo_stock`). Ahora un mes cerrado no aporta nada a esos totales — tildarlo queda 100% informativo. Verificado con prueba aislada.
+- **feat:** el checkbox de "ya ingresó" en Proyección Producción solo se mostraba para el mes en curso — en un mes ya cerrado no había forma de tildarlo desde el tablero. Ahora se muestra también ahí (con un tooltip distinto aclarando que es solo informativo).
+- **operativo:** la API de Contabilium devolvió `429 Too Many Requests` dos veces en el día (primero por varias corridas seguidas de verificación, después por dos corridas separadas por ~5 minutos) — cada corrida completa hace ~200 llamadas a la API (stock por depósito + detalle de cada comprobante), así que dos corridas muy seguidas alcanzan para gatillar el límite. Cuando pasa, `Salidas` vuelve a cortar en `CONTABILIUM_CUTOVER` (2026-06-29) para esa corrida. No hay límite documentado públicamente por Contabilium. Mientras tanto se restauró `data_proyeccion.js` (local y publicado) al último estado bueno conocido, sin volver a llamar a la API.
+
+---
+
 ## v3.24 — 2026-08-06
 
 - **cambio de cálculo (intencional):** el saldo de stock del mes en curso en Proyección Producción ahora resta la `proyección_mensual` completa (antes solo `proyección_mensual − venta_actual`) — más conservador temprano en el mes, cuando la proyección lineal todavía tiene poca muestra. Aplicado en `aplicar_venta_real_mes_actual` (el cálculo del Actualizar).
