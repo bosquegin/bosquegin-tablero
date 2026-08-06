@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.30 — 2026-08-06
+
+- **fix:** el número de "Proyección abastecimiento" solo se tachaba después de que volviera la respuesta del servidor (varias llamadas a la API de GitHub vía el Worker) — se sentía como que no tachaba solo. Ahora se tacha/destacha al toque, apenas se clickea el checkbox, y se revierte si el guardado falla.
+- **operativo:** nueva evidencia sobre el límite de Contabilium — una corrida a las 20:10 (5 horas después de la anterior, muy por fuera del cooldown de 1 hora) también devolvió 429. Esto sugiere que el límite real puede ser un **tope diario** (probablemente gastado hoy a fuerza de tanto probar en el día), no solo "no correr dos veces seguidas". Una corrida posterior a las 23:21 sí funcionó bien. A seguir de cerca — si se repite, el cooldown va a necesitar ajustarse a un límite diario además del de 1 hora.
+- Se restauraron los datos publicados al último estado bueno tras el 429 de las 20:10, y se les reaplicó el fix de consistencia de totales (v3.29) para no perder ese arreglo en la restauración manual.
+
+---
+
 ## v3.29 — 2026-08-06
 
 - **feat:** editar la proyección de abastecimiento y tildar "ya ingresó" en Proyección Producción ahora funciona también en el **sitio publicado** (antes solo en el tablero local). El Cloudflare Worker suma dos endpoints (`/guardar_proyeccion_abastecimiento`, `/guardar_proyeccion_ingreso`) que leen y escriben directo en GitHub via Contents API, con el mismo cálculo de `actualizar_bosquegin.py` portado a JS — mismo resultado en los dos lugares, verificado con una prueba real de punta a punta (ida y vuelta sobre un mes cerrado, sin tocar ningún número).
