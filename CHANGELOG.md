@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.24 — 2026-08-06
+
+- **cambio de cálculo (intencional):** el saldo de stock del mes en curso en Proyección Producción ahora resta la `proyección_mensual` completa (antes solo `proyección_mensual − venta_actual`) — más conservador temprano en el mes, cuando la proyección lineal todavía tiene poca muestra. Aplicado en `aplicar_venta_real_mes_actual` (el cálculo del Actualizar).
+- **fix:** ese mismo cambio de fórmula también se aplicó a `_proy_recalcular_derivados`, la función que recalcula el saldo al editar el abastecimiento o tildar "ya ingresó" a mano desde el tablero — para que quede consistente con lo que calcula el Actualizar.
+- **fix:** tildar "ya ingresó" (o corregir el abastecimiento) de **cualquier** mes de un producto recalculaba en cascada **todos** los meses del trimestre, incluidos los ya cerrados — pisando el saldo real de stock de un mes pasado (ej. julio) con la fórmula genérica de mes futuro. Ahora los meses cerrados quedan excluidos de esa cascada: su saldo de stock quedó congelado en el cierre real, y tildar "ya ingresó" en un mes cerrado queda solo como dato informativo, sin cambiarle el saldo.
+
+---
+
 ## v3.23 — 2026-08-06
 
 - **infra:** el servidor Flask en Render (free tier) se reemplaza por **Cloudflare Worker + GitHub Actions** para el botón Actualizar — se dormía y no reaccionaba a tiempo. El Worker valida el `cloud_token` y dispara `workflow_dispatch`; `actualizar_cloud.py` corre como job de GitHub Actions (sin servidor siempre encendido, sin cold-start). Probado de punta a punta: corrida real completada en 3m29s.
