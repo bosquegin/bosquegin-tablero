@@ -242,6 +242,7 @@ def push_file_to_github(repo_path, content, token, message):
 # tmpdir sin git (no puede usar el git add/commit/push normal del flujo local).
 SECTION_FILES = [
     "data_meta.js", "data_ventas.js", "data_clientes.js", "data_stock.js",
+    "data_stock_cierre.js",
     "data_destileria.js", "data_costos.js", "data_insumos.js", "data_proyeccion.js",
 ]
 
