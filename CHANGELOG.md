@@ -8,6 +8,12 @@ Historial de cambios del Tablero Operativo, reconstruido desde `git log` y mante
 
 ## [Sin versionar]
 
+_(sin cambios pendientes de versión todavía)_
+
+---
+
+## v3.23 — 2026-08-06
+
 - **infra:** el servidor Flask en Render (free tier) se reemplaza por **Cloudflare Worker + GitHub Actions** para el botón Actualizar — se dormía y no reaccionaba a tiempo. El Worker valida el `cloud_token` y dispara `workflow_dispatch`; `actualizar_cloud.py` corre como job de GitHub Actions (sin servidor siempre encendido, sin cold-start). Probado de punta a punta: corrida real completada en 3m29s.
 - Se cargan los secretos de Contabilium, Google OAuth y `DRIVE_ROOT_FOLDER_ID` en GitHub Actions.
 - Se desactiva el workflow "Keep Render awake" (ya sin uso).
@@ -22,6 +28,10 @@ Historial de cambios del Tablero Operativo, reconstruido desde `git log` y mante
   - `OLD/windows-startup/`: `SupplyChain_Servidor.vbs`, que estaba en la carpeta de Inicio de Windows intentando levantar un proyecto "Supply Chain" que ya no existe (se fusionó a este tablero como la pestaña Compras en v2.12) — fallaba en silencio en cada arranque. También `iniciar_servidores.vbs`, un borrador viejo del lanzador ya superado por `iniciar_tablero_silencioso.vbs`.
 - `Lib/site-packages` (155MB, dependencias de Python) sale de git tracking pero **queda en disco** — la usa directo el Python embebido (`python311._pth`), no era basura.
 - `requirements.txt`: se sacan `flask`, `flask-cors`, `gunicorn` (solo las usaba `servidor_render.py`).
+- **fix:** `index.html`, `manifest.json`, `service-worker.js` y `_redirects` quedaron sin pushear tras el rename a `SupplyBosquegin.html`, y el sitio publicado devolvía 404 (seguían apuntando a `bosquegin_dashboard.html`). Detectado y corregido el mismo día.
+- **fix crítico:** `contabilium_api.py` tenía la ruta a la carpeta del proyecto hardcodeada a Windows (`C:\Users\...`). En GitHub Actions (runner Linux) esa ruta no existe, así que la autenticación con la API de Contabilium fallaba en silencio en **todas** las corridas en la nube desde que salió v3.22 — sin que se viera como error visible, `Salidas` se quedaba pegada en 2026-06-29 (el `CONTABILIUM_CUTOVER`) porque la única fuente de datos para julio/agosto en adelante es Contabilium. Se cambia `BASE` a una ruta relativa al propio script (`os.path.dirname(os.path.abspath(__file__))`), igual que ya hacía `actualizar_bosquegin.py` para el caso no-Windows. Verificado con una corrida real: pasó de 0 a 536 filas de Contabilium, julio y agosto ya aparecen en `Salidas`.
+- **fix crítico:** `update_stock_cierre_mes()` (Proyección Producción → saldo de stock de meses cerrados) nunca corría en la nube — usaba la existencia de `SupplyBosquegin.html` como proxy de "modo local", pero en la nube `BASE` es un directorio temporal vacío que nunca tiene ese archivo. La función se cancelaba en silencio en cada corrida cloud y `data_stock_cierre.js` nunca se generaba ahí; sin ese dato, el saldo de stock de un mes ya cerrado (ej. julio) se seguía calculando como si fuera un mes futuro (stock actual − venta objetivo), dando saldos totalmente incorrectos (ej. código 100001: -576 en vez de 2944, el cierre real). Se saca la guarda vieja (no hacía falta para nada más en la función) y se agrega `data_stock_cierre.js` a `SECTION_FILES` de `actualizar_cloud.py` para que también se suba a GitHub desde la nube (antes solo lo pusheaba el flujo local). Verificado con una corrida real.
+- **cambio de cálculo (intencional):** el saldo de stock del **mes en curso** en Proyección Producción restaba solo lo que falta vender (`proyección_mensual − venta_actual`) para no descontar dos veces la venta ya reflejada en el stock en vivo. Se cambia a restar la `proyección_mensual` completa a propósito — el saldo queda más conservador (más bajo) temprano en el mes, cuando la proyección lineal (venta real ÷ día del mes × días totales) todavía es poco confiable con pocos días de muestra. Aplicado tanto en el cálculo del Actualizar (`aplicar_venta_real_mes_actual`) como en el que se dispara al editar abastecimiento o tildar "ya ingresó" a mano desde el tablero (`_proy_recalcular_derivados`), para que no queden inconsistentes entre sí.
 
 ---
 
