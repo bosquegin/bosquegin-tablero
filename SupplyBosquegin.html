@@ -4719,12 +4719,24 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
 // ingreso ya está reflejado en el stock en vivo, sumarlo de nuevo lo
 // duplicaría). Mismo patrón que proyGuardarAbastecimiento — se persiste en
 // el servidor y se recalculan los campos derivados sin recargar la página.
+// Tacha/destacha el campo numérico de "Proyección abastecimiento" de al
+// lado del checkbox, al toque (sin esperar la respuesta del servidor) —
+// mismo estilo que usa mesBloque() al renderizar.
+function _proyTacharAbastecimiento(trimestreKey, cod, mk, tachado) {
+  const abastEl = document.querySelector('[data-proy-abast="' + trimestreKey + '__' + cod + '__' + mk + '"]');
+  if (!abastEl) return;
+  abastEl.style.textDecoration = tachado ? 'line-through' : 'none';
+  abastEl.style.color = tachado ? 'var(--muted)' : 'var(--text)';
+}
+
 function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
   const ingreso = checkboxEl.checked;
+  _proyTacharAbastecimiento(trimestreKey, cod, mk, ingreso);   // feedback inmediato
   const dest = _proyGuardarDestino('/guardar_proyeccion_ingreso',
     { trimestre: trimestreKey, cod: cod, mes: mk, ingreso: ingreso });
   if (!dest) {
     checkboxEl.checked = !ingreso;
+    _proyTacharAbastecimiento(trimestreKey, cod, mk, !ingreso);
     alert('No se pudo guardar: sesión no disponible — recargá la página e ingresá de nuevo.');
     return;
   }
@@ -4737,7 +4749,13 @@ function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
   })
     .then(function (r) { if (_isLocal && _auth401(r)) throw new Error('auth'); return r.json(); })
     .then(function (d) {
-      if (!d.ok) { checkboxEl.disabled = false; checkboxEl.checked = !ingreso; alert('No se pudo guardar: ' + (d.error || 'error desconocido')); return; }
+      if (!d.ok) {
+        checkboxEl.disabled = false;
+        checkboxEl.checked = !ingreso;
+        _proyTacharAbastecimiento(trimestreKey, cod, mk, !ingreso);
+        alert('No se pudo guardar: ' + (d.error || 'error desconocido'));
+        return;
+      }
       const T = window.BOSQUE_DATA.proyeccion.trimestres[trimestreKey];
       if (T && d.producto) {
         const idx = T.productos.findIndex(function (p) { return String(p.cod) === String(cod); });
@@ -4748,6 +4766,7 @@ function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
     .catch(function (e) {
       checkboxEl.disabled = false;
       checkboxEl.checked = !ingreso;
+      _proyTacharAbastecimiento(trimestreKey, cod, mk, !ingreso);
       if (e.message !== 'auth') alert('No se pudo guardar: ' + e.message);
     });
 }
