@@ -4666,20 +4666,38 @@ function proyToggleRow(trimestreKey, cod) {
 // en el servidor (persiste entre corridas del pipeline) y, si responde OK, se
 // actualiza el producto en memoria con los campos derivados ya recalculados
 // (saldo, stock+proyección, meses de stock, comprar, alerta) sin recargar la página.
-function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
-  if (!_isLocal) {
-    alert('Editar la proyección de abastecimiento solo se puede hacer desde el tablero local (http://localhost:7891) — el sitio publicado no tiene dónde guardarlo.');
-    return;
+// Arma la URL y el cuerpo del pedido según dónde estemos corriendo: local
+// (mismo origen, sesión por cookie) o publicado (Cloudflare Worker, sesión
+// por cloud_token en localStorage — mismo patrón que _runCloudUpdate).
+// Devuelve null si estamos en modo publicado pero no hay sesión disponible.
+function _proyGuardarDestino(pathName, extra) {
+  if (_isLocal) {
+    return { url: pathName, body: extra, credentials: 'same-origin' };
   }
+  const serverUrl = (window.BG_CLOUD_URL || '').trim();
+  let sess = null;
+  try { sess = JSON.parse(localStorage.getItem('_bg_sess')); } catch (e) {}
+  if (!serverUrl || !sess || !sess.cloud_token) return null;
+  return {
+    url: serverUrl + pathName,
+    body: Object.assign({ username: sess.username, cloud_token: sess.cloud_token }, extra),
+    credentials: 'omit',
+  };
+}
+
+function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
   const valor = parseFloat(inputEl.value) || 0;
+  const dest = _proyGuardarDestino('/guardar_proyeccion_abastecimiento',
+    { trimestre: trimestreKey, cod: cod, mes: mk, valor: valor });
+  if (!dest) { alert('No se pudo guardar: sesión no disponible — recargá la página e ingresá de nuevo.'); return; }
   inputEl.disabled = true;
-  fetch('/guardar_proyeccion_abastecimiento', {
+  fetch(dest.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ trimestre: trimestreKey, cod: cod, mes: mk, valor: valor })
+    credentials: dest.credentials,
+    body: JSON.stringify(dest.body)
   })
-    .then(function (r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function (r) { if (_isLocal && _auth401(r)) throw new Error('auth'); return r.json(); })
     .then(function (d) {
       inputEl.disabled = false;
       if (!d.ok) { alert('No se pudo guardar: ' + (d.error || 'error desconocido')); return; }
@@ -4703,19 +4721,21 @@ function proyGuardarAbastecimiento(trimestreKey, cod, mk, inputEl) {
 // el servidor y se recalculan los campos derivados sin recargar la página.
 function proyGuardarIngreso(trimestreKey, cod, mk, checkboxEl) {
   const ingreso = checkboxEl.checked;
-  if (!_isLocal) {
+  const dest = _proyGuardarDestino('/guardar_proyeccion_ingreso',
+    { trimestre: trimestreKey, cod: cod, mes: mk, ingreso: ingreso });
+  if (!dest) {
     checkboxEl.checked = !ingreso;
-    alert('Tildar "ya ingresó" solo se puede hacer desde el tablero local (http://localhost:7891) — el sitio publicado no tiene dónde guardarlo.');
+    alert('No se pudo guardar: sesión no disponible — recargá la página e ingresá de nuevo.');
     return;
   }
   checkboxEl.disabled = true;
-  fetch('/guardar_proyeccion_ingreso', {
+  fetch(dest.url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    credentials: 'same-origin',
-    body: JSON.stringify({ trimestre: trimestreKey, cod: cod, mes: mk, ingreso: ingreso })
+    credentials: dest.credentials,
+    body: JSON.stringify(dest.body)
   })
-    .then(function (r) { if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function (r) { if (_isLocal && _auth401(r)) throw new Error('auth'); return r.json(); })
     .then(function (d) {
       if (!d.ok) { checkboxEl.disabled = false; checkboxEl.checked = !ingreso; alert('No se pudo guardar: ' + (d.error || 'error desconocido')); return; }
       const T = window.BOSQUE_DATA.proyeccion.trimestres[trimestreKey];
