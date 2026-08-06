@@ -3134,22 +3134,43 @@ def _proy_recalcular_derivados(p, meses_keys):
     stock_actual (el inventario en vivo), así que sumarlo de nuevo
     duplicaría la mercadería. El valor de proyeccion_abastecimiento no se
     borra, sólo se deja de contar en la cuenta corriente del saldo.
+
+    Los meses YA CERRADOS (anteriores al mes en curso) NO se recalculan:
+    su "saldo_stock" es el cierre de stock real (aplicar_venta_real_mes_actual)
+    y no depende de abastecimiento ni venta objetivo, así que tildar
+    "ya ingresó" o corregir el abastecimiento de un mes cerrado sólo queda
+    como dato informativo — no le cambia el saldo a ese mes. Se identifica
+    el mes en curso por ser el único con "proyeccion_mensual" cargada; si
+    todavía no se cargó (llamada temprana del pipeline, antes de
+    aplicar_venta_real_mes_actual) no hay forma de distinguir cerrado de
+    futuro y se cascadea todo desde stock_actual como antes — se vuelve a
+    pisar más adelante en el mismo Actualizar.
     """
+    # El ancla del saldo SIEMPRE es stock_actual (inventario en vivo, ya
+    # actualizado a hoy) — nunca el saldo de un mes cerrado anterior. El mes
+    # en curso arranca de ahí igual que aplicar_venta_real_mes_actual; los
+    # meses cerrados sólo se excluyen de la cascada (no aportan ni se leen).
+    idx_actual = next((i for i, mk in enumerate(meses_keys)
+                        if p["mensual"][mk].get("proyeccion_mensual") is not None), None)
     saldo_prev = p["stock_actual"]
+    meses_recalc = set(meses_keys[idx_actual:]) if idx_actual is not None else set(meses_keys)
+
     total_obj = 0.0
     proy_total = 0.0
     for mk in meses_keys:
         m = p["mensual"][mk]
         proy = 0 if m.get("ingreso") else (m.get("proyeccion_abastecimiento") or 0)
         vobj = m.get("venta_objetivo") or 0
+        total_obj += vobj
+        proy_total += proy
+        if mk not in meses_recalc:
+            continue   # mes cerrado: no tocar su saldo_stock (cierre real)
         if m.get("proyeccion_mensual") is not None:      # mes en curso
             salida = m["proyeccion_mensual"]
         else:                                            # meses futuros
             salida = vobj
         saldo_prev = saldo_prev + proy - salida
         m["saldo_stock"] = saldo_prev
-        total_obj += vobj
-        proy_total += proy
 
     p["stock_total"] = p["stock_actual"] + proy_total
     p["total_objetivo_ventas"] = total_obj
