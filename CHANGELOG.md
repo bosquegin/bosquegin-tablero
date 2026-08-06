@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.28 — 2026-08-06
+
+- **fix:** los cargos de servicio de Contabilium (ej. "ROYALTIES julio", `Codigo "000"`, `Tipo "S"`) se procesaban igual que un producto y aparecían como fila fantasma "código 0 / SIN RUBRO" en Salidas. Ahora solo se cuentan ítems con `Tipo "P"` (producto) — confirmado contra la API real que todo producto físico viene con `Tipo "P"`.
+- **fix:** tildar "ya ingresó" o editar la proyección de abastecimiento en el **sitio publicado** (`bosquegin.github.io`, sin backend) tiraba un error críptico ("Unexpected token '<'... is not valid JSON") — esas funciones solo pueden guardar en el servidor local. Ahora avisan claro que hay que usar el tablero local en vez de intentar guardar donde no hay dónde.
+- **verificado:** el reporte de "Actualizar no actualiza" / Salidas sin julio-agosto / checkbox no visible correspondía a una corrida anterior — la corrida de las 12:03 (ART) terminó bien (sin 429, 539 filas de Contabilium) y los datos publicados ya estaban correctos al momento de revisar (`generado: 2026-08-06T12:08:42-03:00`). El Service Worker de la PWA ya tenía manejo robusto de actualización (chequeo al abrir + cada 15 min + reload automático al detectar versión nueva, de v3.20/v3.21) — no se encontró una falla de fondo ahí.
+
+---
+
 ## v3.27 — 2026-08-06
 
 - **fix:** el mensaje de error largo del límite de 1 hora (con los minutos restantes) se mostraba cortado con "…" — el modal lo ponía en una línea de una sola fila (`text-overflow:ellipsis`) en vez del cuadro de error dedicado, que sí envuelve el texto completo. Se unificó también el manejo de excepciones inesperadas del flujo cloud, que tenía el mismo problema duplicado.
