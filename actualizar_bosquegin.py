@@ -3378,6 +3378,25 @@ def aplicar_venta_real_mes_actual(trimestres, monthly_raw):
         p["alerta"] = "COMPRAR" if p["comprar"] > 0 else ""
         p["cantidad_pallets"] = round(p["comprar"] / p["pallet"], 1) if p.get("pallet") else 0.0
 
+        # stock_total/total_objetivo_ventas/meses_stock: mismo criterio que
+        # _proy_recalcular_derivados — solo suman meses en curso/futuros, los
+        # cerrados no aportan nada. Sin este recálculo acá, estos 3 campos
+        # quedaban con el valor de la pasada temprana de
+        # aplicar_override_trimestre_actual (antes de saber cuál es el mes en
+        # curso, así que ahí sí sumaba TODOS los meses incluidos los
+        # cerrados) — inconsistente con lo que muestra una edición manual
+        # posterior desde el tablero (bug real detectado 2026-08-06: el
+        # mismo producto mostraba un total objetivo distinto según si lo
+        # había tocado el Actualizar o una edición manual).
+        total_obj = sum(p["mensual"][mk].get("venta_objetivo") or 0 for mk in meses_keys[idx_actual:])
+        proy_total = sum(
+            0 if p["mensual"][mk].get("ingreso") else (p["mensual"][mk].get("proyeccion_abastecimiento") or 0)
+            for mk in meses_keys[idx_actual:]
+        )
+        p["stock_total"] = p["stock_actual"] + proy_total
+        p["total_objetivo_ventas"] = total_obj
+        p["meses_stock"] = (p["stock_total"] / (total_obj / 3)) if total_obj > 0 else 0.0
+
         n_actualizados += 1
 
     print(f"  Proyección {trimestre_actual}: venta real del mes en curso aplicada a {n_actualizados} producto(s)")
