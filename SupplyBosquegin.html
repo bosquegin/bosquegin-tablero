@@ -7204,10 +7204,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   <div style="margin-bottom:14px">
     <div class="table-title" style="font-size:15px">🏭 Costo Producción Bosque · Feriado · Temple</div>
-    <div class="chart-subtitle" style="margin-top:2px">Fuente: Hoja "RESUMEN PRODUCTOS X DESTILERIA" · Costo Destilería + Costo Cervecería por producto y período</div>
   </div>
 
-  <div class="filter-bar" style="margin-bottom:16px">
+  <div class="filter-bar" style="margin-bottom:16px;position:static">
     <span class="filter-label">Producto:</span>
     <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
   </div>
@@ -7236,7 +7235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
   </div>
 
-  <div class="filter-bar" style="margin-bottom:16px;top:20px">
+  <div class="filter-bar" style="margin-bottom:16px;position:static">
     <span class="filter-label">Producto:</span>
     <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
   </div>
