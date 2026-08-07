@@ -12,6 +12,15 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.32 — 2026-08-06
+
+- **fix crítico:** Salidas y Proyección Producción volvieron a mostrar solo hasta junio, sin julio ni agosto. Causa raíz confirmada en el log real de la corrida cloud: Contabilium devolvió `429 Too Many Requests` desde la primerísima llamada del run (probablemente el cupo del día ya gastado por varias corridas de prueba hoy), y el pipeline — aunque detectó y logueó el error (`❌ Consolidado salidas — desactualizado`) — igual publicó el consolidado viejo sin avisar nada visible en el tablero. Se restauraron los datos publicados con la corrida local (que sí tenía julio y agosto al día) mientras se aplican las mejoras de fondo.
+- **feat:** nuevo banner rojo, visible en cualquier pestaña del tablero (no solo en el resumen), que se activa automáticamente cuando `ventas_hasta` queda 2+ meses detrás de la fecha real — algo que el punto verde de "actualizado hoy" nunca detectaba, porque ese punto solo mira cuándo corrió el Actualizar, no si Contabilium realmente trajo datos nuevos. Objetivo: que nunca más se tome una decisión con Salidas desactualizado sin saberlo.
+- **fix:** `contabilium_api.py` reintenta automáticamente con espera creciente (10s/30s/60s) ante un `429`, en vez de rendirse en el primer intento — cubre el caso (ya confirmado antes, ver v3.30) de que el límite de Contabilium a veces es una ráfaga corta que se libera sola en minutos.
+- **operativo:** la evidencia de hoy (429 incluso con más de 1h48m desde la corrida anterior, y fallando desde la primerísima llamada del run) apunta más fuerte a un tope **diario** de Contabilium, agotado por las varias corridas de prueba de hoy — no algo que un cooldown por hora pueda evitar. Pendiente: consultarle a Contabilium cuál es el límite real de su API para dimensionar esto con precisión en vez de a ciegas.
+
+---
+
 ## v3.31 — 2026-08-06
 
 - **fix:** en la hoja "Costo Producción → Cervezas/Temple" solo aparecía el mes actual, sin historial. Causa raíz: la corrida cloud arma su directorio de trabajo bajando archivos de Google Drive (no hace `git checkout`), y esa descarga no trae la subcarpeta de caché `Data/Costos y PVP/cervezas_meses/` (Drive no la espeja y la descarga tampoco recorre subcarpetas). Sumado a que la nube no tiene acceso a CDP/Chrome local para descubrir y leer las hojas mensuales en vivo, cada corrida cloud arrancaba con el caché vacío y todos los meses históricos fallaban — solo quedaba el mes actual, vía un fallback aparte. Ahora `actualizar_cloud.py` descarga ese caché ya commiteado desde GitHub antes de correr el pipeline, así los meses históricos se leen del caché igual que en una corrida local.
