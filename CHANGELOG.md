@@ -12,6 +12,13 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.31 — 2026-08-06
+
+- **fix:** en la hoja "Costo Producción → Cervezas/Temple" solo aparecía el mes actual, sin historial. Causa raíz: la corrida cloud arma su directorio de trabajo bajando archivos de Google Drive (no hace `git checkout`), y esa descarga no trae la subcarpeta de caché `Data/Costos y PVP/cervezas_meses/` (Drive no la espeja y la descarga tampoco recorre subcarpetas). Sumado a que la nube no tiene acceso a CDP/Chrome local para descubrir y leer las hojas mensuales en vivo, cada corrida cloud arrancaba con el caché vacío y todos los meses históricos fallaban — solo quedaba el mes actual, vía un fallback aparte. Ahora `actualizar_cloud.py` descarga ese caché ya commiteado desde GitHub antes de correr el pipeline, así los meses históricos se leen del caché igual que en una corrida local.
+- **fix:** quedaron sin versionar dos cambios ya subidos en la sección "Costo Producción": se sacó una leyenda de fuente que quedaba pegada entre el encabezado y el selector de producto, se corrigió que los dos filtros quedaran "pegoteados" y se duplicaran visualmente al hacer scroll (tenían `position:sticky` heredado de una clase global, ahora `static` en esta sección), y se separó el cuadro combinado Bosque+Feriado+Temple en 3 pestañas independientes (Gin / Vermú / Cerveza) para que cada línea tenga su propia vista, sin mezclar productos de rubros distintos en el mismo selector.
+
+---
+
 ## v3.30 — 2026-08-06
 
 - **fix:** el número de "Proyección abastecimiento" solo se tachaba después de que volviera la respuesta del servidor (varias llamadas a la API de GitHub vía el Worker) — se sentía como que no tachaba solo. Ahora se tacha/destacha al toque, apenas se clickea el checkbox, y se revierte si el guardado falla.
