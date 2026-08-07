@@ -12,6 +12,15 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.38 — 2026-08-07
+
+- **feat:** "Administración" (gestión de usuarios) ahora funciona también en el sitio publicado, no solo en local. El Cloudflare Worker suma `/admin_users` (listar/crear/editar/borrar), con hashing PBKDF2-SHA256/100.000 idéntico al del servidor local y al del login del sitio publicado, leyendo y escribiendo `auth_static.js` directo en GitHub (mismo archivo del que ya se validan las sesiones).
+- **operativo:** `auth_static.js` (local) y `auth_static.js` en GitHub (publicado) son dos "fuentes de verdad" separadas para el lado cloud — no se sincronizan solas entre ediciones. Si se edita un usuario desde el tablero local y desde el publicado sin correr Actualizar entre medio, el último guardado pisa al otro (mismo comportamiento que ya tenían los demás edits publicados de este tablero).
+- **seguridad — a tener en cuenta:** `auth_static.js` (necesario para que el login funcione sin backend en el sitio estático) contiene el hash+salt de la contraseña de cada usuario y su `cloud_token`, y el repositorio es público — cualquiera puede descargarlo. No es nuevo de esta versión, ya era así antes, pero vale la pena que se sepa: un `cloud_token` filtrado permite guardar cambios (Actualizar, Proyección, usuarios) sin conocer la contraseña, y los hashes son atacables offline si la contraseña es débil. No se tocó este diseño en esta versión — se avisa para decidir si conviene revisarlo (repo privado, o mover la verificación a un lugar no público).
+- **pendiente:** falta pegar el `worker.js` actualizado en el dashboard de Cloudflare para que esto quede activo en el sitio publicado (paso manual, sin auto-deploy).
+
+---
+
 ## v3.37 — 2026-08-07
 
 - **feat:** en Proyección Producción, al desplegar un trimestre ahora aparece una explicación en criollo de los 7 indicadores del encabezado (En alerta, A comprar, Cumplim. objetivo, Forecast Accuracy/Bias/MAPE). Para el trimestre EN CURSO suma una advertencia: los tres indicadores de forecast comparan el objetivo del mes completo contra lo vendido en lo que va del mes, así que a principios de mes se ven mucho peor de lo que realmente son (se corrigen solos con el correr del mes) — evita que se lean como una alarma real cuando es solo un efecto de comparar un mes a medio transcurrir.
