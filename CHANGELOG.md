@@ -12,6 +12,18 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.39 — 2026-08-07
+
+- **feat:** nueva hoja **Control Inventario** — compara stock de KLOZER entre Contabilium (API) y la página propia de Klozer (klozer.co), por código de producto, ordenado por diferencia. Tiene su propio botón "Actualizar Klozer" (no corre con el Actualizar general), columnas de Contabilium/Klozer/Diferencia/% Diferencia, observaciones editables, checkbox de "ajustado", botón "Guardar cambios" e informe de la corrida. Klozer no tiene API — se lee la página vía CDP sobre una pestaña ya logueada en el Brave local (mismo mecanismo que ya usa cervezas), así que **solo funciona en el tablero local**; el sitio publicado muestra la última comparación guardada de solo lectura.
+- **fix crítico (mientras se probaba):** el servidor local (`servidor_bosquegin.py`) era single-threaded — un solo pedido lento (ej. esperando hasta 30-40s una pestaña de Klozer trabada) dejaba el tablero entero sin responder a nada más, ni login ni navegación. Pasado a `ThreadingHTTPServer`; verificado con una prueba real (pedido lento + pedido rápido en simultáneo) que ya no se traba.
+- **fix (durante las pruebas):** las cervezas en caja mostraban una diferencia falsa de ~83% entre Contabilium (cuenta latas sueltas) y Klozer (cuenta cajas) — se detecta el tamaño de caja desde el propio nombre del producto en Klozer (ej. "CAJA X6") y se multiplica antes de comparar.
+- **fix (durante las pruebas):** Brave suspende pestañas en segundo plano y dejan de responder a CDP — se relanza con flags que evitan la suspensión, y el código ahora trae la pestaña al frente (`/json/activate`) antes de leerla, con reintento.
+- **fix (durante las pruebas):** la página de Klozer no conserva la Unidad de negocio seleccionada entre reinicios del navegador — el código ahora selecciona "Temple Brewery" y dispara la búsqueda él solo, en vez de depender de que quede pre-configurada a mano.
+- Verificado de punta a punta con un usuario de prueba (creado y borrado en la misma sesión): actualizar trae datos reales, guardar persiste observaciones/ajustado y genera el informe.
+- **pendiente:** falta terminar de mover la verificación de contraseña del login al Worker (para que `auth_static.js` deje de exponer hashes/cloud_token en el repo público) — quedó acordado pero no implementado todavía.
+
+---
+
 ## v3.38 — 2026-08-07
 
 - **feat:** "Administración" (gestión de usuarios) ahora funciona también en el sitio publicado, no solo en local. El Cloudflare Worker suma `/admin_users` (listar/crear/editar/borrar), con hashing PBKDF2-SHA256/100.000 idéntico al del servidor local y al del login del sitio publicado, leyendo y escribiendo `auth_static.js` directo en GitHub (mismo archivo del que ya se validan las sesiones).
