@@ -767,6 +767,10 @@
     <span class="tab-icon">🧪</span>
     <span style="line-height:1.25">Inventario<br><span style="font-size:9px">Insumos</span></span>
   </div>
+  <div class="tab" data-section="control-inventario" onclick="showSection('control-inventario', this)">
+    <span class="tab-icon">📋</span>
+    <span style="line-height:1.25">Control<br><span style="font-size:9px">Inventario</span></span>
+  </div>
   <div class="tab" data-section="admin" onclick="showSection('admin', this)" style="display:none">
     <span class="tab-icon">⚙️</span> Administración
   </div>
@@ -1948,6 +1952,7 @@ var _sectionFiles = {
   destileria:  ['data_destileria.js'],
   costos:      ['data_costos.js'],
   'inv-insumos':['data_insumos.js'],
+  'control-inventario': ['data_control_inventario.js'],
   admin:       [],
 };
 
@@ -1985,6 +1990,7 @@ function showSection(id, el) {
     if (id === 'calendario') renderCalendario();
     if (id === 'costos')       renderCostos();
     if (id === 'inv-insumos')  renderInsumos();
+    if (id === 'control-inventario') renderControlInventario();
     if (id === 'admin')        { if (window._admLoad) window._admLoad(); }
   });
 }
@@ -8020,6 +8026,243 @@ document.addEventListener('DOMContentLoaded', () => {
 </section>
 
 <!-- ═════════════════════════════════════════════════ ADMINISTRACIÓN ══ -->
+<!-- ═══════════════════════════════════════════════ -->
+<!--  CONTROL INVENTARIO — KLOZER Contabilium vs. Klozer (página) -->
+<!-- ═══════════════════════════════════════════════ -->
+<section id="control-inventario" class="section">
+  <style>
+    .ci-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+    .ci-kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+    .ci-kpi .n{font-size:19px;font-weight:700}
+    .ci-kpi .l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+    #ci-table th,#ci-table td{white-space:nowrap}
+    #ci-table td.ci-prod{white-space:normal;max-width:220px}
+    .ci-obs{width:100%;min-width:140px;background:var(--bg);border:1px solid var(--border);border-radius:5px;
+            color:var(--text);font-size:9.5px;padding:4px 7px;font-family:inherit}
+    .ci-row-crit td{background:rgba(239,68,68,.06)}
+    .ci-row-med td{background:rgba(234,179,8,.05)}
+    .ci-badge{font-size:9px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase}
+    .ci-badge.local{background:rgba(56,189,248,.14);color:var(--accent2)}
+    .ci-readonly-note{background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.25);border-radius:10px;
+                       padding:10px 14px;font-size:10.5px;color:var(--text);margin-bottom:14px;line-height:1.6}
+  </style>
+
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+    <div style="font-size:9px;color:var(--muted);flex:1;min-width:280px">
+      ⓘ Compara stock de KLOZER entre Contabilium y la página propia de Klozer, por código de producto.
+      Tiene su Actualizar propio — no corre con el Actualizar general del tablero.
+    </div>
+    <div style="display:flex;gap:8px;align-items:center" id="ci-actions"></div>
+  </div>
+
+  <div id="ci-readonly-note" class="ci-readonly-note" style="display:none">
+    ⓘ Esta hoja necesita tu navegador local logueado en Klozer para poder actualizarse — desde el sitio publicado
+    solo se puede <b>ver</b> la última comparación guardada, de solo lectura.
+  </div>
+
+  <div class="ci-kpis" id="ci-kpis"></div>
+
+  <div class="table-card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="table-title">📋 Detalle por producto</div>
+      <span id="ci-count" style="font-size:9px;color:var(--muted)"></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="ci-table">
+        <thead>
+          <tr>
+            <th style="text-align:left">Cód.</th>
+            <th style="text-align:left">Producto</th>
+            <th style="text-align:right">Contabilium</th>
+            <th style="text-align:right">Klozer (página)</th>
+            <th style="text-align:right">Diferencia</th>
+            <th style="text-align:right">% Diferencia</th>
+            <th style="text-align:left">Observaciones</th>
+            <th style="text-align:center">Ajustado</th>
+          </tr>
+        </thead>
+        <tbody id="ci-tbody"></tbody>
+      </table>
+    </div>
+    <div id="ci-save-wrap" style="margin-top:14px;display:none">
+      <button class="btn-primary" onclick="ciGuardarCambios()" id="ci-save-btn"
+        style="background:rgba(74,222,128,.14);border:1px solid var(--accent);color:var(--accent);
+               border-radius:8px;padding:7px 16px;font-size:10.5px;font-weight:600;cursor:pointer">
+        💾 Guardar cambios
+      </button>
+      <span id="ci-save-msg" style="font-size:9.5px;margin-left:10px"></span>
+    </div>
+  </div>
+
+  <div id="ci-informe" class="table-card" style="display:none">
+    <div class="table-title" style="margin-bottom:8px">📄 Informe · última corrida</div>
+    <div id="ci-informe-body" style="font-size:11px;line-height:1.7;color:var(--text)"></div>
+  </div>
+</section>
+
+<script>
+window._ciProductos = [];   // estado actual en memoria (editado, sin guardar todavía)
+window._ciSucio = false;    // hay cambios sin guardar desde la última "Guardar cambios"
+
+function _ciFmt(n){ return n==null ? '—' : Math.round(n).toLocaleString('es-AR'); }
+function _ciFmtPct(n){ return n==null ? 'N/D' : (n>0?'+':'') + n.toFixed(1) + '%'; }
+
+function ciRenderActions(){
+  var wrap = document.getElementById('ci-actions');
+  if (_isLocal) {
+    wrap.innerHTML =
+      '<button onclick="ciActualizar()" id="ci-upd-btn" style="background:var(--card);border:1px solid var(--border);' +
+      'color:var(--text);border-radius:8px;padding:7px 14px;font-size:10.5px;font-weight:600;cursor:pointer">' +
+      '🔄 Actualizar Klozer</button>' +
+      '<span class="ci-badge local">Solo local</span>';
+  } else {
+    wrap.innerHTML = '';
+  }
+  document.getElementById('ci-readonly-note').style.display = _isLocal ? 'none' : 'block';
+  document.getElementById('ci-save-wrap').style.display = _isLocal ? 'block' : 'none';
+}
+
+function ciRenderKpis(productos){
+  var conDif = productos.filter(function(p){ return p.diferencia !== 0; });
+  var ajustados = conDif.filter(function(p){ return p.ajustado; });
+  var pendientes = conDif.filter(function(p){ return !p.ajustado; });
+  var netaTotal = conDif.reduce(function(s,p){ return s + p.diferencia; }, 0);
+  var sumContab = conDif.reduce(function(s,p){ return s + (p.contabilium||0); }, 0);
+  var netaPct = sumContab ? (netaTotal / sumContab * 100) : null;
+
+  var kpis = [
+    ['n', productos.length, 'Productos comparados', 'var(--text)'],
+    [ 'n', conDif.length, 'Con diferencia', 'var(--red)'],
+    ['n', pendientes.length, 'Pendientes de ajustar', 'var(--yellow)'],
+    ['n', (netaTotal>0?'+':'') + _ciFmt(netaTotal), 'Diferencia neta (uds.)', 'var(--accent2)'],
+    ['n', _ciFmtPct(netaPct), 'Diferencia neta (%)', 'var(--accent2)'],
+  ];
+  document.getElementById('ci-kpis').innerHTML = kpis.map(function(k){
+    return '<div class="ci-kpi"><div class="n" style="color:'+k[3]+'">'+k[1]+'</div><div class="l">'+k[2]+'</div></div>';
+  }).join('');
+}
+
+function ciRenderTabla(productos){
+  var tbody = document.getElementById('ci-tbody');
+  document.getElementById('ci-count').textContent = productos.length + ' productos';
+  if (!productos.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px">' +
+      (_isLocal ? 'Sin datos todavía — apretá "Actualizar Klozer".' : 'Sin datos guardados todavía.') + '</td></tr>';
+    return;
+  }
+  tbody.innerHTML = productos.map(function(p, i){
+    var cls = Math.abs(p.diferencia) >= 20 ? 'ci-row-crit' : Math.abs(p.diferencia) >= 5 ? 'ci-row-med' : '';
+    var diffColor = p.diferencia > 0 ? 'var(--green)' : p.diferencia < 0 ? 'var(--red)' : 'var(--muted)';
+    return '<tr class="'+cls+'">' +
+      '<td><code>'+p.cod+'</code></td>' +
+      '<td class="ci-prod">'+(p.art||'—')+'</td>' +
+      '<td style="text-align:right">'+_ciFmt(p.contabilium)+'</td>' +
+      '<td style="text-align:right">'+_ciFmt(p.klozer)+'</td>' +
+      '<td style="text-align:right;font-weight:700;color:'+diffColor+'">'+(p.diferencia>0?'+':'')+_ciFmt(p.diferencia)+'</td>' +
+      '<td style="text-align:right;color:'+diffColor+'">'+_ciFmtPct(p.pct_diferencia)+'</td>' +
+      '<td><input class="ci-obs" data-idx="'+i+'" data-field="observaciones" value="'+
+        (p.observaciones||'').replace(/"/g,'&quot;')+'" placeholder="—" '+
+        (_isLocal?'oninput="ciEditar('+i+',\'observaciones\',this.value)"':'disabled')+'></td>' +
+      '<td style="text-align:center"><input type="checkbox" '+(p.ajustado?'checked':'')+' '+
+        (_isLocal?'onchange="ciEditar('+i+',\'ajustado\',this.checked)"':'disabled')+'></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function ciRenderInforme(informe){
+  var box = document.getElementById('ci-informe');
+  if (!informe) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  var fecha = informe.fecha ? new Date(informe.fecha).toLocaleString('es-AR') : '—';
+  var pend = (informe.pendientes_detalle||[]).map(function(p){
+    return p.art + ' (' + p.cod + ', ' + (p.diferencia>0?'+':'') + p.diferencia + ')';
+  }).join(', ');
+  box.querySelector ? null : null;
+  document.getElementById('ci-informe-body').innerHTML =
+    'Guardado <b>' + fecha + '</b>' + (informe.usuario ? ' por ' + informe.usuario : '') + '. ' +
+    'Se revisaron <b>' + informe.total_productos + '</b> productos, <b>' + informe.con_diferencia + '</b> con diferencia. ' +
+    (informe.pendientes > 0
+      ? '<b style="color:var(--red)">' + informe.pendientes + '</b> quedaron pendientes de ajustar' +
+        (pend ? ' (' + pend + ')' : '') + '. '
+      : 'Todos los productos con diferencia quedaron ajustados. ') +
+    'Diferencia neta: <b>' + _ciFmt(informe.diferencia_neta_total) + ' → ' + _ciFmt(informe.diferencia_neta_pendiente) + '</b> unidades.';
+}
+
+function ciEditar(idx, campo, valor){
+  if (!window._ciProductos[idx]) return;
+  window._ciProductos[idx][campo] = valor;
+  window._ciSucio = true;
+  var msg = document.getElementById('ci-save-msg');
+  if (msg) { msg.textContent = 'Hay cambios sin guardar'; msg.style.color = 'var(--yellow)'; }
+}
+
+function renderControlInventario(){
+  ciRenderActions();
+  var pub = (window.BOSQUE_DATA && window.BOSQUE_DATA.control_inventario) || null;
+  if (!window._ciLoadedOnce) {
+    window._ciProductos = pub ? (pub.productos || []) : [];
+    window._ciLoadedOnce = true;
+  }
+  ciRenderKpis(window._ciProductos);
+  ciRenderTabla(window._ciProductos);
+  ciRenderInforme(pub ? pub.informe : null);
+}
+
+function ciActualizar(){
+  var btn = document.getElementById('ci-upd-btn');
+  btn.disabled = true;
+  btn.textContent = '🔄 Actualizando…';
+  fetch('/control_inventario/actualizar', {credentials:'same-origin'})
+    .then(function(r){ if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      btn.textContent = '🔄 Actualizar Klozer';
+      if (!d.ok) { alert('No se pudo actualizar: ' + (d.error||'error desconocido')); return; }
+      window._ciProductos = d.productos;
+      window._ciSucio = true;
+      var msg = document.getElementById('ci-save-msg');
+      if (msg) { msg.textContent = 'Datos frescos sin guardar'; msg.style.color = 'var(--yellow)'; }
+      ciRenderKpis(window._ciProductos);
+      ciRenderTabla(window._ciProductos);
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      btn.textContent = '🔄 Actualizar Klozer';
+      if (e.message !== 'auth') alert('Error de red: ' + e.message);
+    });
+}
+
+function ciGuardarCambios(){
+  var btn = document.getElementById('ci-save-btn');
+  var msg = document.getElementById('ci-save-msg');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  fetch('/control_inventario/guardar', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    credentials: 'same-origin',
+    body: JSON.stringify({productos: window._ciProductos})
+  })
+    .then(function(r){ if (_auth401(r)) throw new Error('auth'); return r.json(); })
+    .then(function(d){
+      btn.disabled = false;
+      btn.textContent = '💾 Guardar cambios';
+      if (!d.ok) { msg.textContent = 'Error: ' + (d.error||'desconocido'); msg.style.color = 'var(--red)'; return; }
+      window._ciProductos = d.productos;
+      window._ciSucio = false;
+      msg.textContent = 'Guardado ✓';
+      msg.style.color = 'var(--green)';
+      ciRenderTabla(window._ciProductos);
+      ciRenderInforme(d.informe);
+    })
+    .catch(function(e){
+      btn.disabled = false;
+      btn.textContent = '💾 Guardar cambios';
+      if (e.message !== 'auth') { msg.textContent = 'Error de red: ' + e.message; msg.style.color = 'var(--red)'; }
+    });
+}
+</script>
+
 <section id="admin" class="section">
 <style>
   .admin-grid { display:grid; grid-template-columns:1fr 380px; gap:20px; align-items:start; }
@@ -8096,6 +8339,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <label><input type="checkbox" value="calendario"  checked/> Calendario</label>
         <label><input type="checkbox" value="costos"      checked/> Lista de Precios</label>
         <label><input type="checkbox" value="inv-insumos" checked/> Inv. Insumos</label>
+        <label><input type="checkbox" value="control-inventario" checked/> Control Inventario</label>
       </div>
       <div style="display:flex;gap:8px;margin-top:18px">
         <button type="submit" class="adm-btn adm-primary" style="flex:1" id="adm-save-btn">Guardar</button>
@@ -8109,7 +8353,8 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   var ALL_SECS = ["overview","inventario","ventas","destileria",
-                  "supply","proyeccion","logistica","calendario","costos","inv-insumos"];
+                  "supply","proyeccion","logistica","calendario","costos","inv-insumos",
+                  "control-inventario"];
   var _uCache = {};   // id -> user object
 
   function _esc(s){
