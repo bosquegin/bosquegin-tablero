@@ -12,6 +12,12 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.34 — 2026-08-07
+
+- **feat:** chequeo periódico automático de frescura de datos (`chequeo_datos.py` + `.github/workflows/chequeo_datos.yml`), corre solo 4 veces al día sin intervención y sin gastar cupo de Contabilium (solo lee `data_meta.js` ya publicado). Si Salidas o Stock quedan desactualizados, abre un Issue de GitHub asignado a la cuenta del tablero (dispara mail automático de GitHub, sin SMTP ni secretos nuevos que configurar) y lo cierra solo cuando los datos se recuperan. Objetivo: enterarse de un problema el mismo día, aunque nadie abra el tablero.
+
+---
+
 ## v3.33 — 2026-08-07
 
 - **fix:** en "Lista de Precios" las cervezas tenían un rubro inventado "CERVEZAS" que no existe en ningún otro lado del tablero — en Inventario Producto (y ahora también en Ventas/Salidas) esos mismos códigos son rubro **BEBIDAS**, sub-rubro CERVEZAS. Corregido en el pipeline y republicado.
