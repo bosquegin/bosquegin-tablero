@@ -307,6 +307,16 @@
     }
     .tab-icon { font-size: 15px; flex-shrink: 0; }
 
+    /* Sub-pestañas dentro de una hoja (ej. Costo Producción: Bosque/Feriado/Temple) */
+    .subtabs { display:flex; gap:4px; margin-bottom:14px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .subtab {
+      padding: 8px 16px; font-size: 12.5px; font-weight: 600; color: var(--muted);
+      cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+      transition: color .15s;
+    }
+    .subtab:hover { color: var(--text); }
+    .subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
     /* LAYOUT WRAPPER */
     .layout {
       display: flex;
@@ -5208,18 +5218,45 @@ function printProyPedidos() {
 let chartDest = null;
 let chartCerv = null;
 
+let _costoLineaActiva = 'BOSQUE';   // pestaña activa: BOSQUE | FERIADO | TEMPLE
+
 function initDestileria() {
   const D = BOSQUE_DATA.destileria;
   const prodSel = document.getElementById('dest-prod-sel');
-  if (!prodSel || prodSel.options.length > 0) return;
+  if (!prodSel) return;
   if (!D || !D.products || !D.products.length) return;
+  if (prodSel.dataset.linea === _costoLineaActiva) return;   // ya poblado para esta pestaña
 
+  prodSel.innerHTML = '';
   D.products.forEach((p, i) => {
+    if (p.linea !== _costoLineaActiva) return;
     const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = p.linea + ' · ' + p.producto;
+    opt.value = i;   // indice en D.products (sin filtrar) -- lo que lee renderDestileria()
+    opt.textContent = p.producto;
     prodSel.appendChild(opt);
   });
+  prodSel.dataset.linea = _costoLineaActiva;
+}
+
+// Cambia entre las pestañas Bosque/Feriado/Temple de Costo Producción.
+// Bosque y Feriado comparten el mismo bloque (costo-dest-block) -- solo
+// cambia qué "linea" de D.products llena el selector de producto. Temple
+// usa un bloque y una fuente de datos totalmente aparte (BOSQUE_DATA.cervezas).
+function setCostoLinea(linea, tabEl) {
+  _costoLineaActiva = linea;
+  document.querySelectorAll('.subtabs .subtab').forEach(t => t.classList.remove('active'));
+  tabEl.classList.add('active');
+
+  const esTemple = linea === 'TEMPLE';
+  document.getElementById('costo-dest-block').style.display = esTemple ? 'none' : '';
+  document.getElementById('costo-cerv-block').style.display = esTemple ? '' : 'none';
+
+  if (esTemple) {
+    renderCervezas();
+  } else {
+    document.getElementById('dest-prod-sel').dataset.linea = '';   // forzar repoblado
+    renderDestileria();
+  }
 }
 
 function renderDestileria() {
@@ -5239,8 +5276,7 @@ function renderDestileria() {
   const MAX_P = 18;
   const visPeriods = periods.slice(-MAX_P);
 
-  document.getElementById('dest-chart-title').textContent =
-    prod.linea + ' · ' + prod.producto;
+  document.getElementById('dest-chart-title').textContent = prod.producto;
 
   // KPIs: último y penúltimo período con datos
   const periodsWithData = periods.filter(p => prod.data[p.key] != null);
@@ -7206,56 +7242,61 @@ document.addEventListener('DOMContentLoaded', () => {
     <div class="table-title" style="font-size:15px">🏭 Costo Producción Bosque · Feriado · Temple</div>
   </div>
 
-  <div class="filter-bar" style="margin-bottom:16px;position:static">
-    <span class="filter-label">Producto:</span>
-    <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
+  <div class="subtabs">
+    <div class="subtab active" data-linea="BOSQUE" onclick="setCostoLinea('BOSQUE', this)">Bosque · Gin</div>
+    <div class="subtab" data-linea="FERIADO" onclick="setCostoLinea('FERIADO', this)">Feriado · Vermú</div>
+    <div class="subtab" data-linea="TEMPLE" onclick="setCostoLinea('TEMPLE', this)">Temple · Cerveza</div>
   </div>
 
-  <div class="kpi-grid" id="dest-kpis"></div>
+  <div id="costo-dest-block">
+    <div class="filter-bar" style="margin-bottom:16px;position:static">
+      <span class="filter-label">Producto:</span>
+      <select id="dest-prod-sel" onchange="renderDestileria()" style="min-width:220px"></select>
+    </div>
 
-  <div class="chart-card" style="margin-bottom:16px">
-    <div class="chart-title" id="dest-chart-title">Destilería</div>
-    <div class="chart-subtitle">Últimos 18 períodos · barras = Destilería + Cervecería · línea = Total</div>
-    <div class="chart-wrap tall"><canvas id="chartDestileria"></canvas></div>
-  </div>
+    <div class="kpi-grid" id="dest-kpis"></div>
 
-  <div class="table-card">
-    <div class="table-title">📊 Cuadro evolutivo de costos · Destilería</div>
-    <div class="chart-subtitle" style="margin-bottom:10px">Costo Prod. y Fin. + Costo Insumos = Costo Neto · variación mes a mes · anualizado = Costo Neto × 12</div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead id="dest-thead"></thead>
-      <tbody id="dest-tbody"></tbody>
-    </table>
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="chart-title" id="dest-chart-title">Destilería</div>
+      <div class="chart-subtitle">Últimos 18 períodos · barras = Destilería + Cervecería · línea = Total</div>
+      <div class="chart-wrap tall"><canvas id="chartDestileria"></canvas></div>
+    </div>
+
+    <div class="table-card">
+      <div class="table-title">📊 Cuadro evolutivo de costos</div>
+      <div class="chart-subtitle" style="margin-bottom:10px">Costo Prod. y Fin. + Costo Insumos = Costo Neto · variación mes a mes · anualizado = Costo Neto × 12</div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead id="dest-thead"></thead>
+        <tbody id="dest-tbody"></tbody>
+      </table>
+      </div>
     </div>
   </div>
 
-  <div style="margin-top:28px;margin-bottom:14px;border-top:1px solid var(--border);padding-top:18px">
-    <div class="table-title" style="font-size:15px">🍺 Costo Cervezas Lata</div>
-    <div class="chart-subtitle" style="margin-top:2px">Fuente: hojas mensuales (MM/AA) · Col. K = Costo Mes ACT por producto</div>
-  </div>
+  <div id="costo-cerv-block" style="display:none">
+    <div class="filter-bar" style="margin-bottom:16px;position:static">
+      <span class="filter-label">Producto:</span>
+      <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
+    </div>
 
-  <div class="filter-bar" style="margin-bottom:16px;position:static">
-    <span class="filter-label">Producto:</span>
-    <select id="cerv-prod-sel" onchange="renderCervezas()" style="min-width:220px"></select>
-  </div>
+    <div class="kpi-grid" id="cerv-kpis"></div>
 
-  <div class="kpi-grid" id="cerv-kpis"></div>
+    <div class="chart-card" style="margin-bottom:16px">
+      <div class="chart-title" id="cerv-chart-title">Cervezas</div>
+      <div class="chart-subtitle">Costo neto mensual · $/L · col. K de cada hoja mensual</div>
+      <div class="chart-wrap"><canvas id="chartCerveza"></canvas></div>
+    </div>
 
-  <div class="chart-card" style="margin-bottom:16px">
-    <div class="chart-title" id="cerv-chart-title">Cervezas</div>
-    <div class="chart-subtitle">Costo neto mensual · $/L · col. K de cada hoja mensual</div>
-    <div class="chart-wrap"><canvas id="chartCerveza"></canvas></div>
-  </div>
-
-  <div class="table-card">
-    <div class="table-title">📊 Cuadro evolutivo de costos · Cervezas</div>
-    <div class="chart-subtitle" style="margin-bottom:10px">Costo neto $/L · variación mes a mes</div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead id="cerv-thead"></thead>
-      <tbody id="cerv-tbody"></tbody>
-    </table>
+    <div class="table-card">
+      <div class="table-title">📊 Cuadro evolutivo de costos</div>
+      <div class="chart-subtitle" style="margin-bottom:10px">Costo neto $/L · variación mes a mes</div>
+      <div style="overflow-x:auto">
+      <table>
+        <thead id="cerv-thead"></thead>
+        <tbody id="cerv-tbody"></tbody>
+      </table>
+      </div>
     </div>
   </div>
 
