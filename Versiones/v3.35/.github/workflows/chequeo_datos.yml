@@ -1,0 +1,28 @@
+name: Chequeo periódico de datos
+
+# Corre solo, sin que nadie tenga que abrir el tablero, y sin tocar
+# Contabilium (no gasta el cupo de la API): lee data_meta.js ya publicado y
+# avisa por Issue de GitHub (con mail automático) si Salidas o Stock quedan
+# desactualizados. Ver chequeo_datos.py.
+on:
+  schedule:
+    # 11, 15, 19 y 23 hs UTC == 08, 12, 16 y 20 hs Argentina (aprox, sin
+    # horario de verano). Cron de GitHub Actions siempre en UTC.
+    - cron: '0 11,15,19,23 * * *'
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+
+jobs:
+  chequeo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Chequear frescura de datos
+        run: python3 chequeo_datos.py
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

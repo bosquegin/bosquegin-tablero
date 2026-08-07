@@ -12,6 +12,13 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.35 — 2026-08-07
+
+- **fix:** en Lista de Precios, el primer cuadro ("Mes a mes") quedaba recortado con scroll interno a 400px de alto — ahora se ve completo, igual que el segundo cuadro ("Evolución mensual").
+- **feat:** la tabla evolutiva de Cervezas (Costo Producción → Temple) ahora muestra quién elaboró cada lata **por mes** (Ortuzar/Filidoro/Bierhaus/Cmq/etc.), en una columna nueva "Elaborador" a la izquierda — antes solo se guardaba el elaborador del mes más reciente, así que un cambio de fasón a mitad de año no se veía reflejado en el historial.
+
+---
+
 ## v3.34 — 2026-08-07
 
 - **feat:** chequeo periódico automático de frescura de datos (`chequeo_datos.py` + `.github/workflows/chequeo_datos.yml`), corre solo 4 veces al día sin intervención y sin gastar cupo de Contabilium (solo lee `data_meta.js` ya publicado). Si Salidas o Stock quedan desactualizados, abre un Issue de GitHub asignado a la cuenta del tablero (dispara mail automático de GitHub, sin SMTP ni secretos nuevos que configurar) y lo cierra solo cuando los datos se recuperan. Objetivo: enterarse de un problema el mismo día, aunque nadie abra el tablero.
