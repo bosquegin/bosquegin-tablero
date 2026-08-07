@@ -12,6 +12,14 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.36 — 2026-08-07
+
+- **fix:** en Proyección Producción, los meses ya cerrados de trimestres pasados (Q1 y Q2 2026) mostraban un saldo de cierre calculado por cascada (stock + abastecimiento − venta objetivo) en vez del stock real medido ese mes — llegaba a mostrar alarmas de "COMPRAR" falsas cuando el stock real era saludable (ej. Gin Bosque Nativo en junio: -1.092 calculado vs. 2.204 real). Ahora esos meses se anclan directo al cierre real de `STOCK_CIERRE_MES` — el mismo histórico que ya usa "Rotación mensual por rubro" en Inventario Productos, para que coincida en todo el tablero.
+- **fix:** enero 2026 no tenía cierre real propio (el último export de depósitos es del 16, quince días antes de fin de mes). Se usa como proxy el stock real del 4 de febrero — primer día de febrero con un reporte de depósitos válido (el del 3/2 resultó ser de otro tipo de reporte, "stock en tanques"). Aprobado explícitamente después de comparar ambas opciones lado a lado.
+- **verificado:** simulación mostrada y aprobada antes de tocar código; luego corrida real de Actualizar local de punta a punta (Contabilium respondió sin 429) confirmando que el dato publicado coincide exactamente con lo simulado — 8 alarmas de faltante falsas eliminadas, mayor corrección individual +3.296 unidades.
+
+---
+
 ## v3.35 — 2026-08-07
 
 - **fix:** en Lista de Precios, el primer cuadro ("Mes a mes") quedaba recortado con scroll interno a 400px de alto — ahora se ve completo, igual que el segundo cuadro ("Evolución mensual").
