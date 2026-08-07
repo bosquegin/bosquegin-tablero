@@ -1,0 +1,12 @@
+name = "bosquegin-actualizar"
+main = "src/worker.js"
+compatibility_date = "2024-11-01"
+
+[vars]
+GITHUB_OWNER = "bosquegin"
+GITHUB_REPO = "bosquegin-tablero"
+WORKFLOW_FILE = "actualizar.yml"
+
+# El PAT con permiso "Actions: write" + "Contents: read" se carga como
+# secreto (NO va en este archivo):
+#   wrangler secret put GH_TOKEN

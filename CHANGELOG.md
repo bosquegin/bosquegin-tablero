@@ -12,6 +12,15 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.33 — 2026-08-07
+
+- **fix:** en "Lista de Precios" las cervezas tenían un rubro inventado "CERVEZAS" que no existe en ningún otro lado del tablero — en Inventario Producto (y ahora también en Ventas/Salidas) esos mismos códigos son rubro **BEBIDAS**, sub-rubro CERVEZAS. Corregido en el pipeline y republicado.
+- **fix:** "VASOS" (Lista de Precios) y "CRISTALERIA" (Inventario Producto) eran el mismo rubro real con nombre distinto en cada planilla — se normaliza al nombre de Inventario (CRISTALERIA), que es el que se toma como canónico.
+- **fix:** el selector de rubro de la hoja Salidas tenía una lista fija a mano (BEBIDAS/BOLSAS/CERVEZA/COMBO/ESTUCHE/FUNDA/INDUMENTARIA/MOBILIARIO/SIN RUBRO/VASOS) que ya no coincidía con los rubros reales — "CERVEZA" y "VASOS" no existen en los datos (filtrar por esos nunca traía resultados) y faltaba "CRISTALERIA" (no se podía filtrar por él). Ahora el selector se arma solo, a partir de los rubros que realmente aparecen en los datos.
+- **feat:** el selector de Rubro + buscador de artículo de la hoja Salidas se movió al encabezado de filtros (junto a Año/Mes/Cliente) — ya afectaba a toda la hoja (KPIs, gráfico mensual, tabla de rubros), pero estaba visualmente pegado solo a la tabla "Detalle por producto", lo que hacía parecer que filtraba nada más que esa tabla.
+
+---
+
 ## v3.32 — 2026-08-06
 
 - **fix crítico:** Salidas y Proyección Producción volvieron a mostrar solo hasta junio, sin julio ni agosto. Causa raíz confirmada en el log real de la corrida cloud: Contabilium devolvió `429 Too Many Requests` desde la primerísima llamada del run (probablemente el cupo del día ya gastado por varias corridas de prueba hoy), y el pipeline — aunque detectó y logueó el error (`❌ Consolidado salidas — desactualizado`) — igual publicó el consolidado viejo sin avisar nada visible en el tablero. Se restauraron los datos publicados con la corrida local (que sí tenía julio y agosto al día) mientras se aplican las mejoras de fondo.
