@@ -12,6 +12,12 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.37 — 2026-08-07
+
+- **feat:** en Proyección Producción, al desplegar un trimestre ahora aparece una explicación en criollo de los 7 indicadores del encabezado (En alerta, A comprar, Cumplim. objetivo, Forecast Accuracy/Bias/MAPE). Para el trimestre EN CURSO suma una advertencia: los tres indicadores de forecast comparan el objetivo del mes completo contra lo vendido en lo que va del mes, así que a principios de mes se ven mucho peor de lo que realmente son (se corrigen solos con el correr del mes) — evita que se lean como una alarma real cuando es solo un efecto de comparar un mes a medio transcurrir.
+
+---
+
 ## v3.36 — 2026-08-07
 
 - **fix:** en Proyección Producción, los meses ya cerrados de trimestres pasados (Q1 y Q2 2026) mostraban un saldo de cierre calculado por cascada (stock + abastecimiento − venta objetivo) en vez del stock real medido ese mes — llegaba a mostrar alarmas de "COMPRAR" falsas cuando el stock real era saludable (ej. Gin Bosque Nativo en junio: -1.092 calculado vs. 2.204 real). Ahora esos meses se anclan directo al cierre real de `STOCK_CIERRE_MES` — el mismo histórico que ya usa "Rotación mensual por rubro" en Inventario Productos, para que coincida en todo el tablero.
