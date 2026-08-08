@@ -1,0 +1,52 @@
+name: Actualizar tablero
+
+# Reemplaza al servidor Flask en Render (servidor_render.py). Corre el mismo
+# actualizar_cloud.py pero como job de GitHub Actions: sin servidor siempre
+# encendido, sin cold-start. Lo dispara el Worker de Cloudflare (ver
+# cloudflare-worker/) cuando alguien aprieta "Actualizar" en el tablero.
+on:
+  workflow_dispatch: {}
+
+# Evita que dos actualizaciones corran en paralelo si se dispara mas de una
+# vez seguida (el Worker ya chequea esto, esto es una segunda red de
+# seguridad a nivel de GitHub).
+concurrency:
+  group: actualizar-tablero
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Configurar credenciales Contabilium
+        run: |
+          cat > contabilium_config.json <<EOF
+          {"client_id": "${CONTABILIUM_CLIENT_ID}", "client_secret": "${CONTABILIUM_CLIENT_SECRET}"}
+          EOF
+        env:
+          CONTABILIUM_CLIENT_ID: ${{ secrets.CONTABILIUM_CLIENT_ID }}
+          CONTABILIUM_CLIENT_SECRET: ${{ secrets.CONTABILIUM_CLIENT_SECRET }}
+
+      - name: Actualizar
+        run: python actualizar_cloud.py
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
+          GOOGLE_OAUTH_REFRESH_TOKEN: ${{ secrets.GOOGLE_OAUTH_REFRESH_TOKEN }}
+          DRIVE_ROOT_FOLDER_ID: ${{ secrets.DRIVE_ROOT_FOLDER_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

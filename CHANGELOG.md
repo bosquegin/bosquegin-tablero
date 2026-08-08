@@ -12,6 +12,16 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.40 — 2026-08-07
+
+- **fix:** email mal cargado de Loana — era `loa.desalvo@bosquegin.con` (terminaba en `.con`), corregido a `.com`. Corregido en `users.json` local y regenerado `auth_static.js`.
+- **fix:** Control Inventario comparaba TODOS los códigos que aparecían en Contabilium o Klozer, incluyendo cosas que no son productos de catálogo (ítems internos de Klozer, combos raros, etc.). Ahora se filtra a solo los códigos que existen en la hoja **Inventario Producto** (`PRODUCTOS.xlsx`).
+- **feat:** Control Inventario suma columnas **Rubro** y **Subrubro** a la tabla.
+- **feat:** el encabezado de la tabla de Control Inventario ahora es clickeable para ordenar por cualquier columna (Cód., Producto, Rubro, Subrubro, Contabilium, Klozer, Diferencia, % Diferencia), con flecha indicando la dirección. Por defecto ordena por |Diferencia| descendente, como antes.
+- **pendiente:** sigue faltando mover la verificación de contraseña del login al Worker (para que `auth_static.js` deje de exponer hashes/cloud_token en el repo público) — es el próximo paso.
+
+---
+
 ## v3.39 — 2026-08-07
 
 - **feat:** nueva hoja **Control Inventario** — compara stock de KLOZER entre Contabilium (API) y la página propia de Klozer (klozer.co), por código de producto, ordenado por diferencia. Tiene su propio botón "Actualizar Klozer" (no corre con el Actualizar general), columnas de Contabilium/Klozer/Diferencia/% Diferencia, observaciones editables, checkbox de "ajustado", botón "Guardar cambios" e informe de la corrida. Klozer no tiene API — se lee la página vía CDP sobre una pestaña ya logueada en el Brave local (mismo mecanismo que ya usa cervezas), así que **solo funciona en el tablero local**; el sitio publicado muestra la última comparación guardada de solo lectura.
