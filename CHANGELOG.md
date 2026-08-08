@@ -12,6 +12,19 @@ _(sin cambios pendientes de versión todavía)_
 
 ---
 
+## v3.41 — 2026-08-08
+
+- **seguridad (arreglo final, no parche):** el login del sitio publicado dejó de exponer `password_hash`/`salt`/`cloud_token` de cada usuario en el repo público. El problema real no era el nombre del archivo (`auth_static.js`) sino que el repo entero es público — cualquier archivo en él, esté o no linkeado desde el sitio, se puede descargar vía la API de GitHub o `raw.githubusercontent.com`. Mover esos datos a otro archivo del mismo repo no solucionaba nada.
+  - Los usuarios (hash+salt+cloud_token) ahora viven en **Cloudflare Workers KV** (`AUTH_KV`), fuera del repo git, accesible solo por el Worker.
+  - Nuevo endpoint `POST /login` en el Worker: la contraseña se verifica server-side contra KV: el navegador ya no descarga ni compara hashes de nadie.
+  - `auth_static.js` queda como un stub vacío (`window.BG_AUTH = []`) — nada lo lee más. El pipeline de Actualizar dejó de subirlo a git.
+  - El panel de Administración (crear/editar/borrar usuarios) sigue funcionando igual en ambos lados — local escribe en `users.json` y espeja cada cambio al Worker (best-effort); publicado ya pegaba directo al Worker, ahora el Worker guarda en KV en vez del archivo.
+  - Migración: se importaron los 10 usuarios existentes preservando sus contraseñas actuales (nadie tiene que cambiarla) pero **rotando todos los `cloud_token`** — los anteriores habían circulado en texto plano en el repo público, así que quedan invalidados de una.
+  - **Nota:** esto cierra la exposición hacia adelante. El contenido viejo de `auth_static.js` (hasta v3.40) sigue existiendo en el historial de git de este repo público — no se puede "desexponer" sin reescribir el historial (una operación grande y disruptiva, no se hizo). Los `cloud_token` viejos ya están invalidados por la rotación; los `password_hash` viejos requerirían crackeo offline para ser útiles, mismo riesgo residual bajo que ya existía antes de este arreglo.
+- **fix:** email de Loana corregido (`.con` → `.com`) — quedó pendiente de una revisión anterior.
+
+---
+
 ## v3.40 — 2026-08-07
 
 - **fix:** email mal cargado de Loana — era `loa.desalvo@bosquegin.con` (terminaba en `.con`), corregido a `.com`. Corregido en `users.json` local y regenerado `auth_static.js`.
